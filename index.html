@@ -5950,6 +5950,11 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                             onChange={e=>setEditCobroForm({...editCobroForm,otrosDescuentos:e.target.value})}
                             className="border-2 border-orange-200 rounded px-2 py-1 text-xs w-28 text-right"/>
                         </td>
+                        <td className="px-4 py-2 text-right">
+                          <input type="number" value={editCobroForm.otrosCostosCobranza}
+                            onChange={e=>setEditCobroForm({...editCobroForm,otrosCostosCobranza:e.target.value})}
+                            className="border-2 border-pink-200 rounded px-2 py-1 text-xs w-28 text-right"/>
+                        </td>
                         <td className="px-4 py-2 text-right font-bold text-teal-700 bg-teal-50">
                           <div>{$n(c.amount-(parseFloat(editCobroForm.pagosTerceros)||0)-(parseFloat(editCobroForm.otrosDescuentos)||0)-(parseFloat(editCobroForm.otrosCostosCobranza)||0))}</div>
                           <div className="flex gap-1 justify-end mt-1">
@@ -5971,6 +5976,9 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                         <td className="px-4 py-2 text-right">
                           <span className={(c.otrosDescuentos||0)>0?'text-orange-500':'text-gray-300'}>{(c.otrosDescuentos||0)>0?$n(c.otrosDescuentos):'—'}</span>
                         </td>
+                        <td className="px-4 py-2 text-right">
+                          <span className={(c.otrosCostosCobranza||0)>0?'text-pink-600':'text-gray-300'}>{(c.otrosCostosCobranza||0)>0?$n(c.otrosCostosCobranza):'—'}</span>
+                        </td>
                         <td className="px-4 py-2 text-right font-bold text-teal-700 bg-teal-50">
                           <div className="flex items-center justify-end gap-2">
                             <span>{$n(getBaseCalculo(c))}</span>
@@ -5990,6 +5998,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                 <td className="px-4 py-2 text-right text-emerald-700">{$n(totCobrosReales)}</td>
                 <td className="px-4 py-2 text-right text-red-600">{cobros.some(c=>c.pagosTerceros>0)?$n(cobros.reduce((s,c)=>s+(c.pagosTerceros||0),0)):'—'}</td>
                 <td className="px-4 py-2 text-right text-orange-500">{cobros.some(c=>c.otrosDescuentos>0)?$n(cobros.reduce((s,c)=>s+(c.otrosDescuentos||0),0)):'—'}</td>
+                <td className="px-4 py-2 text-right text-pink-600">{cobros.some(c=>(c.otrosCostosCobranza||0)>0)?$n(cobros.reduce((s,c)=>s+(c.otrosCostosCobranza||0),0)):'—'}</td>
                 <td className="px-4 py-2 text-right text-teal-700 bg-teal-50">{$n(totBase)}</td>
               </tr>
             </tfoot>
