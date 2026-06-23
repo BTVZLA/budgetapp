@@ -3787,7 +3787,7 @@ function APartReport({data,currentUser}){
       projCodigo:proj.codigo||'',
       client:proj.client||'—',
       pct:rp?rp.pct:0,
-      periodo:getPeriodoPago(pago.fecha),
+      periodo:proj.periodo||getPeriodoPago(pago.fecha),
     };
   });
 
