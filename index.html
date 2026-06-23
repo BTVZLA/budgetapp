@@ -3765,6 +3765,7 @@ function APartReport({data,currentUser}){
   const [subTab,setSubTab]=useState('pagadas');
   const [filtroPeriodo,setFiltroPeriodo]=useState('todos');
   const [filtroPersona,setFiltroPersona]=useState('todos');
+  const [corte,setCorte]=useState(''); // 'YYYY-MM' — corte al cierre de mes
   const [expandedPersonas,setExpandedPersonas]=useState({});
   const togglePersona=id=>setExpandedPersonas(prev=>({...prev,[id]:!(prev[id]!==false)}));
   // Default: all expanded (open). Only close if explicitly toggled to false-then-true
@@ -3799,7 +3800,9 @@ function APartReport({data,currentUser}){
   const filtered=enriched.filter(p=>{
     const okP=filtroPeriodo==='todos'||p.periodo===filtroPeriodo;
     const okPers=filtroPersona==='todos'||p.personId===filtroPersona;
-    return okP&&okPers;
+    // Corte al cierre de mes: incluye solo pagos con fecha <= último día del mes elegido
+    const okCorte=!corte||(p.fecha&&p.fecha.slice(0,7)<=corte);
+    return okP&&okPers&&okCorte;
   }).sort((a,b)=>{
     if(a.personName!==b.personName)return a.personName.localeCompare(b.personName);
     return(a.fecha||'')>(b.fecha||'')?1:-1;
@@ -3821,6 +3824,28 @@ function APartReport({data,currentUser}){
   const totGlobal=filtered.reduce((s,p)=>s+p.amount,0);
   const totSocios=filtered.filter(p=>p.isSocio).reduce((s,p)=>s+p.amount,0);
   const totNoSocios=filtered.filter(p=>!p.isSocio).reduce((s,p)=>s+p.amount,0);
+
+  // Etiqueta legible del corte: 'YYYY-MM' → 'Mar 2026'
+  const corteLabel=corte?MO_NAMES[parseInt(corte.slice(5,7),10)-1]+' '+corte.slice(0,4):'';
+
+  // Genera reporte CSV de participaciones pagadas, por persona y ordenado por fecha
+  const exportReporteCSV=()=>{
+    const esc=v=>{const s=String(v==null?'':v);return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+    const fmt=n=>(Math.round((+n||0)*100)/100).toFixed(2);
+    const rows=[['Persona','Categoria','Fecha','Periodo','Codigo','Proyecto','Cliente','%','Monto USD','Tasa Cambio','Monto Bs','Notas']];
+    personaList.forEach(persona=>{
+      const pagosP=filtered.filter(p=>p.personId===persona.id).sort((a,b)=>(a.fecha||'')>(b.fecha||'')?1:-1);
+      pagosP.forEach(p=>rows.push([persona.name,persona.cat,p.fecha||'',p.periodo,p.projCodigo,p.projName,p.client,p.pct||0,fmt(p.amount),p.tasaCambio||0,fmt((p.amount||0)*(p.tasaCambio||0)),p.notes||'']));
+      rows.push(['','Subtotal '+persona.name,'','','','','','',fmt(pagosP.reduce((s,p)=>s+p.amount,0)),'','','']);
+    });
+    rows.push(['','TOTAL GENERAL','','','','','','',fmt(totGlobal),'','','']);
+    const meta='Reporte de Participaciones Pagadas'+(corte?' — Corte al cierre de '+corteLabel:'')+(filtroPeriodo!=='todos'?' — Periodo '+filtroPeriodo:'');
+    const csv=meta+'\n\n'+rows.map(r=>r.map(esc).join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('﻿'+csv);
+    a.download='participaciones_pagadas'+(corte?'_corte_'+corte:'')+'.csv';
+    a.click();
+  };
 
   return(
     <div className="p-6 max-w-5xl">
@@ -3861,6 +3886,23 @@ function APartReport({data,currentUser}){
       </div>
 
       {subTab==='pagadas'&&<>
+      {/* Corte al cierre de mes + generar reporte */}
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap bg-white border rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-gray-600 text-xs font-semibold">✂️ Corte al cierre de:</label>
+          <input type="month" value={corte} onChange={e=>setCorte(e.target.value)}
+            className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300"/>
+          {corte&&<button onClick={()=>setCorte('')} className="text-gray-400 hover:text-red-500 text-xs">✕ quitar</button>}
+          {corte
+            ?<span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs" title="No incluye pagos sin fecha">Pagos hasta {corteLabel}</span>
+            :<span className="text-gray-300 text-xs">— sin corte: muestra todos los pagos —</span>}
+        </div>
+        <button onClick={exportReporteCSV} disabled={filtered.length===0}
+          className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-xs font-medium">
+          ⬇ Generar reporte CSV
+        </button>
+      </div>
+      {corte&&<div className="text-gray-400 text-xs mb-3 -mt-1">ℹ️ El corte incluye los pagos con fecha hasta el cierre de <b>{corteLabel}</b>. Los pagos sin fecha asignada quedan excluidos del corte.</div>}
       {/* Summary cards */}
       <div className={'grid gap-3 mb-6 '+(isAdmin?'grid-cols-4':'grid-cols-3')}>
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs">
