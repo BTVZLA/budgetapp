@@ -1371,7 +1371,7 @@ function AResumen({data,PeriodoSelector}){
                 {plRows.map((row,i)=>(
                   <tr key={i} className={(row.sep?'border-t-2 border-indigo-200':'border-t')+(row.bold?' bg-gray-50':'')}>
                     <td className={'px-4 py-2 '+(row.bold?'font-semibold ':'')+row.color}>{row.l}</td>
-                    <td className={'px-4 py-2 text-right '+(row.bold?'font-bold ':'')+row.color}>{$n(Math.abs(row.e))}{row.e<0&&<span className="text-gray-400 ml-1">(costo)</span>}</td>
+                    <td className={'px-4 py-2 text-right '+(row.bold?'font-bold ':'')+row.color}>{$n(Math.abs(row.e))}</td>
                     <td className={'px-4 py-2 text-right font-semibold '+(row.aColor||row.color)}>{row.a!=null?$n(Math.abs(row.a)):'—'}</td>
                     <td className="px-4 py-2 text-right text-gray-500">{tRE>0?pc(Math.abs(row.e)/tRE*100):'—'}</td>
                   </tr>
