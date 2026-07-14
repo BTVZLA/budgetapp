@@ -185,6 +185,7 @@ const fromDB={
     pctBono:+(r.pct_bono||0),casoEspecial:r.caso_especial||'',estado:r.estado||'borrador',
     aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||'',notas:r.notas||'',comentariosEvaluado:r.comentarios_evaluado||'',fechaComentario:r.fecha_comentario||''}),
   timesheets:r=>({id:r.id,userId:r.user_id,weekStart:r.week_start,dayOfWeek:+r.day_of_week,projectId:r.project_id||'',concept:r.concept||'',hours:+(r.hours||0),notes:r.notes||'',aprobado:r.aprobado||false,aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||''}),
+  planificacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,plannedDays:+(r.planned_days||0),estado:r.estado||'tentativa',motivo:r.motivo||'',createdBy:r.created_by||'',fecha:r.fecha||''}),
 };
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
@@ -214,6 +215,7 @@ const toDB={
     pct_bono:e.pctBono||0,caso_especial:e.casoEspecial||'',estado:e.estado||'borrador',
     aprobado_por:e.aprobadoPor||'',fecha_aprobacion:e.fechaAprobacion||null,notas:e.notas||'',comentarios_evaluado:e.comentariosEvaluado||'',fecha_comentario:e.fechaComentario||null}),
   timesheets:t=>({id:t.id,user_id:t.userId,week_start:t.weekStart,day_of_week:t.dayOfWeek,project_id:t.projectId||null,concept:t.concept||null,hours:t.hours||0,notes:t.notes||'',aprobado:t.aprobado||false,aprobado_por:t.aprobadoPor||'',fecha_aprobacion:t.fechaAprobacion||null}),
+  planificacion:p=>({id:p.id,project_id:p.projectId||null,user_id:p.userId||null,week_start:p.weekStart,planned_days:p.plannedDays||0,estado:p.estado||'tentativa',motivo:p.motivo||'',created_by:p.createdBy||'',fecha:p.fecha||null}),
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
@@ -231,7 +233,7 @@ async function loadAllData(cfg,tok){
     sbGet(cfg,tok,'external_costs'),sbGet(cfg,tok,'participations'),sbGet(cfg,tok,'expenses'),
   ]);
   // New tables loaded safely — return [] if table doesn't exist yet in Supabase
-  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals]=await Promise.all([
+  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan]=await Promise.all([
     sbGetSafe(cfg,tok,'people',fromDB.people),
     sbGetSafe(cfg,tok,'real_internal_costs',fromDB.real_internal_costs),
     sbGetSafe(cfg,tok,'real_external_costs',fromDB.real_external_costs),
@@ -244,6 +246,7 @@ async function loadAllData(cfg,tok){
     sbGetSafe(cfg,tok,'other_labor_costs',fromDB.other_labor_costs),
     sbGetSafe(cfg,tok,'timesheets',fromDB.timesheets),
     sbGetSafe(cfg,tok,'evaluaciones',fromDB.evaluaciones),
+    sbGetSafe(cfg,tok,'planificacion',fromDB.planificacion),
   ]);
   const s=sets[0]||{rates:{},part_cats:[]};
   return{
@@ -275,6 +278,7 @@ async function loadAllData(cfg,tok){
     otherLaborCosts:otherLC,
     timesheets:tSheets,
     evaluaciones:evals,
+    planificacion:plan,
   };
 }
 
@@ -342,6 +346,7 @@ async function syncData(cfg,tok,old,nw){
     safe('other_labor_costs',()=>syncArr('other_labor_costs','other_labor_costs',old.otherLaborCosts||[],nw.otherLaborCosts||[])),
     syncArr('timesheets','timesheets',old.timesheets||[],nw.timesheets||[]),
     syncArr('evaluaciones','evaluaciones',old.evaluaciones||[],nw.evaluaciones||[]),
+    safe('planificacion',()=>syncArr('planificacion','planificacion',old.planificacion||[],nw.planificacion||[])),
     sc?sbUpsert(cfg,tok,'settings',[{id:1,rates:nw.rates,part_cats:nw.partCats}]):Promise.resolve(),
   ]);
   if(errors.length) throw new Error(errors.join(' | '));
@@ -695,12 +700,13 @@ function App(){
     {id:'rentabilidad',l:'Rentabilidad',i:'💹'},
     {id:'part-report',l:'Participaciones',i:'🏆'},
     {id:'timesheet',l:'TimeSheet',i:'⏱️'},
+    {id:'planificacion',l:'Planificación',i:'📆'},
   ];
   const navAllowed={
-    admin:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet'],
-    administracion:['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet'],
-    socio:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet'],
-    responsable:  ['proyectos','timesheet'],
+    admin:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    administracion:['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    socio:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    responsable:  ['proyectos','timesheet','planificacion'],
     rrhh:         ['part-report','timesheet'],
     user:         ['dashboard','proyectos','gastos','timesheet'],
     equipo:       ['timesheet'],
@@ -794,7 +800,229 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='labor-costs')return <ACostosLaborales data={data} save={save}/>;
   if(tab==='part-report')return <APartReport data={data} currentUser={currentUser}/>;
   if(tab==='timesheet')return <ATimeSheet data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
+  if(tab==='planificacion')return <APlanificacion data={visibleData} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   return null;
+}
+
+/* ══════════════════════ PLANIFICACIÓN DE PERSONAL ══════════════════════ */
+const PLAN_ESTADOS=[
+  {v:'tentativa', l:'Tentativa',  cls:'bg-amber-100 text-amber-700'},
+  {v:'confirmada',l:'Confirmada', cls:'bg-green-100 text-green-700'},
+  {v:'liberada',  l:'Liberada',   cls:'bg-gray-200 text-gray-500'},
+];
+const planEstadoCls=v=>(PLAN_ESTADOS.find(e=>e.v===v)||PLAN_ESTADOS[0]).cls;
+const planEstadoLbl=v=>(PLAN_ESTADOS.find(e=>e.v===v)||PLAN_ESTADOS[0]).l;
+
+function APlanificacion({data,save,currentUser,getLatestData}){
+  const role=(currentUser&&currentUser.role)||'';
+  const isResp=role==='responsable';
+  const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado);
+  const myProjects=isResp?allProjects.filter(p=>p.responsableId===currentUser.id):allProjects;
+  const myProjIds=new Set(myProjects.map(p=>p.id));
+  const staff=(data.users||[]).filter(u=>['equipo','responsable','user'].includes(u.role));
+  const staffIds=new Set(staff.map(u=>u.id));
+  const plans=data.planificacion||[];
+  const timesheets=data.timesheets||[];
+
+  const projName=pid=>{const p=(data.projects||[]).find(x=>x.id===pid);return p?((p.codigo?p.codigo+' · ':'')+p.name):'—';};
+  const userName=usrId=>{const u=(data.users||[]).find(x=>x.id===usrId);return u?u.name:'—';};
+
+  const [sub,setSub]=useState('planificar');
+  const [projId,setProjId]=useState((myProjects[0]||{}).id||'');
+
+  // Ventana rodante: semana actual + 5 siguientes
+  const base=getMonday(new Date().toISOString().split('T')[0]);
+  const weeks=Array.from({length:6},(_,i)=>addDays(base,i*7));
+  const [week,setWeek]=useState(weeks[0]);
+  const [cmpWeek,setCmpWeek]=useState(weeks[0]);
+
+  // Grilla local de planificación (proyecto + semana seleccionados)
+  const [grid,setGrid]=useState({});
+  useEffect(()=>{
+    const g={};
+    staff.forEach(u=>{
+      const ex=plans.find(p=>p.userId===u.id&&p.projectId===projId&&p.weekStart===week);
+      g[u.id]=ex?{plannedDays:String(ex.plannedDays||0),estado:ex.estado||'tentativa',motivo:ex.motivo||''}
+                :{plannedDays:'',estado:'tentativa',motivo:''};
+    });
+    setGrid(g);
+  },[projId,week,plans]);
+
+  const setCell=(usrId,f)=>setGrid(g=>({...g,[usrId]:{...g[usrId],...f}}));
+
+  const savePlan=()=>{
+    if(!projId)return;
+    const latest=getLatestData?getLatestData():data;
+    const arr=[...(latest.planificacion||[])];
+    staff.forEach(u=>{
+      const g=grid[u.id]||{plannedDays:'',estado:'tentativa',motivo:''};
+      const days=parseFloat(g.plannedDays)||0;
+      const keep=days>0||g.estado!=='tentativa'||(g.motivo&&g.motivo.trim());
+      const idx=arr.findIndex(p=>p.userId===u.id&&p.projectId===projId&&p.weekStart===week);
+      if(idx>=0){
+        if(keep)arr[idx]={...arr[idx],plannedDays:days,estado:g.estado,motivo:(g.motivo||'').trim(),fecha:new Date().toISOString()};
+        else arr.splice(idx,1);
+      }else if(keep){
+        arr.push({id:uid(),projectId:projId,userId:u.id,weekStart:week,plannedDays:days,estado:g.estado,motivo:(g.motivo||'').trim(),createdBy:currentUser.id,fecha:new Date().toISOString()});
+      }
+    });
+    save({...latest,planificacion:arr});
+  };
+
+  const weekTotalDays=wk=>plans.filter(p=>p.projectId===projId&&p.weekStart===wk).reduce((s,p)=>s+(p.plannedDays||0),0);
+  const gridTotal=Object.values(grid).reduce((s,g)=>s+(parseFloat(g.plannedDays)||0),0);
+
+  // Comparación plan vs real (1 día = 8 h)
+  const actualDays=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0)/8;
+  const cmpRows=(()=>{
+    const keys=new Map();
+    plans.filter(p=>p.weekStart===cmpWeek&&myProjIds.has(p.projectId)).forEach(p=>{
+      keys.set(p.userId+'|'+p.projectId,{uid:p.userId,pid:p.projectId,planned:p.plannedDays||0,estado:p.estado,motivo:p.motivo||''});
+    });
+    timesheets.filter(t=>t.weekStart===cmpWeek&&t.projectId&&myProjIds.has(t.projectId)&&staffIds.has(t.userId)).forEach(t=>{
+      const k=t.userId+'|'+t.projectId;
+      if(!keys.has(k))keys.set(k,{uid:t.userId,pid:t.projectId,planned:0,estado:null,motivo:''});
+    });
+    return [...keys.values()].map(r=>{
+      const real=actualDays(r.uid,r.pid,cmpWeek);
+      let verdict;
+      if(r.planned>0&&real===0)verdict=r.estado==='liberada'?{l:'Liberado',cls:'bg-gray-100 text-gray-500'}:{l:'No ejecutó',cls:'bg-red-100 text-red-700'};
+      else if(r.planned===0&&real>0)verdict={l:'Trabajó sin planificar',cls:'bg-orange-100 text-orange-700'};
+      else if(Math.abs(r.planned-real)<=0.5)verdict={l:'Cumplió',cls:'bg-green-100 text-green-700'};
+      else verdict={l:'Desviación',cls:'bg-amber-100 text-amber-700'};
+      return {...r,real,verdict};
+    }).sort((a,b)=>userName(a.uid).localeCompare(userName(b.uid)));
+  })();
+
+  return(
+    <div className="p-6 max-w-5xl">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+        <div>
+          <h2 className="font-bold text-base">📆 Planificación de Personal</h2>
+          <p className="text-gray-400 text-xs">Asigna al equipo por proyecto y semana · compara la planificación contra las horas reales de TimeSheet</p>
+        </div>
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          <button onClick={()=>setSub('planificar')} className={'px-3 py-1.5 rounded-md text-xs font-medium '+(sub==='planificar'?'bg-white shadow text-indigo-700':'text-gray-500 hover:text-gray-700')}>🗓️ Planificar</button>
+          <button onClick={()=>setSub('comparar')} className={'px-3 py-1.5 rounded-md text-xs font-medium '+(sub==='comparar'?'bg-white shadow text-emerald-700':'text-gray-500 hover:text-gray-700')}>📊 Plan vs Real</button>
+        </div>
+      </div>
+
+      {myProjects.length===0&&<div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs rounded-xl px-4 py-3">No tienes proyectos asignados para planificar.</div>}
+
+      {sub==='planificar'&&myProjects.length>0&&<>
+        <div className="bg-white rounded-xl border p-4 mb-4">
+          <label className="text-gray-500 text-xs font-medium mb-1 block">Proyecto</label>
+          <select value={projId} onChange={e=>setProjId(e.target.value)} className="w-full max-w-md border rounded-lg px-3 py-2 text-sm">
+            {myProjects.map(p=><option key={p.id} value={p.id}>{(p.codigo?p.codigo+' · ':'')+p.name} — {p.client}</option>)}
+          </select>
+        </div>
+
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {weeks.map(wk=>{
+            const tot=weekTotalDays(wk);
+            return(
+              <button key={wk} onClick={()=>setWeek(wk)}
+                className={'px-3 py-2 rounded-lg text-xs border text-left '+(week===wk?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')}>
+                <div className="font-medium">{fmtWeekLabel(wk)}</div>
+                <div className={week===wk?'text-indigo-100':'text-gray-400'}>{tot>0?tot+' días plan.':'—'}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <span className="font-semibold text-sm">Semana {fmtWeekLabel(week)}</span>
+            <span className="text-xs text-gray-400">Total planificado: <b className="text-indigo-700">{gridTotal} días</b></span>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 text-gray-400">
+              <tr>
+                <th className="text-left px-4 py-2">Persona</th>
+                <th className="text-center px-4 py-2 w-32">Días (0–5)</th>
+                <th className="text-left px-4 py-2 w-40">Estado</th>
+                <th className="text-left px-4 py-2">Motivo / nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map(u=>{
+                const g=grid[u.id]||{plannedDays:'',estado:'tentativa',motivo:''};
+                const active=(parseFloat(g.plannedDays)||0)>0;
+                return(
+                  <tr key={u.id} className={'border-t '+(active?'bg-indigo-50/40':'')}>
+                    <td className="px-4 py-2 font-medium text-gray-700">{u.name}</td>
+                    <td className="px-4 py-2 text-center">
+                      <input type="number" min="0" max="5" step="0.5" value={g.plannedDays}
+                        onChange={e=>setCell(u.id,{plannedDays:e.target.value})}
+                        className="w-20 border rounded-lg px-2 py-1 text-sm text-center" placeholder="0"/>
+                    </td>
+                    <td className="px-4 py-2">
+                      <select value={g.estado} onChange={e=>setCell(u.id,{estado:e.target.value})}
+                        className={'border rounded-lg px-2 py-1 text-xs '+(active?'':'opacity-40')} disabled={!active}>
+                        {PLAN_ESTADOS.map(e=><option key={e.v} value={e.v}>{e.l}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-4 py-2">
+                      <input value={g.motivo} onChange={e=>setCell(u.id,{motivo:e.target.value})}
+                        className="w-full border rounded-lg px-2 py-1 text-xs" placeholder="Opcional — motivo de desviación, nota…"/>
+                    </td>
+                  </tr>
+                );
+              })}
+              {staff.length===0&&<tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No hay personal (usuarios de equipo) registrado.</td></tr>}
+            </tbody>
+          </table>
+          <div className="px-4 py-3 border-t flex items-center justify-between gap-3 flex-wrap">
+            <span className="text-xs text-gray-400">Se guardan las filas con días &gt; 0, estado distinto de Tentativa, o con motivo.</span>
+            <button onClick={savePlan} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-semibold">💾 Guardar planificación</button>
+          </div>
+        </div>
+      </>}
+
+      {sub==='comparar'&&<>
+        <div className="flex gap-2 mb-4 flex-wrap items-center">
+          <span className="text-gray-500 text-xs font-medium">Semana:</span>
+          {weeks.map(wk=>(
+            <button key={wk} onClick={()=>setCmpWeek(wk)}
+              className={'px-3 py-1.5 rounded-lg text-xs border '+(cmpWeek===wk?'bg-emerald-600 text-white border-emerald-600':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')}>
+              {fmtWeekLabel(wk)}
+            </button>
+          ))}
+        </div>
+        <div className="bg-white rounded-xl border overflow-x-auto">
+          <div className="px-4 py-3 border-b font-semibold text-sm">Plan vs Real — {fmtWeekLabel(cmpWeek)}</div>
+          <table className="w-full text-xs min-w-max">
+            <thead className="bg-gray-50 text-gray-400">
+              <tr>
+                <th className="text-left px-4 py-2">Persona</th>
+                <th className="text-left px-4 py-2">Proyecto</th>
+                <th className="text-right px-4 py-2">Plan (días)</th>
+                <th className="text-right px-4 py-2">Real (días)</th>
+                <th className="text-left px-4 py-2">Estado plan</th>
+                <th className="text-left px-4 py-2">Veredicto</th>
+                <th className="text-left px-4 py-2">Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cmpRows.map((r,i)=>(
+                <tr key={i} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2 font-medium text-gray-700">{userName(r.uid)}</td>
+                  <td className="px-4 py-2 text-gray-600">{projName(r.pid)}</td>
+                  <td className="px-4 py-2 text-right">{r.planned>0?r.planned:'—'}</td>
+                  <td className="px-4 py-2 text-right">{r.real>0?(Math.round(r.real*100)/100):'—'}</td>
+                  <td className="px-4 py-2">{r.estado?<span className={'px-2 py-0.5 rounded-full '+planEstadoCls(r.estado)}>{planEstadoLbl(r.estado)}</span>:<span className="text-gray-300">—</span>}</td>
+                  <td className="px-4 py-2"><span className={'px-2 py-0.5 rounded-full font-medium '+r.verdict.cls}>{r.verdict.l}</span></td>
+                  <td className="px-4 py-2 text-gray-400">{r.motivo||'—'}</td>
+                </tr>
+              ))}
+              {cmpRows.length===0&&<tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Sin planificación ni horas registradas para esta semana.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-gray-400 text-xs mt-3">Cruza la planificación con las horas de TimeSheet por persona, proyecto y semana (1 día = 8 h). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación, por eso no trabajó.</p>
+      </>}
+    </div>
+  );
 }
 
 /* ── Edit form extracted as standalone component (fixes cursor-jump bug) ── */
