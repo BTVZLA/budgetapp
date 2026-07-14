@@ -185,7 +185,7 @@ const fromDB={
     pctBono:+(r.pct_bono||0),casoEspecial:r.caso_especial||'',estado:r.estado||'borrador',
     aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||'',notas:r.notas||'',comentariosEvaluado:r.comentarios_evaluado||'',fechaComentario:r.fecha_comentario||''}),
   timesheets:r=>({id:r.id,userId:r.user_id,weekStart:r.week_start,dayOfWeek:+r.day_of_week,projectId:r.project_id||'',concept:r.concept||'',hours:+(r.hours||0),notes:r.notes||'',aprobado:r.aprobado||false,aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||''}),
-  planificacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,plannedDays:+(r.planned_days||0),estado:r.estado||'tentativa',motivo:r.motivo||'',createdBy:r.created_by||'',fecha:r.fecha||''}),
+  planificacion:r=>{const H=Array.isArray(r.horas)?r.horas:[];return{id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,horas:[0,1,2,3,4].map(i=>+(H[i])||0),estado:r.estado||'tentativa',motivo:r.motivo||'',createdBy:r.created_by||'',fecha:r.fecha||''};},
 };
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
@@ -215,7 +215,7 @@ const toDB={
     pct_bono:e.pctBono||0,caso_especial:e.casoEspecial||'',estado:e.estado||'borrador',
     aprobado_por:e.aprobadoPor||'',fecha_aprobacion:e.fechaAprobacion||null,notas:e.notas||'',comentarios_evaluado:e.comentariosEvaluado||'',fecha_comentario:e.fechaComentario||null}),
   timesheets:t=>({id:t.id,user_id:t.userId,week_start:t.weekStart,day_of_week:t.dayOfWeek,project_id:t.projectId||null,concept:t.concept||null,hours:t.hours||0,notes:t.notes||'',aprobado:t.aprobado||false,aprobado_por:t.aprobadoPor||'',fecha_aprobacion:t.fechaAprobacion||null}),
-  planificacion:p=>({id:p.id,project_id:p.projectId||null,user_id:p.userId||null,week_start:p.weekStart,planned_days:p.plannedDays||0,estado:p.estado||'tentativa',motivo:p.motivo||'',created_by:p.createdBy||'',fecha:p.fecha||null}),
+  planificacion:p=>{const H=Array.isArray(p.horas)?p.horas.map(h=>+h||0):[0,0,0,0,0];return{id:p.id,project_id:p.projectId||null,user_id:p.userId||null,week_start:p.weekStart,horas:H,planned_days:H.reduce((s,h)=>s+h,0)/8,estado:p.estado||'tentativa',motivo:p.motivo||'',created_by:p.createdBy||'',fecha:p.fecha||null};},
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
@@ -700,7 +700,7 @@ function App(){
     {id:'rentabilidad',l:'Rentabilidad',i:'💹'},
     {id:'part-report',l:'Participaciones',i:'🏆'},
     {id:'timesheet',l:'TimeSheet',i:'⏱️'},
-    {id:'planificacion',l:'Planificación',i:'📆'},
+    {id:'planificacion',l:'Planificación del Personal',i:'📆'},
   ];
   const navAllowed={
     admin:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
@@ -836,59 +836,64 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const [week,setWeek]=useState(weeks[0]);
   const [cmpWeek,setCmpWeek]=useState(weeks[0]);
 
-  // Grilla local de planificación (proyecto + semana seleccionados)
+  // Grilla local de planificación (proyecto + semana): horas por día Lun–Vie
+  const DIA_LBL=['Lun','Mar','Mié','Jue','Vie'];
+  const sumH=arr=>(arr||[]).reduce((s,h)=>s+(parseFloat(h)||0),0);
   const [grid,setGrid]=useState({});
   useEffect(()=>{
     const g={};
     staff.forEach(u=>{
       const ex=plans.find(p=>p.userId===u.id&&p.projectId===projId&&p.weekStart===week);
-      g[u.id]=ex?{plannedDays:String(ex.plannedDays||0),estado:ex.estado||'tentativa',motivo:ex.motivo||''}
-                :{plannedDays:'',estado:'tentativa',motivo:''};
+      const H=ex&&Array.isArray(ex.horas)?ex.horas:[0,0,0,0,0];
+      g[u.id]=ex?{horas:[0,1,2,3,4].map(i=>H[i]?String(H[i]):''),estado:ex.estado||'tentativa',motivo:ex.motivo||''}
+                :{horas:['','','','',''],estado:'tentativa',motivo:''};
     });
     setGrid(g);
   },[projId,week,plans]);
 
-  const setCell=(usrId,f)=>setGrid(g=>({...g,[usrId]:{...g[usrId],...f}}));
+  const setHora=(usrId,di,val)=>setGrid(g=>{const row=g[usrId]||{horas:['','','','',''],estado:'tentativa',motivo:''};const horas=[...row.horas];horas[di]=val;return {...g,[usrId]:{...row,horas}};});
+  const setCell=(usrId,f)=>setGrid(g=>({...g,[usrId]:{...(g[usrId]||{horas:['','','','',''],estado:'tentativa',motivo:''}),...f}}));
 
   const savePlan=()=>{
     if(!projId)return;
     const latest=getLatestData?getLatestData():data;
     const arr=[...(latest.planificacion||[])];
     staff.forEach(u=>{
-      const g=grid[u.id]||{plannedDays:'',estado:'tentativa',motivo:''};
-      const days=parseFloat(g.plannedDays)||0;
-      const keep=days>0||g.estado!=='tentativa'||(g.motivo&&g.motivo.trim());
+      const row=grid[u.id]||{horas:['','','','',''],estado:'tentativa',motivo:''};
+      const horas=[0,1,2,3,4].map(i=>parseFloat(row.horas[i])||0);
+      const total=horas.reduce((s,h)=>s+h,0);
+      const keep=total>0||row.estado!=='tentativa'||(row.motivo&&row.motivo.trim());
       const idx=arr.findIndex(p=>p.userId===u.id&&p.projectId===projId&&p.weekStart===week);
       if(idx>=0){
-        if(keep)arr[idx]={...arr[idx],plannedDays:days,estado:g.estado,motivo:(g.motivo||'').trim(),fecha:new Date().toISOString()};
+        if(keep)arr[idx]={...arr[idx],horas,estado:row.estado,motivo:(row.motivo||'').trim(),fecha:new Date().toISOString()};
         else arr.splice(idx,1);
       }else if(keep){
-        arr.push({id:uid(),projectId:projId,userId:u.id,weekStart:week,plannedDays:days,estado:g.estado,motivo:(g.motivo||'').trim(),createdBy:currentUser.id,fecha:new Date().toISOString()});
+        arr.push({id:uid(),projectId:projId,userId:u.id,weekStart:week,horas,estado:row.estado,motivo:(row.motivo||'').trim(),createdBy:currentUser.id,fecha:new Date().toISOString()});
       }
     });
     save({...latest,planificacion:arr});
   };
 
-  const weekTotalDays=wk=>plans.filter(p=>p.projectId===projId&&p.weekStart===wk).reduce((s,p)=>s+(p.plannedDays||0),0);
-  const gridTotal=Object.values(grid).reduce((s,g)=>s+(parseFloat(g.plannedDays)||0),0);
+  const weekTotalHoras=wk=>plans.filter(p=>p.projectId===projId&&p.weekStart===wk).reduce((s,p)=>s+sumH(p.horas),0);
+  const gridTotalHoras=Object.values(grid).reduce((s,row)=>s+sumH(row.horas),0);
 
-  // Comparación plan vs real (1 día = 8 h)
-  const actualDays=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0)/8;
+  // Comparación plan vs real (horas)
+  const actualHours=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0);
   const cmpRows=(()=>{
     const keys=new Map();
     plans.filter(p=>p.weekStart===cmpWeek&&myProjIds.has(p.projectId)).forEach(p=>{
-      keys.set(p.userId+'|'+p.projectId,{uid:p.userId,pid:p.projectId,planned:p.plannedDays||0,estado:p.estado,motivo:p.motivo||''});
+      keys.set(p.userId+'|'+p.projectId,{uid:p.userId,pid:p.projectId,planned:sumH(p.horas),estado:p.estado,motivo:p.motivo||''});
     });
     timesheets.filter(t=>t.weekStart===cmpWeek&&t.projectId&&myProjIds.has(t.projectId)&&staffIds.has(t.userId)).forEach(t=>{
       const k=t.userId+'|'+t.projectId;
       if(!keys.has(k))keys.set(k,{uid:t.userId,pid:t.projectId,planned:0,estado:null,motivo:''});
     });
     return [...keys.values()].map(r=>{
-      const real=actualDays(r.uid,r.pid,cmpWeek);
+      const real=actualHours(r.uid,r.pid,cmpWeek);
       let verdict;
       if(r.planned>0&&real===0)verdict=r.estado==='liberada'?{l:'Liberado',cls:'bg-gray-100 text-gray-500'}:{l:'No ejecutó',cls:'bg-red-100 text-red-700'};
       else if(r.planned===0&&real>0)verdict={l:'Trabajó sin planificar',cls:'bg-orange-100 text-orange-700'};
-      else if(Math.abs(r.planned-real)<=0.5)verdict={l:'Cumplió',cls:'bg-green-100 text-green-700'};
+      else if(Math.abs(r.planned-real)<=4)verdict={l:'Cumplió',cls:'bg-green-100 text-green-700'};
       else verdict={l:'Desviación',cls:'bg-amber-100 text-amber-700'};
       return {...r,real,verdict};
     }).sort((a,b)=>userName(a.uid).localeCompare(userName(b.uid)));
@@ -898,7 +903,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h2 className="font-bold text-base">📆 Planificación de Personal</h2>
+          <h2 className="font-bold text-base">📆 Planificación del Personal</h2>
           <p className="text-gray-400 text-xs">Asigna al equipo por proyecto y semana · compara la planificación contra las horas reales de TimeSheet</p>
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
@@ -919,61 +924,66 @@ function APlanificacion({data,save,currentUser,getLatestData}){
 
         <div className="flex gap-2 mb-4 flex-wrap">
           {weeks.map(wk=>{
-            const tot=weekTotalDays(wk);
+            const tot=weekTotalHoras(wk);
             return(
               <button key={wk} onClick={()=>setWeek(wk)}
                 className={'px-3 py-2 rounded-lg text-xs border text-left '+(week===wk?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')}>
                 <div className="font-medium">{fmtWeekLabel(wk)}</div>
-                <div className={week===wk?'text-indigo-100':'text-gray-400'}>{tot>0?tot+' días plan.':'—'}</div>
+                <div className={week===wk?'text-indigo-100':'text-gray-400'}>{tot>0?tot+' h plan.':'—'}</div>
               </button>
             );
           })}
         </div>
 
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-x-auto">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <span className="font-semibold text-sm">Semana {fmtWeekLabel(week)}</span>
-            <span className="text-xs text-gray-400">Total planificado: <b className="text-indigo-700">{gridTotal} días</b></span>
+            <span className="text-xs text-gray-400">Total planificado: <b className="text-indigo-700">{gridTotalHoras} h</b></span>
           </div>
-          <table className="w-full text-xs">
+          <table className="w-full text-xs min-w-max">
             <thead className="bg-gray-50 text-gray-400">
               <tr>
                 <th className="text-left px-4 py-2">Persona</th>
-                <th className="text-center px-4 py-2 w-32">Días (0–5)</th>
-                <th className="text-left px-4 py-2 w-40">Estado</th>
-                <th className="text-left px-4 py-2">Motivo / nota</th>
+                {DIA_LBL.map(d=><th key={d} className="text-center px-2 py-2 w-16">{d}</th>)}
+                <th className="text-center px-3 py-2 w-16">Total h</th>
+                <th className="text-left px-3 py-2 w-36">Estado</th>
+                <th className="text-left px-4 py-2 min-w-40">Motivo / nota</th>
               </tr>
             </thead>
             <tbody>
               {staff.map(u=>{
-                const g=grid[u.id]||{plannedDays:'',estado:'tentativa',motivo:''};
-                const active=(parseFloat(g.plannedDays)||0)>0;
+                const row=grid[u.id]||{horas:['','','','',''],estado:'tentativa',motivo:''};
+                const total=sumH(row.horas);
+                const active=total>0;
                 return(
                   <tr key={u.id} className={'border-t '+(active?'bg-indigo-50/40':'')}>
-                    <td className="px-4 py-2 font-medium text-gray-700">{u.name}</td>
-                    <td className="px-4 py-2 text-center">
-                      <input type="number" min="0" max="5" step="0.5" value={g.plannedDays}
-                        onChange={e=>setCell(u.id,{plannedDays:e.target.value})}
-                        className="w-20 border rounded-lg px-2 py-1 text-sm text-center" placeholder="0"/>
-                    </td>
-                    <td className="px-4 py-2">
-                      <select value={g.estado} onChange={e=>setCell(u.id,{estado:e.target.value})}
+                    <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap">{u.name}</td>
+                    {DIA_LBL.map((d,di)=>(
+                      <td key={di} className="px-1 py-2 text-center">
+                        <input type="number" min="0" max="12" step="0.5" value={row.horas[di]}
+                          onChange={e=>setHora(u.id,di,e.target.value)}
+                          className="w-14 border rounded-lg px-1 py-1 text-sm text-center" placeholder="0"/>
+                      </td>
+                    ))}
+                    <td className="px-3 py-2 text-center font-semibold text-indigo-700">{total>0?total:'—'}</td>
+                    <td className="px-3 py-2">
+                      <select value={row.estado} onChange={e=>setCell(u.id,{estado:e.target.value})}
                         className={'border rounded-lg px-2 py-1 text-xs '+(active?'':'opacity-40')} disabled={!active}>
                         {PLAN_ESTADOS.map(e=><option key={e.v} value={e.v}>{e.l}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-2">
-                      <input value={g.motivo} onChange={e=>setCell(u.id,{motivo:e.target.value})}
-                        className="w-full border rounded-lg px-2 py-1 text-xs" placeholder="Opcional — motivo de desviación, nota…"/>
+                      <input value={row.motivo} onChange={e=>setCell(u.id,{motivo:e.target.value})}
+                        className="w-full border rounded-lg px-2 py-1 text-xs" placeholder="Opcional — motivo, nota…"/>
                     </td>
                   </tr>
                 );
               })}
-              {staff.length===0&&<tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No hay personal (usuarios de equipo) registrado.</td></tr>}
+              {staff.length===0&&<tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">No hay personal (usuarios de equipo) registrado.</td></tr>}
             </tbody>
           </table>
           <div className="px-4 py-3 border-t flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-xs text-gray-400">Se guardan las filas con días &gt; 0, estado distinto de Tentativa, o con motivo.</span>
+            <span className="text-xs text-gray-400">Ingresa horas por día (jornada = 8 h). Se guardan las filas con horas, estado distinto de Tentativa, o con motivo.</span>
             <button onClick={savePlan} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-semibold">💾 Guardar planificación</button>
           </div>
         </div>
@@ -996,8 +1006,8 @@ function APlanificacion({data,save,currentUser,getLatestData}){
               <tr>
                 <th className="text-left px-4 py-2">Persona</th>
                 <th className="text-left px-4 py-2">Proyecto</th>
-                <th className="text-right px-4 py-2">Plan (días)</th>
-                <th className="text-right px-4 py-2">Real (días)</th>
+                <th className="text-right px-4 py-2">Plan (h)</th>
+                <th className="text-right px-4 py-2">Real (h)</th>
                 <th className="text-left px-4 py-2">Estado plan</th>
                 <th className="text-left px-4 py-2">Veredicto</th>
                 <th className="text-left px-4 py-2">Motivo</th>
@@ -1019,7 +1029,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
             </tbody>
           </table>
         </div>
-        <p className="text-gray-400 text-xs mt-3">Cruza la planificación con las horas de TimeSheet por persona, proyecto y semana (1 día = 8 h). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación, por eso no trabajó.</p>
+        <p className="text-gray-400 text-xs mt-3">Cruza las horas planificadas con las horas reales de TimeSheet por persona, proyecto y semana. "Cumplió" = diferencia ≤ 4 h (media jornada). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación, por eso no trabajó.</p>
       </>}
     </div>
   );
