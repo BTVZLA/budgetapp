@@ -186,6 +186,7 @@ const fromDB={
     aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||'',notas:r.notas||'',comentariosEvaluado:r.comentarios_evaluado||'',fechaComentario:r.fecha_comentario||''}),
   timesheets:r=>({id:r.id,userId:r.user_id,weekStart:r.week_start,dayOfWeek:+r.day_of_week,projectId:r.project_id||'',concept:r.concept||'',hours:+(r.hours||0),notes:r.notes||'',aprobado:r.aprobado||false,aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||''}),
   planificacion:r=>{const H=Array.isArray(r.horas)?r.horas:[];return{id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,horas:[0,1,2,3,4].map(i=>+(H[i])||0),estado:r.estado||'tentativa',motivo:r.motivo||'',createdBy:r.created_by||'',fecha:r.fecha||''};},
+  solicitudes_liberacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,solicitanteId:r.solicitante_id||'',motivo:r.motivo||'',destinatarios:r.destinatarios||'',fecha:r.fecha||''}),
 };
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
@@ -216,6 +217,7 @@ const toDB={
     aprobado_por:e.aprobadoPor||'',fecha_aprobacion:e.fechaAprobacion||null,notas:e.notas||'',comentarios_evaluado:e.comentariosEvaluado||'',fecha_comentario:e.fechaComentario||null}),
   timesheets:t=>({id:t.id,user_id:t.userId,week_start:t.weekStart,day_of_week:t.dayOfWeek,project_id:t.projectId||null,concept:t.concept||null,hours:t.hours||0,notes:t.notes||'',aprobado:t.aprobado||false,aprobado_por:t.aprobadoPor||'',fecha_aprobacion:t.fechaAprobacion||null}),
   planificacion:p=>{const H=Array.isArray(p.horas)?p.horas.map(h=>+h||0):[0,0,0,0,0];return{id:p.id,project_id:p.projectId||null,user_id:p.userId||null,week_start:p.weekStart,horas:H,planned_days:H.reduce((s,h)=>s+h,0)/8,estado:p.estado||'tentativa',motivo:p.motivo||'',created_by:p.createdBy||'',fecha:p.fecha||null};},
+  solicitudes_liberacion:s=>({id:s.id,project_id:s.projectId||null,user_id:s.userId||null,week_start:s.weekStart,solicitante_id:s.solicitanteId||null,motivo:s.motivo||'',destinatarios:s.destinatarios||'',fecha:s.fecha||null}),
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
@@ -233,7 +235,7 @@ async function loadAllData(cfg,tok){
     sbGet(cfg,tok,'external_costs'),sbGet(cfg,tok,'participations'),sbGet(cfg,tok,'expenses'),
   ]);
   // New tables loaded safely — return [] if table doesn't exist yet in Supabase
-  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan]=await Promise.all([
+  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan,solLib]=await Promise.all([
     sbGetSafe(cfg,tok,'people',fromDB.people),
     sbGetSafe(cfg,tok,'real_internal_costs',fromDB.real_internal_costs),
     sbGetSafe(cfg,tok,'real_external_costs',fromDB.real_external_costs),
@@ -247,6 +249,7 @@ async function loadAllData(cfg,tok){
     sbGetSafe(cfg,tok,'timesheets',fromDB.timesheets),
     sbGetSafe(cfg,tok,'evaluaciones',fromDB.evaluaciones),
     sbGetSafe(cfg,tok,'planificacion',fromDB.planificacion),
+    sbGetSafe(cfg,tok,'solicitudes_liberacion',fromDB.solicitudes_liberacion),
   ]);
   const s=sets[0]||{rates:{},part_cats:[]};
   return{
@@ -279,6 +282,7 @@ async function loadAllData(cfg,tok){
     timesheets:tSheets,
     evaluaciones:evals,
     planificacion:plan,
+    solicitudesLiberacion:solLib,
   };
 }
 
@@ -347,6 +351,7 @@ async function syncData(cfg,tok,old,nw){
     syncArr('timesheets','timesheets',old.timesheets||[],nw.timesheets||[]),
     syncArr('evaluaciones','evaluaciones',old.evaluaciones||[],nw.evaluaciones||[]),
     safe('planificacion',()=>syncArr('planificacion','planificacion',old.planificacion||[],nw.planificacion||[])),
+    safe('solicitudes_liberacion',()=>syncArr('solicitudes_liberacion','solicitudes_liberacion',old.solicitudesLiberacion||[],nw.solicitudesLiberacion||[])),
     sc?sbUpsert(cfg,tok,'settings',[{id:1,rates:nw.rates,part_cats:nw.partCats}]):Promise.resolve(),
   ]);
   if(errors.length) throw new Error(errors.join(' | '));
@@ -860,7 +865,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
     const arr=[...(latest.planificacion||[])];
     staff.forEach(u=>{
       const row=grid[u.id]||{horas:['','','','',''],estado:'tentativa',motivo:''};
-      const horas=[0,1,2,3,4].map(i=>parseFloat(row.horas[i])||0);
+      const horas=[0,1,2,3,4].map(i=>Math.min(parseFloat(row.horas[i])||0,Math.max(0,8-otherBookedDay(u.id,i))));
       const total=horas.reduce((s,h)=>s+h,0);
       const keep=total>0||row.estado!=='tentativa'||(row.motivo&&row.motivo.trim());
       const idx=arr.findIndex(p=>p.userId===u.id&&p.projectId===projId&&p.weekStart===week);
@@ -876,6 +881,37 @@ function APlanificacion({data,save,currentUser,getLatestData}){
 
   const weekTotalHoras=wk=>plans.filter(p=>p.projectId===projId&&p.weekStart===wk).reduce((s,p)=>s+sumH(p.horas),0);
   const gridTotalHoras=Object.values(grid).reduce((s,row)=>s+sumH(row.horas),0);
+  // Ocupación de la persona en OTROS proyectos (para avisar disponibilidad y topar a 8 h/día)
+  const otherBookedDay=(usrId,di)=>plans.filter(p=>p.userId===usrId&&p.projectId!==projId&&p.weekStart===week&&p.estado!=='liberada').reduce((s,p)=>s+((Array.isArray(p.horas)?+p.horas[di]:0)||0),0);
+  const personWeekOther=usrId=>plans.filter(p=>p.userId===usrId&&p.projectId!==projId&&p.weekStart===week&&p.estado!=='liberada').reduce((s,p)=>s+sumH(p.horas),0);
+  // Bloqueo: al comenzar la semana (actual o pasada) la planificación no se edita, salvo Socio/Administración
+  const canEditLocked=['admin','administracion','socio'].includes(role);
+  const weekStarted=wk=>wk<=base;
+  const weekLocked=weekStarted(week)&&!canEditLocked;
+
+  // ── Solicitud de liberación (email + registro) ──
+  const [solRowId,setSolRowId]=useState(null);
+  const [solMotivo,setSolMotivo]=useState('');
+  const norm=n=>(n||'').toLowerCase().trim().replace(/\s+/g,' ');
+  const catNameOf=catId=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===catId);return c?c.name.toLowerCase():'';};
+  const emailByUserName=name=>{const p=(data.people||[]).find(x=>norm([x.nombres,x.apellidos].filter(Boolean).join(' ')||x.name)===norm(name));return p&&p.email?p.email:'';};
+  const emailsByCatFrag=frag=>(data.people||[]).filter(p=>p.email&&catNameOf(p.catId).includes(frag)).map(p=>p.email);
+  const toEmails=[...new Set((data.users||[]).filter(u=>u.role==='rrhh').map(u=>emailByUserName(u.name)).filter(Boolean))];
+  const ccEmails=[...new Set([...emailsByCatFrag('socio'),...emailsByCatFrag('director'),...emailsByCatFrag('gerente')])];
+  const buildMailto=(persona,proj,wk,motivo)=>{
+    const subject='Solicitud de liberación de personal — '+persona+' ('+(proj.codigo||proj.name)+')';
+    const body=['Estimados RRHH,','','Solicito la liberación del siguiente personal de la planificación, pues estará disponible:','','Persona: '+persona,'Proyecto: '+((proj.codigo?proj.codigo+' — ':'')+proj.name)+' ('+(proj.client||'')+')','Semana: '+fmtWeekLabel(wk),'','Razones:',motivo||'(sin especificar)','','Quedo atento.','Saludos,',(currentUser.name||'')].join('\n');
+    return 'mailto:'+toEmails.join(',')+'?cc='+ccEmails.join(',')+'&subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);
+  };
+  const enviarYLiberar=(rp)=>{
+    const proj=(data.projects||[]).find(p=>p.id===projId)||{name:'',client:'',codigo:''};
+    const latest=getLatestData?getLatestData():data;
+    const sol={id:uid(),projectId:projId,userId:rp.userId,weekStart:week,solicitanteId:currentUser.id,motivo:solMotivo.trim(),destinatarios:[...toEmails,...ccEmails].join(', '),fecha:new Date().toISOString()};
+    const nuevaPlan=(latest.planificacion||[]).map(p=>p.id===rp.id?{...p,estado:'liberada',motivo:solMotivo.trim()||p.motivo,fecha:new Date().toISOString()}:p);
+    save({...latest,planificacion:nuevaPlan,solicitudesLiberacion:[...(latest.solicitudesLiberacion||[]),sol]});
+    window.location.href=buildMailto(userName(rp.userId),proj,week,solMotivo.trim());
+    setSolRowId(null);setSolMotivo('');
+  };
 
   // Comparación plan vs real (horas)
   const actualHours=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0);
@@ -925,27 +961,43 @@ function APlanificacion({data,save,currentUser,getLatestData}){
         <div className="flex gap-2 mb-4 flex-wrap">
           {weeks.map(wk=>{
             const tot=weekTotalHoras(wk);
+            const lk=weekStarted(wk);
             return(
               <button key={wk} onClick={()=>setWeek(wk)}
                 className={'px-3 py-2 rounded-lg text-xs border text-left '+(week===wk?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')}>
-                <div className="font-medium">{fmtWeekLabel(wk)}</div>
+                <div className="font-medium">{lk&&'🔒 '}{fmtWeekLabel(wk)}</div>
                 <div className={week===wk?'text-indigo-100':'text-gray-400'}>{tot>0?tot+' h plan.':'—'}</div>
               </button>
             );
           })}
         </div>
 
+        {weekStarted(week)&&(
+          <div className={'rounded-xl border px-4 py-2.5 mb-3 text-xs flex items-center gap-2 '+(weekLocked?'bg-gray-100 border-gray-300 text-gray-600':'bg-amber-50 border-amber-200 text-amber-700')}>
+            <span>🔒</span>
+            <span>{weekLocked
+              ?'Semana en desarrollo — la planificación ya no se puede modificar. Para cambios, solicita la liberación de la persona.'
+              :'Semana en desarrollo — solo Socio/Administración puede modificarla (aprobación de cambios).'}</span>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl border overflow-x-auto">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
             <span className="font-semibold text-sm">Semana {fmtWeekLabel(week)}</span>
-            <span className="text-xs text-gray-400">Total planificado: <b className="text-indigo-700">{gridTotalHoras} h</b></span>
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>Total: <b className="text-indigo-700">{gridTotalHoras} h</b></span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-400 inline-block"/>Libre</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"/>Parcial</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"/>100%</span>
+            </div>
           </div>
           <table className="w-full text-xs min-w-max">
             <thead className="bg-gray-50 text-gray-400">
               <tr>
                 <th className="text-left px-4 py-2">Persona</th>
                 {DIA_LBL.map(d=><th key={d} className="text-center px-2 py-2 w-16">{d}</th>)}
-                <th className="text-center px-3 py-2 w-16">Total h</th>
+                <th className="text-center px-3 py-2 w-16">Total proy.</th>
+                <th className="text-center px-3 py-2 w-20" title="Total de la persona esta semana en TODOS los proyectos">Carga sem.</th>
                 <th className="text-left px-3 py-2 w-36">Estado</th>
                 <th className="text-left px-4 py-2 min-w-40">Motivo / nota</th>
               </tr>
@@ -957,36 +1009,109 @@ function APlanificacion({data,save,currentUser,getLatestData}){
                 const active=total>0;
                 return(
                   <tr key={u.id} className={'border-t '+(active?'bg-indigo-50/40':'')}>
-                    <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap">{u.name}</td>
-                    {DIA_LBL.map((d,di)=>(
-                      <td key={di} className="px-1 py-2 text-center">
-                        <input type="number" min="0" max="12" step="0.5" value={row.horas[di]}
-                          onChange={e=>setHora(u.id,di,e.target.value)}
-                          className="w-14 border rounded-lg px-1 py-1 text-sm text-center" placeholder="0"/>
-                      </td>
-                    ))}
-                    <td className="px-3 py-2 text-center font-semibold text-indigo-700">{total>0?total:'—'}</td>
+                    <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap align-top">{u.name}</td>
+                    {DIA_LBL.map((d,di)=>{
+                      const otherH=otherBookedDay(u.id,di);
+                      const cap=Math.max(0,8-otherH);
+                      return(
+                        <td key={di} className={'px-1 py-2 text-center align-top '+(otherH>=8?'bg-red-50':otherH>0?'bg-amber-50':'')}>
+                          <input type="number" min="0" max={cap} step="0.5" value={row.horas[di]} disabled={weekLocked}
+                            onChange={e=>{let v=e.target.value;const n=parseFloat(v);if(!isNaN(n)&&n>cap)v=String(cap);setHora(u.id,di,v);}}
+                            className="w-14 border rounded-lg px-1 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-400" placeholder="0"/>
+                          {otherH>0&&<div className={'text-[10px] mt-0.5 '+(otherH>=8?'text-red-500':'text-amber-600')} title="Horas ya planificadas en otros proyectos ese día">+{otherH}h otros</div>}
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 text-center font-semibold text-indigo-700 align-top">{total>0?total:'—'}</td>
+                    {(()=>{const carga=personWeekOther(u.id)+total;const cls=carga>=40?'bg-red-100 text-red-700':carga>0?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700';return <td className="px-3 py-2 text-center align-top"><span className={'px-2 py-0.5 rounded-full text-xs font-medium '+cls}>{carga>0?carga+'h':'Libre'}</span></td>;})()}
                     <td className="px-3 py-2">
                       <select value={row.estado} onChange={e=>setCell(u.id,{estado:e.target.value})}
-                        className={'border rounded-lg px-2 py-1 text-xs '+(active?'':'opacity-40')} disabled={!active}>
+                        className={'border rounded-lg px-2 py-1 text-xs '+(active?'':'opacity-40')} disabled={!active||weekLocked}>
                         {PLAN_ESTADOS.map(e=><option key={e.v} value={e.v}>{e.l}</option>)}
                       </select>
                     </td>
                     <td className="px-4 py-2">
-                      <input value={row.motivo} onChange={e=>setCell(u.id,{motivo:e.target.value})}
-                        className="w-full border rounded-lg px-2 py-1 text-xs" placeholder="Opcional — motivo, nota…"/>
+                      <input value={row.motivo} onChange={e=>setCell(u.id,{motivo:e.target.value})} disabled={weekLocked}
+                        className="w-full border rounded-lg px-2 py-1 text-xs disabled:bg-gray-100" placeholder="Opcional — motivo, nota…"/>
                     </td>
                   </tr>
                 );
               })}
-              {staff.length===0&&<tr><td colSpan={9} className="px-4 py-6 text-center text-gray-400">No hay personal (usuarios de equipo) registrado.</td></tr>}
+              {staff.length===0&&<tr><td colSpan={10} className="px-4 py-6 text-center text-gray-400">No hay personal (usuarios de equipo) registrado.</td></tr>}
             </tbody>
           </table>
           <div className="px-4 py-3 border-t flex items-center justify-between gap-3 flex-wrap">
-            <span className="text-xs text-gray-400">Ingresa horas por día (jornada = 8 h). Se guardan las filas con horas, estado distinto de Tentativa, o con motivo.</span>
-            <button onClick={savePlan} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-semibold">💾 Guardar planificación</button>
+            <span className="text-xs text-gray-400">Máx. <b>8 h/día por persona</b> sumando todos los proyectos. <span className="text-amber-600">+Xh otros</span> = ya planificado en otros proyectos ese día · <b>Carga sem.</b>: <span className="text-green-600">verde</span>=libre, <span className="text-amber-600">amarillo</span>=parcial, <span className="text-red-600">rojo</span>=100%.</span>
+            {weekLocked
+              ?<span className="text-xs text-gray-400 italic whitespace-nowrap">🔒 Semana en desarrollo — no editable</span>
+              :<button onClick={savePlan} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-semibold">💾 Guardar planificación</button>}
           </div>
         </div>
+
+        {(()=>{
+          const planned=plans.filter(p=>p.projectId===projId&&p.weekStart===week&&sumH(p.horas)>0);
+          if(!planned.length)return null;
+          const solsWeek=(data.solicitudesLiberacion||[]).filter(s=>s.projectId===projId&&s.weekStart===week);
+          return(
+            <div className="bg-white rounded-xl border overflow-x-auto mt-4">
+              <div className="px-4 py-3 border-b font-semibold text-sm flex items-center justify-between flex-wrap gap-2">
+                <span>🔓 Personal planificado — solicitar liberación</span>
+                <span className="text-xs text-gray-400 font-normal">Envía la solicitud a RRHH (copia a Socios/Directores/Gerentes) y libera a la persona</span>
+              </div>
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-400"><tr>
+                  <th className="text-left px-4 py-2">Persona</th>
+                  <th className="text-center px-4 py-2">Horas plan.</th>
+                  <th className="text-left px-4 py-2">Estado</th>
+                  <th className="text-right px-4 py-2">Acción</th>
+                </tr></thead>
+                <tbody>
+                  {planned.map(rp=>{
+                    const liberada=rp.estado==='liberada';
+                    const open=solRowId===rp.id;
+                    return(
+                      <React.Fragment key={rp.id}>
+                        <tr className="border-t">
+                          <td className="px-4 py-2 font-medium text-gray-700">{userName(rp.userId)}</td>
+                          <td className="px-4 py-2 text-center">{sumH(rp.horas)} h</td>
+                          <td className="px-4 py-2"><span className={'px-2 py-0.5 rounded-full '+planEstadoCls(rp.estado)}>{planEstadoLbl(rp.estado)}</span></td>
+                          <td className="px-4 py-2 text-right">
+                            {liberada
+                              ?<span className="text-gray-400">✓ Liberada</span>
+                              :<button onClick={()=>{setSolRowId(open?null:rp.id);setSolMotivo(rp.motivo||'');}} className="text-indigo-600 hover:text-indigo-800 font-medium">🔓 Solicitar liberación</button>}
+                          </td>
+                        </tr>
+                        {open&&!liberada&&(
+                          <tr className="bg-indigo-50/40 border-t">
+                            <td colSpan={4} className="px-4 py-3">
+                              <div className="text-xs text-gray-500 mb-1">Razones por las que la persona estará disponible:</div>
+                              <textarea value={solMotivo} onChange={e=>setSolMotivo(e.target.value)} rows={2}
+                                className="w-full border rounded-lg px-3 py-2 text-xs mb-2" placeholder="Ej.: el cliente no entregó la información; se reprograma el trabajo…"/>
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <div className="text-xs text-gray-400 leading-relaxed">
+                                  <div>Para: <b className="text-gray-500">{toEmails.length?toEmails.join(', '):'(sin correos de RRHH)'}</b></div>
+                                  <div>CC: <b className="text-gray-500">{ccEmails.length?ccEmails.join(', '):'(sin correos)'}</b></div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button onClick={()=>{setSolRowId(null);setSolMotivo('');}} className="border text-gray-500 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50">Cancelar</button>
+                                  <button onClick={()=>enviarYLiberar(rp)} disabled={!solMotivo.trim()} className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white px-4 py-1.5 rounded-lg text-xs font-semibold">📧 Enviar solicitud y liberar</button>
+                                </div>
+                              </div>
+                              {!toEmails.length&&<div className="text-amber-600 text-xs mt-2">⚠️ No se encontraron correos de RRHH en los datos. El borrador se abrirá sin destinatario "Para" — agrégalo manualmente en tu correo antes de enviar.</div>}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {solsWeek.length>0&&(
+                <div className="px-4 py-2 border-t text-xs text-gray-400">📋 {solsWeek.length} solicitud{solsWeek.length!==1?'es':''} de liberación registrada{solsWeek.length!==1?'s':''} en esta semana/proyecto.</div>
+              )}
+            </div>
+          );
+        })()}
       </>}
 
       {sub==='comparar'&&<>
