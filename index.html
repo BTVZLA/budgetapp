@@ -917,6 +917,38 @@ function APlanificacion({data,save,currentUser,getLatestData}){
     setSolRowId(null);setSolMotivo('');
   };
 
+  // ── Vista por persona: todos los proyectos de una persona en la semana ──
+  const [ppPersonId,setPpPersonId]=useState('');
+  const [ppWeek,setPpWeek]=useState(weeks[0]);
+  const [ppGrid,setPpGrid]=useState({});
+  useEffect(()=>{
+    if(!ppPersonId){setPpGrid({});return;}
+    const g={};
+    plans.filter(p=>p.userId===ppPersonId&&p.weekStart===ppWeek&&sumH(p.horas)>0).forEach(p=>{
+      g[p.projectId]={horas:[0,1,2,3,4].map(i=>p.horas[i]?String(p.horas[i]):''),estado:p.estado||'tentativa',motivo:p.motivo||''};
+    });
+    setPpGrid(g);
+  },[ppPersonId,ppWeek,plans]);
+  const ppSetHora=(pid,di,val)=>setPpGrid(g=>{const r=g[pid];if(!r)return g;const horas=[...r.horas];horas[di]=val;return{...g,[pid]:{...r,horas}};});
+  const ppSetCell=(pid,f)=>setPpGrid(g=>({...g,[pid]:{...g[pid],...f}}));
+  const ppDayTotal=di=>Object.values(ppGrid).reduce((s,r)=>s+(parseFloat(r.horas[di])||0),0);
+  const ppLocked=weekStarted(ppWeek)&&!canEditLocked;
+  const ppHasEditable=Object.keys(ppGrid).some(pid=>myProjIds.has(pid));
+  const ppSave=()=>{
+    const latest=getLatestData?getLatestData():data;
+    const arr=[...(latest.planificacion||[])];
+    Object.entries(ppGrid).forEach(([pid,r])=>{
+      if(!myProjIds.has(pid))return;
+      const horas=[0,1,2,3,4].map(i=>parseFloat(r.horas[i])||0);
+      const total=horas.reduce((s,h)=>s+h,0);
+      const keep=total>0||r.estado!=='tentativa'||(r.motivo&&r.motivo.trim());
+      const idx=arr.findIndex(p=>p.userId===ppPersonId&&p.projectId===pid&&p.weekStart===ppWeek);
+      if(idx>=0){if(keep)arr[idx]={...arr[idx],horas,estado:r.estado,motivo:(r.motivo||'').trim(),fecha:new Date().toISOString()};else arr.splice(idx,1);}
+      else if(keep){arr.push({id:uid(),projectId:pid,userId:ppPersonId,weekStart:ppWeek,horas,estado:r.estado,motivo:(r.motivo||'').trim(),createdBy:currentUser.id,fecha:new Date().toISOString()});}
+    });
+    save({...latest,planificacion:arr});
+  };
+
   // Comparación plan vs real (horas)
   const actualHours=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0);
   const cmpRows=(()=>{
@@ -951,11 +983,12 @@ function APlanificacion({data,save,currentUser,getLatestData}){
         </div>
         <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
           <button onClick={()=>setSub('planificar')} className={'px-3 py-1.5 rounded-md text-xs font-medium '+(sub==='planificar'?'bg-white shadow text-indigo-700':'text-gray-500 hover:text-gray-700')}>🗓️ Planificar</button>
+          <button onClick={()=>setSub('persona')} className={'px-3 py-1.5 rounded-md text-xs font-medium '+(sub==='persona'?'bg-white shadow text-indigo-700':'text-gray-500 hover:text-gray-700')}>👤 Por persona</button>
           <button onClick={()=>setSub('comparar')} className={'px-3 py-1.5 rounded-md text-xs font-medium '+(sub==='comparar'?'bg-white shadow text-emerald-700':'text-gray-500 hover:text-gray-700')}>📊 Plan vs Real</button>
         </div>
       </div>
 
-      {myProjects.length===0&&<div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs rounded-xl px-4 py-3">No tienes proyectos asignados para planificar.</div>}
+      {sub==='planificar'&&myProjects.length===0&&<div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs rounded-xl px-4 py-3">No tienes proyectos asignados para planificar. Usa <b>Por persona</b> o <b>Plan vs Real</b> para consultar.</div>}
 
       {sub==='planificar'&&myProjects.length>0&&<>
         <div className="bg-white rounded-xl border p-4 mb-4">
@@ -1168,6 +1201,96 @@ function APlanificacion({data,save,currentUser,getLatestData}){
           </table>
         </div>
         <p className="text-gray-400 text-xs mt-3">Reporte de <b>todo el personal y todos los proyectos</b>. Cruza horas planificadas vs horas reales de TimeSheet por persona, proyecto y semana. "Cumplió" = diferencia ≤ 4 h (media jornada). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación. Arriba se listan las personas <b>sin asignación</b> en la semana.</p>
+      </>}
+
+      {sub==='persona'&&<>
+        <div className="flex gap-4 mb-4 flex-wrap items-end">
+          <div>
+            <label className="text-gray-500 text-xs font-medium mb-1 block">Persona</label>
+            <select value={ppPersonId} onChange={e=>setPpPersonId(e.target.value)} className="border rounded-lg px-3 py-2 text-sm min-w-56">
+              <option value="">— Seleccionar persona —</option>
+              {staff.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {weeks.map(wk=>{const lk=weekStarted(wk);return(
+              <button key={wk} onClick={()=>setPpWeek(wk)} className={'px-3 py-2 rounded-lg text-xs border '+(ppWeek===wk?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200 hover:bg-gray-50')}>{lk&&'🔒 '}{fmtWeekLabel(wk)}</button>
+            );})}
+          </div>
+        </div>
+
+        {!ppPersonId
+          ?<div className="text-gray-400 text-sm text-center py-10 bg-white rounded-xl border">Selecciona una persona para ver y ajustar todas sus asignaciones de la semana.</div>
+          :(()=>{
+            const rows=Object.entries(ppGrid).sort((a,b)=>projName(a[0]).localeCompare(projName(b[0])));
+            return(
+              <div className="bg-white rounded-xl border overflow-x-auto">
+                <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-semibold text-sm">{userName(ppPersonId)} · {fmtWeekLabel(ppWeek)}</span>
+                  <span className="text-xs text-gray-400">Horas por proyecto y día · máx. 8 h/día en total</span>
+                </div>
+                {ppLocked&&<div className="px-4 py-2 bg-gray-100 text-gray-600 text-xs">🔒 Semana en desarrollo — solo lectura.</div>}
+                {rows.length===0
+                  ?<div className="px-4 py-8 text-center text-gray-400 text-sm">Sin asignación esta semana. Agrégala desde la pestaña Planificar (elige el proyecto y la semana).</div>
+                  :<table className="w-full text-xs min-w-max">
+                    <thead className="bg-gray-50 text-gray-400"><tr>
+                      <th className="text-left px-4 py-2">Proyecto</th>
+                      {DIA_LBL.map(d=><th key={d} className="text-center px-2 py-2 w-16">{d}</th>)}
+                      <th className="text-center px-3 py-2 w-16">Total</th>
+                      <th className="text-left px-3 py-2 w-32">Estado</th>
+                      <th className="text-left px-4 py-2">Motivo</th>
+                    </tr></thead>
+                    <tbody>
+                      {rows.map(([pid,r])=>{
+                        const editable=myProjIds.has(pid)&&!ppLocked;
+                        const rowTotal=sumH(r.horas);
+                        return(
+                          <tr key={pid} className={'border-t '+(myProjIds.has(pid)?'':'bg-gray-50/60')}>
+                            <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap">{projName(pid)}{!myProjIds.has(pid)&&<span className="ml-1 text-gray-300" title="No eres responsable de este proyecto">🔒</span>}</td>
+                            {DIA_LBL.map((d,di)=>{
+                              const otras=ppDayTotal(di)-(parseFloat(r.horas[di])||0);
+                              const cap=Math.max(0,8-otras);
+                              return(
+                                <td key={di} className="px-1 py-2 text-center">
+                                  <input type="number" min="0" max={cap} step="0.5" value={r.horas[di]} disabled={!editable}
+                                    onChange={e=>{let v=e.target.value;const n=parseFloat(v);if(!isNaN(n)&&n>cap)v=String(cap);ppSetHora(pid,di,v);}}
+                                    className="w-14 border rounded-lg px-1 py-1 text-sm text-center disabled:bg-gray-100 disabled:text-gray-500" placeholder="0"/>
+                                </td>
+                              );
+                            })}
+                            <td className="px-3 py-2 text-center font-semibold text-indigo-700">{rowTotal>0?rowTotal:'—'}</td>
+                            <td className="px-3 py-2">
+                              <select value={r.estado} onChange={e=>ppSetCell(pid,{estado:e.target.value})} disabled={!editable} className="border rounded-lg px-2 py-1 text-xs disabled:opacity-50">
+                                {PLAN_ESTADOS.map(e=><option key={e.v} value={e.v}>{e.l}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-4 py-2">
+                              <input value={r.motivo} onChange={e=>ppSetCell(pid,{motivo:e.target.value})} disabled={!editable} className="w-full border rounded-lg px-2 py-1 text-xs disabled:bg-gray-100" placeholder="—"/>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="border-t-2 bg-gray-50 font-semibold">
+                      <tr>
+                        <td className="px-4 py-2 text-gray-500">Total por día</td>
+                        {DIA_LBL.map((d,di)=>{const t=ppDayTotal(di);return <td key={di} className={'px-2 py-2 text-center '+(t>8?'text-red-600':t>0?'text-gray-700':'text-gray-300')}>{t>0?t:'—'}</td>;})}
+                        <td className="px-3 py-2 text-center text-indigo-700">{[0,1,2,3,4].reduce((s,di)=>s+ppDayTotal(di),0)}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tfoot>
+                  </table>}
+                {rows.length>0&&(
+                  <div className="px-4 py-3 border-t flex items-center justify-between gap-3 flex-wrap">
+                    <span className="text-xs text-gray-400">Proyectos con 🔒 son de otros responsables (solo lectura). El total por día en <span className="text-red-600">rojo</span> indica sobre-asignación (&gt;8 h).</span>
+                    {ppHasEditable&&!ppLocked
+                      ?<button onClick={ppSave} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-semibold">💾 Guardar cambios</button>
+                      :<span className="text-xs text-gray-400 italic">{ppLocked?'🔒 Semana en desarrollo':'Sin proyectos editables por ti'}</span>}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </>}
     </div>
   );
