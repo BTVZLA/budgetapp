@@ -712,7 +712,7 @@ function App(){
     administracion:['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
     socio:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion'],
     responsable:  ['proyectos','timesheet','planificacion'],
-    rrhh:         ['part-report','timesheet'],
+    rrhh:         ['part-report','timesheet','planificacion'],
     user:         ['dashboard','proyectos','gastos','timesheet'],
     equipo:       ['timesheet'],
   };
@@ -805,7 +805,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='labor-costs')return <ACostosLaborales data={data} save={save}/>;
   if(tab==='part-report')return <APartReport data={data} currentUser={currentUser}/>;
   if(tab==='timesheet')return <ATimeSheet data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
-  if(tab==='planificacion')return <APlanificacion data={visibleData} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
+  if(tab==='planificacion')return <APlanificacion data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   return null;
 }
 
@@ -821,9 +821,13 @@ const planEstadoLbl=v=>(PLAN_ESTADOS.find(e=>e.v===v)||PLAN_ESTADOS[0]).l;
 function APlanificacion({data,save,currentUser,getLatestData}){
   const role=(currentUser&&currentUser.role)||'';
   const isResp=role==='responsable';
+  const isRRHH=role==='rrhh';
   const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado);
-  const myProjects=isResp?allProjects.filter(p=>p.responsableId===currentUser.id):allProjects;
+  // Planificar: responsable → sus proyectos; RRHH → ninguno (solo reporte); resto → todos
+  const myProjects=isResp?allProjects.filter(p=>p.responsableId===currentUser.id):(isRRHH?[]:allProjects);
   const myProjIds=new Set(myProjects.map(p=>p.id));
+  // Comparación = reporte gerencial: TODOS los proyectos y todo el personal
+  const allProjIds=new Set((data.projects||[]).map(p=>p.id));
   const staff=(data.users||[]).filter(u=>['equipo','responsable','user'].includes(u.role));
   const staffIds=new Set(staff.map(u=>u.id));
   const plans=data.planificacion||[];
@@ -917,10 +921,10 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const actualHours=(usrId,pid,wk)=>timesheets.filter(t=>t.userId===usrId&&t.projectId===pid&&t.weekStart===wk).reduce((s,t)=>s+(t.hours||0),0);
   const cmpRows=(()=>{
     const keys=new Map();
-    plans.filter(p=>p.weekStart===cmpWeek&&myProjIds.has(p.projectId)).forEach(p=>{
+    plans.filter(p=>p.weekStart===cmpWeek&&allProjIds.has(p.projectId)).forEach(p=>{
       keys.set(p.userId+'|'+p.projectId,{uid:p.userId,pid:p.projectId,planned:sumH(p.horas),estado:p.estado,motivo:p.motivo||''});
     });
-    timesheets.filter(t=>t.weekStart===cmpWeek&&t.projectId&&myProjIds.has(t.projectId)&&staffIds.has(t.userId)).forEach(t=>{
+    timesheets.filter(t=>t.weekStart===cmpWeek&&t.projectId&&allProjIds.has(t.projectId)&&staffIds.has(t.userId)).forEach(t=>{
       const k=t.userId+'|'+t.projectId;
       if(!keys.has(k))keys.set(k,{uid:t.userId,pid:t.projectId,planned:0,estado:null,motivo:''});
     });
@@ -934,6 +938,9 @@ function APlanificacion({data,save,currentUser,getLatestData}){
       return {...r,real,verdict};
     }).sort((a,b)=>userName(a.uid).localeCompare(userName(b.uid)));
   })();
+  // Personal sin asignación en la semana comparada (planificación 0 en todos los proyectos)
+  const plannedThisWeek=new Set(plans.filter(p=>p.weekStart===cmpWeek&&p.estado!=='liberada'&&sumH(p.horas)>0).map(p=>p.userId));
+  const sinAsignacion=staff.filter(u=>!plannedThisWeek.has(u.id));
 
   return(
     <div className="p-6 max-w-5xl">
@@ -1124,8 +1131,14 @@ function APlanificacion({data,save,currentUser,getLatestData}){
             </button>
           ))}
         </div>
+        {sinAsignacion.length>0&&(
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4 text-xs">
+            <div className="font-semibold text-amber-800 mb-1">⚠️ {sinAsignacion.length} persona{sinAsignacion.length!==1?'s':''} sin asignación esta semana</div>
+            <div className="text-amber-700 flex flex-wrap gap-x-3 gap-y-1">{sinAsignacion.map(u=><span key={u.id}>• {u.name}</span>)}</div>
+          </div>
+        )}
         <div className="bg-white rounded-xl border overflow-x-auto">
-          <div className="px-4 py-3 border-b font-semibold text-sm">Plan vs Real — {fmtWeekLabel(cmpWeek)}</div>
+          <div className="px-4 py-3 border-b font-semibold text-sm">📊 Reporte — Todo el personal · {fmtWeekLabel(cmpWeek)}</div>
           <table className="w-full text-xs min-w-max">
             <thead className="bg-gray-50 text-gray-400">
               <tr>
@@ -1154,7 +1167,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
             </tbody>
           </table>
         </div>
-        <p className="text-gray-400 text-xs mt-3">Cruza las horas planificadas con las horas reales de TimeSheet por persona, proyecto y semana. "Cumplió" = diferencia ≤ 4 h (media jornada). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación, por eso no trabajó.</p>
+        <p className="text-gray-400 text-xs mt-3">Reporte de <b>todo el personal y todos los proyectos</b>. Cruza horas planificadas vs horas reales de TimeSheet por persona, proyecto y semana. "Cumplió" = diferencia ≤ 4 h (media jornada). <b>Liberado</b> = se planificó pero se liberó al personal con anticipación. Arriba se listan las personas <b>sin asignación</b> en la semana.</p>
       </>}
     </div>
   );
