@@ -658,6 +658,10 @@ function App(){
         d.users.push(np);profile=np;
       }
       if(!profile)return 'Tu usuario no está configurado. Contacta al administrador.';
+      // Bloqueo de acceso: si la persona (ficha) está desincorporada, no la dejamos entrar
+      const normLogin=n=>(n||'').toLowerCase().trim().replace(/\s+/g,' ');
+      const linkedPerson=(d.people||[]).find(p=>normLogin([p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name)===normLogin(profile.name));
+      if(linkedPerson&&linkedPerson.desincorporado)return 'Tu acceso ha sido desactivado. Contacta al administrador.';
       setSession({tok,authId});setCurrentUser(profile);setData(d);prevRef.current=d;dataRef.current=d;
       const firstTab={'admin':'resumen','administracion':'resumen','socio':'resumen','responsable':'proyectos','rrhh':'part-report','equipo':'timesheet'}[profile.role]||'dashboard';
       setTab(firstTab);setScreen('app');
