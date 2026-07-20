@@ -2679,6 +2679,8 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const [fichaId,setFichaId]=useState(null);  // orphan user id expanding ficha form
   const [fichaForm,setFichaForm]=useState({});
   const [showDesinc,setShowDesinc]=useState(false); // mostrar personas desincorporadas
+  const [desincId,setDesincId]=useState(null);       // persona con panel de fecha de desincorporación abierto
+  const [desincFecha,setDesincFecha]=useState('');
 
   const buildName=f=>[f.nombres.trim(),f.apellidos.trim()].filter(Boolean).join(' ');
 
@@ -2691,10 +2693,10 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
     setForm(emptyForm);
   };
   const delPerson=id=>save({...(getLatestData?getLatestData():data),people:people.filter(p=>p.id!==id)});
-  const setDesinc=(id,val)=>{
+  const setDesinc=(id,val,fecha)=>{
     const lat=getLatestData?getLatestData():data;
     const hoy=new Date().toISOString().slice(0,10);
-    save({...lat,people:(lat.people||[]).map(p=>p.id===id?{...p,desincorporado:val,fechaDesincorporacion:val?hoy:''}:p)});
+    save({...lat,people:(lat.people||[]).map(p=>p.id===id?{...p,desincorporado:val,fechaDesincorporacion:val?(fecha||hoy):''}:p)});
   };
   const startEdit=p=>{
     setEditId(p.id);
@@ -2956,8 +2958,14 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
                               {isAdmin&&(p.desincorporado
                                 ?<button onClick={()=>setDesinc(p.id,false)} title="Reincorporar"
                                     className="text-green-400 hover:text-green-600 text-xs px-1.5 py-1 rounded hover:bg-green-50 transition-colors">↩️</button>
-                                :<button onClick={()=>setDesinc(p.id,true)} title="Desincorporar (conserva historial)"
-                                    className="text-amber-400 hover:text-amber-600 text-xs px-1.5 py-1 rounded hover:bg-amber-50 transition-colors">🚪</button>)}
+                                :desincId===p.id
+                                  ?<span className="flex items-center gap-1">
+                                      <input type="date" value={desincFecha} onChange={e=>setDesincFecha(e.target.value)} title="Fecha de desincorporación" className="border rounded px-1.5 py-0.5 text-xs"/>
+                                      <button onClick={()=>{setDesinc(p.id,true,desincFecha);setDesincId(null);}} title="Confirmar desincorporación" className="text-green-600 hover:text-green-700 text-xs px-1.5 py-1 rounded bg-green-50">✓</button>
+                                      <button onClick={()=>setDesincId(null)} title="Cancelar" className="text-gray-400 hover:text-gray-600 text-xs px-1 py-1 rounded">✕</button>
+                                    </span>
+                                  :<button onClick={()=>{setDesincId(p.id);setDesincFecha(new Date().toISOString().slice(0,10));}} title="Desincorporar (conserva historial)"
+                                      className="text-amber-400 hover:text-amber-600 text-xs px-1.5 py-1 rounded hover:bg-amber-50 transition-colors">🚪</button>)}
                               <button onClick={()=>delPerson(p.id)} title="Eliminar"
                                 className="text-red-300 hover:text-red-500 text-xs px-1.5 py-1 rounded hover:bg-red-50 transition-colors">✕</button>
                             </div>
