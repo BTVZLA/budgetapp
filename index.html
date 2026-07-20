@@ -2159,7 +2159,7 @@ function AConfig({data,save,cfg,setCfg,session,currentUser,getLatestData}){
       {sub==='rates'&&<RatesConf data={data} save={save}/>}
       {sub==='partcats'&&<PartCatsConf data={data} save={save}/>}
       {sub==='departments'&&<DeptConf data={data} save={save}/>}
-      {sub==='team'&&<TeamConf data={data} save={save} cfg={cfg} session={session} currentUser={currentUser}/>}
+      {sub==='team'&&<TeamConf data={data} save={save} cfg={cfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>}
       {sub==='clients'&&<ClientsConf data={data} save={save} getLatestData={getLatestData}/>}
       {sub==='backup'&&(currentUser&&(currentUser.role==='admin'||currentUser.role==='administracion'))&&<BackupConf data={data}/>}
       {sub==='seguridad'&&currentUser&&currentUser.role==='admin'&&<SecurityConf cfg={cfg} setCfg={setCfg}/>}
@@ -2646,7 +2646,7 @@ function UserConf({data,save,cfg,session,currentUser}){
 
 /* ── DIRECTORIO DE PERSONAS ── */
 /* ── DIRECTORIO DE PERSONAS ── */
-function TeamConf({data,save,cfg,session,currentUser}){
+function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const isAdmin=currentUser&&currentUser.role==='admin';
   const cats=data.partCats||DEFAULT_PART_CATS;
   const people=data.people||[];
