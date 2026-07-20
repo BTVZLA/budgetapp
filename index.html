@@ -840,7 +840,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const [projId,setProjId]=useState((myProjects[0]||{}).id||'');
 
   // Ventana rodante: semana actual + 5 siguientes
-  const base=getMonday(new Date().toISOString().split('T')[0]);
+  const base=getMonday(new Date());
   const weeks=Array.from({length:6},(_,i)=>addDays(base,i*7));
   const [week,setWeek]=useState(weeks[0]);
   const [cmpWeek,setCmpWeek]=useState(weeks[0]);
@@ -7283,16 +7283,17 @@ function ProjRealCobros({projId,data,save,readOnly,getLatestData}){
 
 // Helper: returns the Monday date string (YYYY-MM-DD) for a given Date
 function getMonday(d){
-  const dt=new Date(d);
+  // Anclar a mediodía LOCAL para evitar corrimientos de zona horaria (UTC-4)
+  const dt=(typeof d==='string')?new Date(d+'T12:00:00'):new Date(d);
+  dt.setHours(12,0,0,0);
   const day=dt.getDay();
-  const diff=day===0?-6:1-day;
-  dt.setDate(dt.getDate()+diff);
-  return dt.toISOString().split('T')[0];
+  dt.setDate(dt.getDate()+(day===0?-6:1-day));
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
 }
 function addDays(dateStr,n){
-  const d=new Date(dateStr+'T00:00:00');
+  const d=new Date(dateStr+'T12:00:00');
   d.setDate(d.getDate()+n);
-  return d.toISOString().split('T')[0];
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 function fmtWeekLabel(monday){
   const fri=addDays(monday,4);
