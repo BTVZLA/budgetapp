@@ -827,8 +827,8 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const isResp=role==='responsable';
   const isRRHH=role==='rrhh';
   const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado);
-  // Planificar: responsable → sus proyectos; RRHH → ninguno (solo reporte); resto → todos
-  const myProjects=isResp?allProjects.filter(p=>p.responsableId===currentUser.id):(isRRHH?[]:allProjects);
+  // Planificar: todos los que planifican ven TODOS los proyectos/clientes; RRHH → ninguno (solo reporte)
+  const myProjects=isRRHH?[]:allProjects;
   const myProjIds=new Set(myProjects.map(p=>p.id));
   // Comparación = reporte gerencial: TODOS los proyectos y todo el personal
   const allProjIds=new Set((data.projects||[]).map(p=>p.id));
