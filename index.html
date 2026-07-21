@@ -2678,7 +2678,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const [msgs,setMsgs]=useState({});
   const [fichaId,setFichaId]=useState(null);  // orphan user id expanding ficha form
   const [fichaForm,setFichaForm]=useState({});
-  const [showDesinc,setShowDesinc]=useState(false); // mostrar personas desincorporadas
+  const [teamTab,setTeamTab]=useState('activos'); // 'activos' | 'desincorporados'
   const [desincId,setDesincId]=useState(null);       // persona con panel de fecha de desincorporación abierto
   const [desincFecha,setDesincFecha]=useState('');
 
@@ -2792,8 +2792,9 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
     finally{setPwdLoading(false);}
   };
 
-  const desincCount=people.filter(p=>p.desincorporado).length;
-  const visiblePeople=people.filter(p=>showDesinc?true:!p.desincorporado);
+  const desincList=people.filter(p=>p.desincorporado).slice().sort((a,b)=>(b.fechaDesincorporacion||'').localeCompare(a.fechaDesincorporacion||''));
+  const desincCount=desincList.length;
+  const visiblePeople=people.filter(p=>!p.desincorporado);
   const grouped={};
   cats.forEach(c=>{grouped[c.id]=[];});
   visiblePeople.forEach(p=>{if(!grouped[p.catId])grouped[p.catId]=[];grouped[p.catId].push(p);});
@@ -2803,6 +2804,12 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   return(
     <div className="max-w-3xl space-y-5">
 
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <button onClick={()=>setTeamTab('activos')} className={'px-4 py-1.5 rounded-md text-xs font-medium '+(teamTab==='activos'?'bg-white shadow text-indigo-700':'text-gray-500 hover:text-gray-700')}>👥 Equipo activo</button>
+        <button onClick={()=>setTeamTab('desincorporados')} className={'px-4 py-1.5 rounded-md text-xs font-medium '+(teamTab==='desincorporados'?'bg-white shadow text-gray-700':'text-gray-500 hover:text-gray-700')}>🚪 Desincorporados{desincCount>0?' ('+desincCount+')':''}</button>
+      </div>
+
+      {teamTab==='activos'&&<>
       {/* ── Add person form ── */}
       <div className="bg-white rounded-xl border p-5">
         <div className="font-semibold mb-1 text-sm">👥 Agregar Persona</div>
@@ -2834,15 +2841,6 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
 
       {/* ── People list ── */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-sm font-semibold text-gray-600">Personas registradas</span>
-          {desincCount>0&&(
-            <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
-              <input type="checkbox" checked={showDesinc} onChange={e=>setShowDesinc(e.target.checked)} className="accent-indigo-600"/>
-              Ver desincorporados ({desincCount})
-            </label>
-          )}
-        </div>
         {cats.map(cat=>{
           const ppl=grouped[cat.id]||[];
           if(ppl.length===0)return null;
@@ -3251,6 +3249,43 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
           <div className="px-4 py-2 bg-amber-50 border-t">
             <p className="text-xs text-amber-600">Estos usuarios tienen cuenta de acceso pero aún no tienen ficha completa en el equipo. Usa <b>📋 Crear ficha</b> para completar sus datos y habilitarlos en proyectos.</p>
           </div>
+        </div>
+      )}
+      </>}
+
+      {teamTab==='desincorporados'&&(
+        <div className="bg-white rounded-xl border overflow-x-auto">
+          <div className="px-4 py-3 border-b font-semibold text-sm">🚪 Personal desincorporado</div>
+          {desincList.length===0
+            ?<div className="px-4 py-8 text-center text-gray-400 text-sm">No hay personas desincorporadas.</div>
+            :<table className="w-full text-xs">
+              <thead className="bg-gray-50 text-gray-400"><tr>
+                <th className="text-left px-4 py-2">Persona</th>
+                <th className="text-left px-4 py-2">C.I.</th>
+                <th className="text-left px-4 py-2">Categoría</th>
+                <th className="text-left px-4 py-2">Depto.</th>
+                <th className="text-left px-4 py-2">Fecha desincorporación</th>
+                <th className="text-right px-4 py-2">Acción</th>
+              </tr></thead>
+              <tbody>
+                {desincList.map(p=>{
+                  const cat=cats.find(c=>c.id===p.catId);
+                  const dept=data.departments.find(d=>d.id===p.deptId);
+                  return(
+                    <tr key={p.id} className="border-t hover:bg-gray-50">
+                      <td className="px-4 py-2 font-medium text-gray-700">{personFullName(p)}</td>
+                      <td className="px-4 py-2 text-gray-500">{p.ci||'—'}</td>
+                      <td className="px-4 py-2 text-gray-500">{cat?cat.name:'—'}</td>
+                      <td className="px-4 py-2 text-gray-500">{dept?dept.name:'—'}</td>
+                      <td className="px-4 py-2 text-gray-700 font-medium">{p.fechaDesincorporacion||'—'}</td>
+                      <td className="px-4 py-2 text-right">
+                        {isAdmin&&<button onClick={()=>setDesinc(p.id,false)} className="text-green-600 hover:text-green-700 text-xs font-medium">↩️ Reincorporar</button>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>}
         </div>
       )}
 
