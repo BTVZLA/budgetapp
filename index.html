@@ -25,7 +25,8 @@ const MO=Array.from({length:24},(_,i)=>{
 const moYear=i=>2025+Math.floor((i+6)/12);
 const YEAR=2026;
 const ECATS=['Marketing','Viajes','Software','Capacitación','Oficina','Comunicaciones','Honorarios','Otros'];
-const TIMESHEET_CONCEPTS=['Disponible','Vacaciones','Reposo','Permiso no remunerado','Permiso por estudio','Cumpleaños','Entrenamientos','Asig. Técnica','Mercadeo','Administrativos','Reuniones Internas','Propuestas Clientes'];
+const TIMESHEET_CONCEPTS=['Disponible','Vacaciones','Reposo','Permiso no remunerado','Permiso por estudio','Citas Médicas','Eventos Escolares','Emergencias en el Hogar','Lactancia','Cumpleaños','Entrenamientos','Asig. Técnica','Mercadeo','Administrativos','Reuniones Internas','Propuestas Clientes'];
+const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -184,7 +185,7 @@ const fromDB={
     scoreConocimientos:+(r.score_conocimientos||0),scoreTotal:+(r.score_total||0),
     pctBono:+(r.pct_bono||0),casoEspecial:r.caso_especial||'',estado:r.estado||'borrador',
     aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||'',notas:r.notas||'',comentariosEvaluado:r.comentarios_evaluado||'',fechaComentario:r.fecha_comentario||''}),
-  timesheets:r=>({id:r.id,userId:r.user_id,weekStart:r.week_start,dayOfWeek:+r.day_of_week,projectId:r.project_id||'',concept:r.concept||'',hours:+(r.hours||0),notes:r.notes||'',aprobado:r.aprobado||false,aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||''}),
+  timesheets:r=>({id:r.id,userId:r.user_id,weekStart:r.week_start,dayOfWeek:+r.day_of_week,projectId:r.project_id||'',concept:r.concept||'',hours:+(r.hours||0),notes:r.notes||'',lugar:r.lugar||'',aprobado:r.aprobado||false,aprobadoPor:r.aprobado_por||'',fechaAprobacion:r.fecha_aprobacion||''}),
   planificacion:r=>{const H=Array.isArray(r.horas)?r.horas:[];return{id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,horas:[0,1,2,3,4].map(i=>+(H[i])||0),estado:r.estado||'tentativa',motivo:r.motivo||'',createdBy:r.created_by||'',fecha:r.fecha||''};},
   solicitudes_liberacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,solicitanteId:r.solicitante_id||'',motivo:r.motivo||'',destinatarios:r.destinatarios||'',fecha:r.fecha||''}),
 };
@@ -215,7 +216,7 @@ const toDB={
     score_conocimientos:e.scoreConocimientos||0,score_total:e.scoreTotal||0,
     pct_bono:e.pctBono||0,caso_especial:e.casoEspecial||'',estado:e.estado||'borrador',
     aprobado_por:e.aprobadoPor||'',fecha_aprobacion:e.fechaAprobacion||null,notas:e.notas||'',comentarios_evaluado:e.comentariosEvaluado||'',fecha_comentario:e.fechaComentario||null}),
-  timesheets:t=>({id:t.id,user_id:t.userId,week_start:t.weekStart,day_of_week:t.dayOfWeek,project_id:t.projectId||null,concept:t.concept||null,hours:t.hours||0,notes:t.notes||'',aprobado:t.aprobado||false,aprobado_por:t.aprobadoPor||'',fecha_aprobacion:t.fechaAprobacion||null}),
+  timesheets:t=>({id:t.id,user_id:t.userId,week_start:t.weekStart,day_of_week:t.dayOfWeek,project_id:t.projectId||null,concept:t.concept||null,hours:t.hours||0,notes:t.notes||'',lugar:t.lugar||null,aprobado:t.aprobado||false,aprobado_por:t.aprobadoPor||'',fecha_aprobacion:t.fechaAprobacion||null}),
   planificacion:p=>{const H=Array.isArray(p.horas)?p.horas.map(h=>+h||0):[0,0,0,0,0];return{id:p.id,project_id:p.projectId||null,user_id:p.userId||null,week_start:p.weekStart,horas:H,planned_days:H.reduce((s,h)=>s+h,0)/8,estado:p.estado||'tentativa',motivo:p.motivo||'',created_by:p.createdBy||'',fecha:p.fecha||null};},
   solicitudes_liberacion:s=>({id:s.id,project_id:s.projectId||null,user_id:s.userId||null,week_start:s.weekStart,solicitante_id:s.solicitanteId||null,motivo:s.motivo||'',destinatarios:s.destinatarios||'',fecha:s.fecha||null}),
 };
@@ -8111,7 +8112,7 @@ function ATimeSheet({data,save,currentUser,getLatestData}){
   const prevWeek=()=>setWeekStart(addDays(weekStart,-7));
   const nextWeek=()=>setWeekStart(addDays(weekStart,7));
 
-  const openAdd=(dayIdx)=>{setAddingDay(dayIdx);setForm({type:'proyecto',projectId:'',concept:'',hours:'',notes:''}); };
+  const openAdd=(dayIdx)=>{setAddingDay(dayIdx);setForm({type:'proyecto',projectId:'',concept:'',hours:'',notes:'',lugar:''}); };
   const cancelAdd=()=>setAddingDay(null);
 
   const commitAdd=()=>{
@@ -8129,6 +8130,7 @@ function ATimeSheet({data,save,currentUser,getLatestData}){
       concept:form.type==='concepto'?form.concept:'',
       hours:hrs,
       notes:form.notes.trim(),
+      lugar:form.lugar||'',
     };
     saveTs({...data,timesheets:[...allSheets,entry]});
     setAddingDay(null);
@@ -8271,7 +8273,7 @@ function ATimeSheet({data,save,currentUser,getLatestData}){
                             <div className={`text-xs font-medium truncate ${isConc?'text-purple-600':'text-gray-700'}`} title={label}>
                               {isConc?'🏷️ ':'📁 '}{label}
                             </div>
-                            <div className="text-xs font-bold text-gray-500">{e.hours}h</div>
+                            <div className="text-xs font-bold text-gray-500">{e.hours}h{e.lugar&&<span className="ml-1 font-normal text-teal-600">· 📍 {e.lugar}</span>}</div>
                             {e.notes&&<div className="text-xs text-gray-400 italic truncate" title={e.notes}>📝 {e.notes}</div>}
                           </div>
                           <button onClick={()=>removeEntry(e.id)} className="opacity-0 group-hover:opacity-100 text-red-300 hover:text-red-500 text-xs leading-none pt-0.5 transition-opacity">✕</button>
@@ -8315,6 +8317,11 @@ function ATimeSheet({data,save,currentUser,getLatestData}){
                           placeholder={`Horas (máx ${(HOURS_PER_DAY-dayHours).toFixed(1)}h)`}
                           className="flex-1 border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"/>
                       </div>
+                      <select value={form.lugar} onChange={e=>setForm(f=>({...f,lugar:e.target.value}))}
+                        className="w-full border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-teal-400">
+                        <option value="">📍 Lugar de ejecución…</option>
+                        {TIMESHEET_LUGARES.map(l=><option key={l} value={l}>{l}</option>)}
+                      </select>
                       <input value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))}
                         placeholder="Notas (opcional)"
                         className="w-full border rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-300"/>
