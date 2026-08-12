@@ -8533,6 +8533,7 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
                       <tr>
                         <th className="text-left px-4 py-2">Día</th>
                         <th className="text-left px-4 py-2">Proyecto / Concepto</th>
+                        <th className="text-left px-4 py-2">Lugar</th>
                         <th className="text-right px-4 py-2">Horas</th>
                         <th className="text-left px-4 py-2">Notas</th>
                       </tr>
@@ -8549,6 +8550,7 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
                                 {isConc?'🏷️':'📁'} {label}
                               </span>
                             </td>
+                            <td className="px-4 py-2 text-teal-600">{e.lugar?'📍 '+e.lugar:'—'}</td>
                             <td className="px-4 py-2 text-right font-bold text-gray-700">{e.hours.toFixed(1)}h</td>
                             <td className="px-4 py-2 text-gray-400">{e.notes||'—'}</td>
                           </tr>
@@ -8557,7 +8559,7 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
                     </tbody>
                     <tfoot className="border-t-2 bg-gray-50 font-bold">
                       <tr>
-                        <td colSpan={2} className="px-4 py-2 text-gray-600">Total</td>
+                        <td colSpan={3} className="px-4 py-2 text-gray-600">Total</td>
                         <td className="px-4 py-2 text-right text-indigo-700">{totalHours.toFixed(1)}h</td>
                         <td/>
                       </tr>
