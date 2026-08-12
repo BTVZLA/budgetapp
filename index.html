@@ -7455,7 +7455,11 @@ const EVAL_ROLE_ORDER=['admin','administracion','socio','responsable','rrhh','us
 const canEvalRole=(myRole,targetRole)=>{
   const mi=EVAL_ROLE_ORDER.indexOf(myRole);
   const ti=EVAL_ROLE_ORDER.indexOf(targetRole);
-  return mi>=0&&ti>mi;
+  if(mi<0)return false;
+  // Los supervisores (rol "responsable") también son ejecutores en otros proyectos y deben poder
+  // ser evaluados por gerentes/directores, que igualmente tienen rol "responsable".
+  if(targetRole==='responsable'&&mi<=ti)return true; // admin/administración/socio/responsable pueden evaluar a un responsable
+  return ti>mi;
 };
 const canSeeAllEvals=role=>['admin','administracion','socio','rrhh'].includes(role);
 
