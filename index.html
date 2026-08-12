@@ -8449,14 +8449,17 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
   const totalHoursForUser=(uid)=>(byUser[uid]||[]).reduce((s,e)=>s+e.hours,0);
   const myRole2=currentUser&&currentUser.role||'admin';
   const myId2=currentUser&&currentUser.id;
+  // Excluir del reporte a las personas desincorporadas (match por nombre)
+  const normNm=n=>(n||'').toLowerCase().trim().replace(/\s+/g,' ');
+  const desincNames=new Set((data.people||[]).filter(p=>p.desincorporado).map(p=>normNm([p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name)));
   // admin, socio, rrhh see all; others see only lower roles
-  const visibleUsers=(['admin','administracion','socio','rrhh'].includes(myRole2))
+  const visibleUsers=((['admin','administracion','socio','rrhh'].includes(myRole2))
     ?users
     :users.filter(u=>{
         const mi=EVAL_ROLE_ORDER.indexOf(myRole2);
         const ti=EVAL_ROLE_ORDER.indexOf(u.role);
         return ti>mi&&u.id!==myId2;
-      });
+      })).filter(u=>!desincNames.has(normNm(u.name)));
   const [expanded,setExpanded]=React.useState({});
   const toggleExpand=id=>setExpanded(p=>({...p,[id]:!p[id]}));
 
