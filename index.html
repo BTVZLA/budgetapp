@@ -29,6 +29,8 @@ const TIMESHEET_CONCEPTS=['Disponible','Vacaciones','Reposo','Día Feriado','Per
 const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
+// Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
+const APP_VERSION='v2026-09-03';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -753,7 +755,8 @@ function App(){
             </button>
           ))}
         </nav>
-        <button onClick={logout} className="m-3 text-xs text-left px-2 py-1 rounded" style={{color:'rgba(255,255,255,0.5)'}} onMouseEnter={e=>e.currentTarget.style.color='white'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.5)'}>← Cerrar sesión</button>
+        <button onClick={logout} className="m-3 mb-1 text-xs text-left px-2 py-1 rounded" style={{color:'rgba(255,255,255,0.5)'}} onMouseEnter={e=>e.currentTarget.style.color='white'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.5)'}>← Cerrar sesión</button>
+        <div className="px-4 pb-3 text-[10px]" style={{color:'rgba(255,255,255,0.35)'}} title="Versión de la app instalada en este navegador">{APP_VERSION}</div>
       </aside>
       <main className="flex-1 overflow-auto">
         {(isAdminRole||isSocio||isResponsable||isRRHH)
