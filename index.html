@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-10c';
+const APP_VERSION='v2026-09-10d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -834,7 +834,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   }),[visibleData,filtroPeriodo]);
 
   if(projId)return <ProjDetail projId={projId} data={visibleData} save={save} onBack={()=>setProjId(null)} getLatestData={getLatestData}/>;
-  if(tab==='resumen')return <AResumen data={filteredData} PeriodoSelector={PeriodoSelector}/>;
+  if(tab==='resumen')return <AResumen data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='dashboard')return <ADash data={visibleData}/>;
   if(tab==='proyectos')return <AProjects data={visibleData} save={save} onProj={setProjId} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='config')return isAdminRole?<AConfig data={data} save={save} cfg={cfg} setCfg={setCfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>:<div className="p-8 text-center text-gray-400">Sin acceso a Configuración.</div>;
@@ -1815,7 +1815,9 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   );
 }
 
-function AResumen({data,PeriodoSelector}){
+function AResumen({data,PeriodoSelector,selPeriodo}){
+  // Período para costos laborales/gastos fijos: el seleccionado; si "todos", suma todos los períodos.
+  const pPer=(selPeriodo&&selPeriodo!=='todos')?selPeriodo:null;
   const [view,setView]=useState('global');
   const tRE=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+getEffectiveRevE(p.id,data),0);
   const tRA=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+getTotRealCobros(p.id,data),0);
@@ -1827,13 +1829,13 @@ function AResumen({data,PeriodoSelector}){
   const tEE=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'est'),0);
   const tEA=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'act'),0);
   // Gastos Fijos del período actual
-  const gfItems=(data.fixedExpenses||[]).filter(i=>i.periodo===currentPeriodo);
+  const gfItems=(data.fixedExpenses||[]).filter(i=>pPer?i.periodo===pPer:true);
   const tGFE=gfItems.reduce((s,i)=>s+(i.montos||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
   const tGFR=gfItems.reduce((s,i)=>s+(i.montosReal||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
-  const lcItems=(data.laborCosts||[]).filter(i=>i.periodo===currentPeriodo&&i.activo!==false);
+  const lcItems=(data.laborCosts||[]).filter(i=>(pPer?i.periodo===pPer:true)&&i.activo!==false);
   const tLCE=lcItems.reduce((s,i)=>s+(i.sueldo+i.ticket+i.bstaff+i.depreciacion+i.asignacion+i.movilidad+i.participaciones)*12,0);
   const tLCM=lcItems.reduce((s,i)=>s+(i.sueldo+i.ticket+i.bstaff+i.depreciacion+i.asignacion+i.movilidad+i.participaciones),0);
-  const olcItems=(data.otherLaborCosts||[]).filter(i=>i.periodo===currentPeriodo);
+  const olcItems=(data.otherLaborCosts||[]).filter(i=>pPer?i.periodo===pPer:true);
   const tOLC=olcItems.reduce((s,i)=>s+(i.montos||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
   const tIC_r=data.projects.reduce((s,p)=>s+getTotRealInt(p.id,data),0);
   const tEC_r=data.projects.reduce((s,p)=>s+getTotRealExt(p.id,data),0);
