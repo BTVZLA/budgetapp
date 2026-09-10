@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-10';
+const APP_VERSION='v2026-09-10b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -313,22 +313,29 @@ async function loadAllData(cfg,tok){
 }
 
 async function syncData(cfg,tok,old,nw){
+  const blockedDeletes=[];
   const syncArr=async(table,key,oldArr,newArr)=>{
     const safe=a=>(Array.isArray(a)?a:[]).filter(x=>x&&x.id);
     const oMap=new Map(safe(oldArr).map(x=>[x.id,JSON.stringify(x)]));
     const nSafe=safe(newArr);
-    // SAFETY GUARD: if new array is empty but old had records, skip deletes
-    // This prevents accidental data wipe from stale state
     const oldCount=oMap.size;
     const newCount=nSafe.length;
     const ups=nSafe.filter(x=>oMap.get(x.id)!==JSON.stringify(x));
     const nIds=new Set(nSafe.map(x=>x.id));
     const dels=[...oMap.keys()].filter(id=>!nIds.has(id));
-    // Block deletes if >50% of records would be removed and new array is suspiciously small
-    const dangerousDel=oldCount>3&&newCount===0&&dels.length===oldCount;
+    // SAFETY GUARD contra pérdida masiva de datos:
+    // Un guardado normal borra 0-2 filas. Un array parcial (por carga incompleta,
+    // error de red o estado obsoleto) intentaría borrar muchas filas de golpe.
+    // Bloqueamos cualquier borrado que elimine >=30% de una tabla con >=5 filas
+    // (o que la deje vacía). Los upserts SÍ se aplican; el borrado se aborta y se avisa.
+    const delFrac=oldCount>0?dels.length/oldCount:0;
+    const dangerousDel=dels.length>=3 && ((oldCount>=5 && delFrac>=0.30) || (oldCount>3 && newCount===0));
     if(ups.length) await sbUpsert(cfg,tok,table,ups.map(toDB[key]));
     if(dels.length&&!dangerousDel) await Promise.all(dels.map(id=>sbDel(cfg,tok,table,id)));
-    if(dangerousDel) console.warn('BLOCKED suspicious mass delete on',table,'- oldCount:',oldCount,'newCount:',newCount);
+    if(dangerousDel){
+      console.warn('BLOQUEADO borrado masivo en',table,'- tenía:',oldCount,'quedarían:',newCount,'borraría:',dels.length);
+      blockedDeletes.push(table+' ('+dels.length+' de '+oldCount+')');
+    }
   };
   // syncPeople: tries with email first, falls back without if column missing
   const syncPeople=async(oldArr,newArr)=>{
@@ -380,6 +387,7 @@ async function syncData(cfg,tok,old,nw){
     safe('solicitudes_liberacion',()=>syncArr('solicitudes_liberacion','solicitudes_liberacion',old.solicitudesLiberacion||[],nw.solicitudesLiberacion||[])),
     sc?sbUpsert(cfg,tok,'settings',[{id:1,rates:nw.rates,part_cats:nw.partCats}]):Promise.resolve(),
   ]);
+  if(blockedDeletes.length) errors.unshift('⚠ BORRADO MASIVO BLOQUEADO (datos protegidos, NO se perdieron): '+blockedDeletes.join(', ')+'. Recarga la página (Ctrl+Shift+R) antes de seguir editando.');
   if(errors.length) throw new Error(errors.join(' | '));
 }
 
