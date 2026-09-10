@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-10e';
+const APP_VERSION='v2026-09-10f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -720,6 +720,7 @@ function App(){
 
   const getLatestData=()=>dataRef.current||prevRef.current;
   const logout=()=>{setSession(null);setCurrentUser(null);setData(null);prevRef.current=null;dataRef.current=null;setScreen('login');};
+  const [bkTick,setBkTick]=useState(0); // banner de respaldo — DEBE ir antes de cualquier return (regla de hooks)
 
   if(!cfg||screen==='config')return <ConfigScreen current={cfg} onSave={(u,k,sk)=>{const c={url:u,key:k,serviceKey:sk||''};setLocalCfg(c);setCfg(c);setScreen('login');}}/>;
   if(screen==='login')return <LoginScreen cfg={cfg} onLogin={handleLogin} onConfig={()=>setScreen('config')}/>;
@@ -745,7 +746,6 @@ function App(){
     {id:'timesheet',l:'TimeSheet',i:'⏱️'},
     {id:'planificacion',l:'Planificación del Personal',i:'📆'},
   ];
-  const [bkTick,setBkTick]=useState(0);
   const navAllowed={
     admin:        ['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
     administracion:['resumen','dashboard','proyectos','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
