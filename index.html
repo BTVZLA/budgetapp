@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-03';
+const APP_VERSION='v2026-09-10';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -104,7 +104,20 @@ const getLocalCfg=()=>{try{const s=localStorage.getItem(CFG_KEY);return s?JSON.p
 const setLocalCfg=c=>{try{localStorage.setItem(CFG_KEY,JSON.stringify(c));}catch(_){}};
 
 const sbH=(cfg,tok)=>({'apikey':cfg.key,'Authorization':'Bearer '+(tok||cfg.key),'Content-Type':'application/json'});
-const sbGet=async(cfg,tok,table)=>{const r=await fetch(cfg.url+'/rest/v1/'+table+'?select=*',{headers:sbH(cfg,tok)});if(!r.ok)throw new Error('Error '+table);const d=await r.json();return Array.isArray(d)?d:[];};
+const sbGet=async(cfg,tok,table)=>{
+  // Paginación: Supabase/PostgREST devuelve máx ~1000 filas por request; traemos TODAS las páginas
+  const pageSize=1000; let offset=0, all=[];
+  for(;;){
+    const r=await fetch(cfg.url+'/rest/v1/'+table+'?select=*&limit='+pageSize+'&offset='+offset,{headers:sbH(cfg,tok)});
+    if(!r.ok)throw new Error('Error '+table);
+    const d=await r.json();
+    const arr=Array.isArray(d)?d:[];
+    all=all.concat(arr);
+    if(arr.length<pageSize)break;
+    offset+=pageSize;
+  }
+  return all;
+};
 const sbUpsert=async(cfg,tok,table,rows)=>{if(!rows||!rows.length)return;const r=await fetch(cfg.url+'/rest/v1/'+table,{method:'POST',headers:{...sbH(cfg,tok),'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rows)});if(!r.ok){const t=await r.text();throw new Error(t);}};
 const sbDel=async(cfg,tok,table,id)=>fetch(cfg.url+'/rest/v1/'+table+'?id=eq.'+id,{method:'DELETE',headers:sbH(cfg,tok)});
 const sbSignIn=async(cfg,email,pw)=>{const r=await fetch(cfg.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':cfg.key,'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});return r.json();};
@@ -226,10 +239,18 @@ const toDB={
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
-  try{const r=await fetch(cfg.url+'/rest/v1/'+table+'?select=*',{headers:sbH(cfg,tok)});
-    if(!r.ok)return[];
-    const d=await r.json();
-    return Array.isArray(d)?d.filter(x=>x&&x.id).map(mapper):[];
+  try{
+    const pageSize=1000; let offset=0, all=[];
+    for(;;){
+      const r=await fetch(cfg.url+'/rest/v1/'+table+'?select=*&limit='+pageSize+'&offset='+offset,{headers:sbH(cfg,tok)});
+      if(!r.ok)break;
+      const d=await r.json();
+      const arr=Array.isArray(d)?d:[];
+      all=all.concat(arr);
+      if(arr.length<pageSize)break;
+      offset+=pageSize;
+    }
+    return all.filter(x=>x&&x.id).map(mapper);
   }catch(_){return[];}
 };
 
