@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-10b';
+const APP_VERSION='v2026-09-10c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1478,24 +1478,27 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
 
   const moverAPapelera=id=>{
     const today=new Date().toISOString().split('T')[0];
-    save({...(getLatestData?getLatestData():data),projects:data.projects.map(p=>p.id===id?{...p,enPapelera:true,fechaPapelera:today}:p)});
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,enPapelera:true,fechaPapelera:today}:p)});
   };
   const restaurar=id=>{
-    save({...(getLatestData?getLatestData():data),projects:data.projects.map(p=>p.id===id?{...p,enPapelera:false,fechaPapelera:''}:p)});
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,enPapelera:false,fechaPapelera:''}:p)});
   };
   const eliminarDefinitivo=p=>{
     if(!window.confirm(`⚠️ ELIMINAR DEFINITIVAMENTE\n\nProyecto: "${p.name}"\nCliente: ${p.client}\n\n¿Estás completamente seguro? Esta acción NO se puede deshacer y borrará también todos los ingresos, costos y participaciones asociadas.`))return;
-    save({...(getLatestData?getLatestData():data),
-      projects:data.projects.filter(x=>x.id!==p.id),
-      revenues:data.revenues.filter(r=>r.projectId!==p.id),
-      internalCosts:data.internalCosts.filter(c=>c.projectId!==p.id),
-      externalCosts:data.externalCosts.filter(c=>c.projectId!==p.id),
-      participations:(data.participations||[]).filter(x=>x.projectId!==p.id),
-      realInternalCosts:(data.realInternalCosts||[]).filter(c=>c.projectId!==p.id),
-      realExternalCosts:(data.realExternalCosts||[]).filter(c=>c.projectId!==p.id),
-      realParticipations:(data.realParticipations||[]).filter(x=>x.projectId!==p.id),
-      realCobros:(data.realCobros||[]).filter(c=>c.projectId!==p.id),
-      pagosParticipaciones:(data.pagosParticipaciones||[]).filter(x=>x.projectId!==p.id),
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,
+      projects:(lat.projects||[]).filter(x=>x.id!==p.id),
+      revenues:(lat.revenues||[]).filter(r=>r.projectId!==p.id),
+      internalCosts:(lat.internalCosts||[]).filter(c=>c.projectId!==p.id),
+      externalCosts:(lat.externalCosts||[]).filter(c=>c.projectId!==p.id),
+      participations:(lat.participations||[]).filter(x=>x.projectId!==p.id),
+      realInternalCosts:(lat.realInternalCosts||[]).filter(c=>c.projectId!==p.id),
+      realExternalCosts:(lat.realExternalCosts||[]).filter(c=>c.projectId!==p.id),
+      realParticipations:(lat.realParticipations||[]).filter(x=>x.projectId!==p.id),
+      realCobros:(lat.realCobros||[]).filter(c=>c.projectId!==p.id),
+      pagosParticipaciones:(lat.pagosParticipaciones||[]).filter(x=>x.projectId!==p.id),
     });
   };
 
@@ -1746,7 +1749,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                     {!isClosed&&!isPapelera&&(
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-gray-400 text-xs">Estatus:</span>
-                        <select value={p.status||'Por Enviar'} onChange={e=>save({...(getLatestData?getLatestData():data),projects:data.projects.map(x=>x.id===p.id?{...x,status:e.target.value}:x)})}
+                        <select value={p.status||'Por Enviar'} onChange={e=>{const lat=getLatestData?getLatestData():data;save({...lat,projects:(lat.projects||[]).map(x=>x.id===p.id?{...x,status:e.target.value}:x)});}}
                           className={'text-xs font-medium rounded-full px-2 py-0.5 border-0 cursor-pointer focus:outline-none '+(STATUS_CLS[p.status]||'bg-gray-100 text-gray-500')}
                           style={{appearance:'auto'}}>
                           {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
