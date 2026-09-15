@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-15d';
+const APP_VERSION='v2026-09-15e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -864,8 +864,8 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='config')return isAdminRole?<AConfig data={data} save={save} cfg={cfg} setCfg={setCfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>:<div className="p-8 text-center text-gray-400">Sin acceso a Configuración.</div>;
   if(tab==='consolidado')return <AConsolidado data={filteredData} PeriodoSelector={PeriodoSelector}/>;
   if(tab==='rentabilidad')return <ARent data={filteredData} PeriodoSelector={PeriodoSelector}/>;
-  if(tab==='gastos-fijos')return <AGastosFijos data={data} save={save}/>;
-  if(tab==='labor-costs')return <ACostosLaborales data={data} save={save}/>;
+  if(tab==='gastos-fijos')return <AGastosFijos data={data} save={save} getLatestData={getLatestData}/>;
+  if(tab==='labor-costs')return <ACostosLaborales data={data} save={save} getLatestData={getLatestData}/>;
   if(tab==='part-report')return <APartReport data={data} currentUser={currentUser}/>;
   if(tab==='timesheet')return <ATimeSheet data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='planificacion')return <APlanificacion data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
@@ -3694,11 +3694,16 @@ const LC_COLS=[
 
 const OLC_CATS=['BENEFICIOS','PRESTACIONES SOCIALES','ADIESTRAMIENTO Y DESARROLLO','EVENTOS Y ACTIVIDADES MOTIVACIONALES','PROVEEDORES','PARAFISCALES'];
 
-function ACostosLaborales({data,save}){
+function ACostosLaborales({data,save,getLatestData}){
   const items=data.laborCosts||[];
   const olcItems=data.otherLaborCosts||[];
   const [periodo,setPeriodo]=useState(currentPeriodo);
   const [vista,setVista]=useState('nomina'); // 'nomina' | 'otros'
+  const prevP=p=>{const a=(p||'').split('-').map(Number);return a.length===2?(a[0]-1)+'-'+(a[1]-1):p;};
+  const [showCopy,setShowCopy]=useState(false);
+  const [copyInc,setCopyInc]=useState({});
+  const [copyIncAll,setCopyIncAll]=useState('0');
+  const [copySel,setCopySel]=useState({});
   const [showForm,setShowForm]=useState(false);
   const [search,setSearch]=useState('');
   const [editId,setEditId]=useState(null);
@@ -3772,6 +3777,30 @@ function ACostosLaborales({data,save}){
     setOlcCellEdit(null);
   };
 
+  // ── Copiar del período anterior (con % de aumento individual) ──
+  const priorPeriodo=prevP(periodo);
+  const copyCands=(vista==='nomina'
+    ?(data.laborCosts||[]).filter(i=>i.periodo===priorPeriodo&&i.activo!==false)
+    :(data.otherLaborCosts||[]).filter(i=>i.periodo===priorPeriodo));
+  const yaKey=i=>vista==='nomina'?(i.nombre||'').toLowerCase().trim():((i.categoria||'')+'|'+(i.concepto||'')).toLowerCase().trim();
+  const yaSet=new Set((vista==='nomina'?periodoItems:olcPeriodoItems).map(yaKey));
+  const copyFactor=i=>1+((parseFloat(copyInc[i.id])||0)/100);
+  const openCopy=()=>{const pre={};copyCands.forEach(i=>{if(!yaSet.has(yaKey(i)))pre[i.id]=true;});setCopySel(pre);setCopyInc({});setCopyIncAll('0');setShowCopy(true);};
+  const copyAplicarTodos=()=>{const m={};copyCands.forEach(i=>{m[i.id]=copyIncAll;});setCopyInc(m);};
+  const hacerCopia=()=>{
+    const lat=getLatestData?getLatestData():data;
+    const sel=copyCands.filter(i=>copySel[i.id]&&!yaSet.has(yaKey(i)));
+    if(vista==='nomina'){
+      const nuevos=sel.map(i=>{const f=copyFactor(i);return{id:uid(),periodo,nombre:i.nombre,cargo:i.cargo||'',notas:i.notas||'',activo:true,
+        ...Object.fromEntries(LC_COLS.map(c=>[c.key,Math.round((parseFloat(i[c.key])||0)*f*100)/100]))};});
+      if(nuevos.length)save({...lat,laborCosts:[...(lat.laborCosts||[]),...nuevos]});
+    }else{
+      const nuevos=sel.map(i=>{const f=copyFactor(i);return{id:uid(),periodo,categoria:i.categoria,concepto:i.concepto,
+        montos:(i.montos||Array(12).fill(0)).map(v=>Math.round((parseFloat(v)||0)*f*100)/100),montosReal:Array(12).fill(0)};});
+      if(nuevos.length)save({...lat,otherLaborCosts:[...(lat.otherLaborCosts||[]),...nuevos]});
+    }
+    setShowCopy(false);
+  };
 
   return(
     <div className="p-6">
@@ -3782,11 +3811,47 @@ function ACostosLaborales({data,save}){
           <p className="text-gray-400 text-xs">Nómina y otros costos — período Ago–Jul</p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={openCopy} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={'Copia los '+(vista==='nomina'?'de nómina':'otros costos')+' de '+priorPeriodo+' a '+periodo}>📋 Copiar de {priorPeriodo}</button>
           <select value={periodo} onChange={e=>setPeriodo(e.target.value)} className="border rounded-lg px-3 py-2 text-sm">
             {PERIODOS.map(pp=><option key={pp} value={pp}>{pp} · {periodoLabel(pp)}</option>)}
           </select>
         </div>
       </div>
+
+      {showCopy&&(
+        <div className="bg-white rounded-xl border border-green-200 p-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-semibold text-sm text-gray-700">Copiar {vista==='nomina'?'nómina':'otros costos'} de {priorPeriodo} → {periodo} · % de aumento por {vista==='nomina'?'persona':'concepto'}</div>
+            <button onClick={()=>setShowCopy(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕ cerrar</button>
+          </div>
+          <div className="flex items-center gap-2 mb-3 text-xs flex-wrap bg-gray-50 rounded-lg px-3 py-2">
+            <span className="text-gray-500">Atajo — aplicar el mismo % a todos:</span>
+            <input type="number" value={copyIncAll} onChange={e=>setCopyIncAll(e.target.value)} className="border rounded px-2 py-1 w-16 text-right"/>
+            <span className="text-gray-500">%</span>
+            <button onClick={copyAplicarTodos} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-[11px] font-medium">aplicar a todos</button>
+          </div>
+          {copyCands.length===0?<div className="text-xs text-gray-400 py-2">No hay {vista==='nomina'?'nómina':'otros costos'} en {priorPeriodo}.</div>:(
+            <div className="max-h-72 overflow-y-auto border rounded-lg divide-y">
+              {copyCands.map(i=>{const ya=yaSet.has(yaKey(i));const base=vista==='nomina'?LC_COLS.reduce((s,c)=>s+(parseFloat(i[c.key])||0),0):(i.montos||[]).reduce((s,v)=>s+(parseFloat(v)||0),0);const res=Math.round(base*copyFactor(i)*100)/100;return(
+                <div key={i.id} className={'flex items-center gap-2 px-3 py-1.5 text-xs '+(ya?'opacity-40':'')}>
+                  <input type="checkbox" disabled={ya} checked={!!copySel[i.id]} onChange={e=>setCopySel(s=>({...s,[i.id]:e.target.checked}))}/>
+                  <span className="font-medium text-gray-700 flex-1 truncate min-w-[120px]">{vista==='nomina'?i.nombre:((i.categoria||'')+' · '+(i.concepto||''))}</span>
+                  <span className="text-gray-400 shrink-0" title="Base del período anterior">{$n(base)}{vista==='nomina'?'/mes':''}</span>
+                  <span className="flex items-center gap-1 shrink-0"><span className="text-gray-400">+</span>
+                    <input type="number" disabled={ya} value={copyInc[i.id]!==undefined?copyInc[i.id]:''} onChange={e=>setCopyInc(m=>({...m,[i.id]:e.target.value}))} placeholder="0" className="border rounded px-1 py-0.5 w-14 text-right"/>
+                    <span className="text-gray-400">%</span>
+                  </span>
+                  <span className="font-semibold text-gray-700 shrink-0 w-24 text-right">→ {$n(res)}{vista==='nomina'?'/mes':''}</span>
+                  {ya&&<span className="text-green-600 font-semibold shrink-0">ya existe</span>}
+                </div>
+              );})}
+            </div>
+          )}
+          <div className="flex justify-end mt-3">
+            <button onClick={hacerCopia} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">Copiar seleccionados a {periodo}</button>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-3 mb-5">
@@ -4040,10 +4105,15 @@ function ACostosLaborales({data,save}){
 }
 
 
-function AGastosFijos({data,save}){
+function AGastosFijos({data,save,getLatestData}){
   const items=data.fixedExpenses||[];
   const [periodo,setPeriodo]=useState(currentPeriodo);
   const [vista,setVista]=useState('presupuesto'); // 'presupuesto' | 'real' | 'comparativo'
+  const prevP=p=>{const a=(p||'').split('-').map(Number);return a.length===2?(a[0]-1)+'-'+(a[1]-1):p;};
+  const [showCopy,setShowCopy]=useState(false);
+  const [copyInc,setCopyInc]=useState({});
+  const [copyIncAll,setCopyIncAll]=useState('0');
+  const [copySel,setCopySel]=useState({});
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({cuenta:'',concepto:'',montos:Array(12).fill('')});
   const [editId,setEditId]=useState(null);
@@ -4092,6 +4162,23 @@ function AGastosFijos({data,save}){
       montos:editForm.montos.map(v=>parseFloat(v)||0),
       montosReal:editForm.montosReal.map(v=>parseFloat(v)||0)}:i)});
     setEditId(null);
+  };
+
+  // ── Copiar del período anterior (con % de aumento individual por cuenta/concepto) ──
+  const priorPeriodo=prevP(periodo);
+  const copyCands=items.filter(i=>i.periodo===priorPeriodo);
+  const yaKey=i=>((i.cuenta||'')+'|'+(i.concepto||'')).toLowerCase().trim();
+  const yaSet=new Set(periodoItems.map(yaKey));
+  const copyFactor=i=>1+((parseFloat(copyInc[i.id])||0)/100);
+  const openCopy=()=>{const pre={};copyCands.forEach(i=>{if(!yaSet.has(yaKey(i)))pre[i.id]=true;});setCopySel(pre);setCopyInc({});setCopyIncAll('0');setShowCopy(true);};
+  const copyAplicarTodos=()=>{const m={};copyCands.forEach(i=>{m[i.id]=copyIncAll;});setCopyInc(m);};
+  const hacerCopia=()=>{
+    const lat=getLatestData?getLatestData():data;
+    const nuevos=copyCands.filter(i=>copySel[i.id]&&!yaSet.has(yaKey(i))).map(i=>{const f=copyFactor(i);
+      return{id:uid(),cuenta:i.cuenta||'',concepto:i.concepto||'',periodo,
+        montos:(i.montos||Array(12).fill(0)).map(v=>Math.round((parseFloat(v)||0)*f*100)/100),montosReal:Array(12).fill(0)};});
+    if(nuevos.length)save({...lat,fixedExpenses:[...(lat.fixedExpenses||[]),...nuevos]});
+    setShowCopy(false);
   };
 
   // Inline cell edit
@@ -4272,12 +4359,48 @@ function AGastosFijos({data,save}){
           <p className="text-gray-400 text-xs">Presupuesto y ejecución real — período Ago–Jul</p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={openCopy} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold" title={'Copia los gastos fijos de '+priorPeriodo+' a '+periodo}>📋 Copiar de {priorPeriodo}</button>
           <select value={periodo} onChange={e=>setPeriodo(e.target.value)} className="border rounded-lg px-3 py-2 text-sm">
             {PERIODOS.map(pp=><option key={pp} value={pp}>{pp} · {periodoLabel(pp)}</option>)}
           </select>
           <button onClick={()=>setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Agregar Concepto</button>
         </div>
       </div>
+
+      {showCopy&&(
+        <div className="bg-white rounded-xl border border-green-200 p-4 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-semibold text-sm text-gray-700">Copiar gastos fijos de {priorPeriodo} → {periodo} · % de aumento por concepto</div>
+            <button onClick={()=>setShowCopy(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕ cerrar</button>
+          </div>
+          <div className="flex items-center gap-2 mb-3 text-xs flex-wrap bg-gray-50 rounded-lg px-3 py-2">
+            <span className="text-gray-500">Atajo — aplicar el mismo % a todos:</span>
+            <input type="number" value={copyIncAll} onChange={e=>setCopyIncAll(e.target.value)} className="border rounded px-2 py-1 w-16 text-right"/>
+            <span className="text-gray-500">%</span>
+            <button onClick={copyAplicarTodos} className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-2 py-1 rounded text-[11px] font-medium">aplicar a todos</button>
+          </div>
+          {copyCands.length===0?<div className="text-xs text-gray-400 py-2">No hay gastos fijos en {priorPeriodo}.</div>:(
+            <div className="max-h-72 overflow-y-auto border rounded-lg divide-y">
+              {copyCands.map(i=>{const ya=yaSet.has(yaKey(i));const base=(i.montos||[]).reduce((s,v)=>s+(parseFloat(v)||0),0);const res=Math.round(base*copyFactor(i)*100)/100;return(
+                <div key={i.id} className={'flex items-center gap-2 px-3 py-1.5 text-xs '+(ya?'opacity-40':'')}>
+                  <input type="checkbox" disabled={ya} checked={!!copySel[i.id]} onChange={e=>setCopySel(s=>({...s,[i.id]:e.target.checked}))}/>
+                  <span className="font-medium text-gray-700 flex-1 truncate min-w-[120px]">{i.cuenta?i.cuenta+' · ':''}{i.concepto}</span>
+                  <span className="text-gray-400 shrink-0" title="Presupuesto anual del período anterior">{$n(base)}</span>
+                  <span className="flex items-center gap-1 shrink-0"><span className="text-gray-400">+</span>
+                    <input type="number" disabled={ya} value={copyInc[i.id]!==undefined?copyInc[i.id]:''} onChange={e=>setCopyInc(m=>({...m,[i.id]:e.target.value}))} placeholder="0" className="border rounded px-1 py-0.5 w-14 text-right"/>
+                    <span className="text-gray-400">%</span>
+                  </span>
+                  <span className="font-semibold text-gray-700 shrink-0 w-24 text-right">→ {$n(res)}</span>
+                  {ya&&<span className="text-green-600 font-semibold shrink-0">ya existe</span>}
+                </div>
+              );})}
+            </div>
+          )}
+          <div className="flex justify-end mt-3">
+            <button onClick={hacerCopia} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">Copiar seleccionados a {periodo}</button>
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-5 gap-3 mb-5">
