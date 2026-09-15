@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-15a';
+const APP_VERSION='v2026-09-15b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -85,6 +85,8 @@ const nextProjectCode=(periodo,serviceCode,existingProjects)=>{
   return prefix+String(next).padStart(4,'0');
 };
 const currentPeriodo=(()=>{const now=new Date();const y=now.getFullYear();const m=now.getMonth();return m>=7?`${y}-${y+1}`:`${y-1}-${y}`;})();
+// Períodos habilitados para formular presupuesto (por ahora solo 2026-2027)
+const PRESUP_PERIODOS=['2026-2027'];
 
 const TIPO_CLS={'Recurrente':'bg-teal-100 text-teal-700','No Recurrente':'bg-purple-100 text-purple-600'};
 const DEFAULT_PART_CATS=[
@@ -1482,24 +1484,21 @@ function APresupuesto({data,save,currentUser,getLatestData}){
   const nextP=p=>{const a=(p||'').split('-').map(Number);return a.length===2?(a[0]+1)+'-'+(a[1]+1):p;};
   const prevP=p=>{const a=(p||'').split('-').map(Number);return a.length===2?(a[0]-1)+'-'+(a[1]-1):p;};
   const esResp=currentUser&&currentUser.role==='responsable';
-  const [periodo,setPeriodo]=useState(()=>nextP(currentPeriodo));
+  const [periodo,setPeriodo]=useState(()=>PRESUP_PERIODOS[0]);
   const [showGen,setShowGen]=useState(false);
   const [incremento,setIncremento]=useState('0');
   const [genSel,setGenSel]=useState({});
   const [expand,setExpand]=useState({}); // proyectos con la fila de facturación abierta
 
-  const periodoOpts=React.useMemo(()=>{
-    const s=new Set([prevP(currentPeriodo),currentPeriodo,nextP(currentPeriodo),nextP(nextP(currentPeriodo))]);
-    (data.presupuestoProyectos||[]).forEach(x=>x.periodo&&s.add(x.periodo));
-    return [...s].filter(Boolean).sort();
-  },[data.presupuestoProyectos]);
+  const periodoOpts=PRESUP_PERIODOS;
   const priorP=prevP(periodo);
   const userName=id=>{const u=(data.users||[]).find(u=>u.id===id);return u?u.name:'';};
   const deptName=id=>{const d=(data.departments||[]).find(d=>d.id===id);return d?d.name:'';};
   const partPctOf=pid=>(data.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(+p.pct||0),0);
 
   const items=(data.presupuestoProyectos||[]).filter(x=>x.periodo===periodo&&(!esResp||x.responsableId===currentUser.id));
-  const realesPrev=(data.projects||[]).filter(p=>p.periodo===priorP&&!p.enPapelera&&(!esResp||p.responsableId===currentUser.id));
+  // Candidatos para "generar borrador": reales del año anterior (recurrentes) + reales que YA están en el período destino
+  const realesCand=(data.projects||[]).filter(p=>(p.periodo===priorP||p.periodo===periodo)&&!p.enPapelera&&(!esResp||p.responsableId===currentUser.id));
 
   // ── GUARDADOS: siempre sobre la lista COMPLETA (getLatestData), nunca sobre la vista filtrada ──
   const upd=(id,patch)=>{const lat=getLatestData?getLatestData():data;save({...lat,presupuestoProyectos:(lat.presupuestoProyectos||[]).map(x=>x.id===id?{...x,...patch}:x)});};
@@ -1508,15 +1507,17 @@ function APresupuesto({data,save,currentUser,getLatestData}){
   const addNuevo=()=>{const lat=getLatestData?getLatestData():data;const nu={id:uid(),periodo,nombre:'',client:'',clientId:'',deptId:esResp?(currentUser.deptId||''):'',responsableId:esResp?currentUser.id:'',honorariosTotal:0,pctParticipaciones:0,costoTerceros:0,facturacion:Array(12).fill(0),origen:'nuevo',proyectoOrigenId:'',tipo:'Recurrente',notas:''};save({...lat,presupuestoProyectos:[...(lat.presupuestoProyectos||[]),nu]});setExpand(e=>({...e,[nu.id]:true}));};
   const del=id=>{if(!window.confirm('¿Eliminar este proyecto estimado del presupuesto?'))return;const lat=getLatestData?getLatestData():data;save({...lat,presupuestoProyectos:(lat.presupuestoProyectos||[]).filter(x=>x.id!==id)});};
 
-  const openGen=()=>{const pre={};realesPrev.forEach(p=>{if(p.recurrente!==false)pre[p.id]=true;});setGenSel(pre);setIncremento('0');setShowGen(true);};
+  const openGen=()=>{const pre={};realesCand.forEach(p=>{if(p.periodo===periodo)pre[p.id]=true;else if(p.recurrente!==false)pre[p.id]=true;});setGenSel(pre);setIncremento('0');setShowGen(true);};
   const generar=()=>{
     const lat=getLatestData?getLatestData():data;
-    const inc=1+((parseFloat(incremento)||0)/100);
+    const incP=1+((parseFloat(incremento)||0)/100);
     const yaOrigen=new Set((lat.presupuestoProyectos||[]).filter(x=>x.periodo===periodo).map(x=>x.proyectoOrigenId).filter(Boolean));
-    const nuevos=realesPrev.filter(p=>genSel[p.id]&&!yaOrigen.has(p.id)).map(p=>({
-      id:uid(),periodo,nombre:p.name,client:p.client,clientId:p.clientId||'',deptId:p.deptId||'',responsableId:p.responsableId||'',
-      honorariosTotal:Math.round((p.honorariosTotal||0)*inc*100)/100,pctParticipaciones:partPctOf(p.id),costoTerceros:0,
-      facturacion:Array(12).fill(0),origen:'recurrente',proyectoOrigenId:p.id,tipo:p.tipo||'Recurrente',notas:''}));
+    const nuevos=realesCand.filter(p=>genSel[p.id]&&!yaOrigen.has(p.id)).map(p=>{
+      const enPer=p.periodo===periodo; // los del propio período van a su valor real (sin incremento)
+      return{id:uid(),periodo,nombre:p.name,client:p.client,clientId:p.clientId||'',deptId:p.deptId||'',responsableId:p.responsableId||'',
+        honorariosTotal:Math.round((p.honorariosTotal||0)*(enPer?1:incP)*100)/100,pctParticipaciones:partPctOf(p.id),costoTerceros:0,
+        facturacion:Array(12).fill(0),origen:enPer?'actual':'recurrente',proyectoOrigenId:p.id,tipo:p.tipo||'Recurrente',notas:''};
+    });
     if(nuevos.length)save({...lat,presupuestoProyectos:[...(lat.presupuestoProyectos||[]),...nuevos]});
     setShowGen(false);
   };
@@ -1542,29 +1543,30 @@ function APresupuesto({data,save,currentUser,getLatestData}){
           </select>
         </div>
       </div>
-      <p className="text-gray-400 text-xs mb-4">Formula el presupuesto anual de ingresos. Base para recurrentes: proyectos reales de <b>{priorP}</b>. El % de facturación por mes alimentará el flujo de caja presupuestado.</p>
+      <p className="text-gray-400 text-xs mb-4">Formula el presupuesto anual de ingresos de <b>{periodo}</b>: recurrentes de <b>{priorP}</b> + proyectos reales que ya están en <b>{periodo}</b> + nuevos estimados. El % de facturación por mes alimentará el flujo de caja presupuestado.</p>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <button onClick={openGen} className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">♻️ Generar borrador desde {priorP}</button>
+        <button onClick={openGen} className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">♻️ Generar borrador desde proyectos reales</button>
         <button onClick={addNuevo} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">＋ Nuevo proyecto estimado</button>
       </div>
 
       {showGen&&(
         <div className="bg-white rounded-xl border border-teal-200 p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold text-sm text-gray-700">Proyectos reales de {priorP} — marca los que se repiten en {periodo}</div>
+            <div className="font-semibold text-sm text-gray-700">Proyectos reales para {periodo}: recurrentes de {priorP} + los que ya están en {periodo}</div>
             <button onClick={()=>setShowGen(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕ cerrar</button>
           </div>
           <div className="flex items-center gap-2 mb-3 text-xs">
-            <span className="text-gray-500">Aplicar incremento general a honorarios:</span>
+            <span className="text-gray-500">Incremento a honorarios (solo a los recurrentes de {priorP}):</span>
             <input type="number" value={incremento} onChange={e=>setIncremento(e.target.value)} className="border rounded px-2 py-1 w-16 text-right"/>
             <span className="text-gray-500">%</span>
           </div>
-          {realesPrev.length===0?<div className="text-xs text-gray-400 py-2">No hay proyectos reales en {priorP}.</div>:(
+          {realesCand.length===0?<div className="text-xs text-gray-400 py-2">No hay proyectos reales en {priorP} ni en {periodo}.</div>:(
             <div className="max-h-72 overflow-y-auto border rounded-lg divide-y">
-              {realesPrev.map(p=>{const ya=yaGenerados.has(p.id);return(
+              {realesCand.map(p=>{const ya=yaGenerados.has(p.id);const enPer=p.periodo===periodo;return(
                 <label key={p.id} className={'flex items-center gap-2 px-3 py-1.5 text-xs '+(ya?'opacity-40':'hover:bg-gray-50 cursor-pointer')}>
                   <input type="checkbox" disabled={ya} checked={!!genSel[p.id]} onChange={e=>setGenSel(s=>({...s,[p.id]:e.target.checked}))}/>
+                  <span className={'text-[9px] px-1.5 py-0.5 rounded-full shrink-0 '+(enPer?'bg-blue-50 text-blue-700':'bg-teal-50 text-teal-700')}>{enPer?'ya real '+periodo:priorP}</span>
                   <span className="font-medium text-gray-700 flex-1 truncate">{p.codigo?p.codigo+' · ':''}{p.name} <span className="text-gray-400">— {p.client}</span></span>
                   <span className="text-gray-500">{$n(p.honorariosTotal||0)}</span>
                   {ya&&<span className="text-teal-600 font-semibold">ya agregado</span>}
@@ -1595,7 +1597,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
                     {(data.users||[]).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 )}
-                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-teal-50 text-teal-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':'nuevo'}</span>
+                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-teal-50 text-teal-700':x.origen==='actual'?'bg-blue-50 text-blue-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':x.origen==='actual'?'ya real':'nuevo'}</span>
                 <button onClick={()=>del(x.id)} className="text-red-400 hover:text-red-600 text-xs px-1" title="Eliminar">🗑</button>
               </div>
               <div className="flex items-center gap-4 mt-2 flex-wrap text-xs">
