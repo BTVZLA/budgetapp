@@ -30,7 +30,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-15b';
+const APP_VERSION='v2026-09-15c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -801,13 +801,13 @@ function App(){
           const _t=bkTick; const d=diasDesdeUltimoBackup(); const vencido=(d===null||d>=7);
           if(!vencido)return null;
           return(
-            <div className="bg-amber-50 border-b border-amber-200 px-5 py-2.5 flex items-center gap-3">
-              <span className="text-amber-500 text-base">⏰</span>
-              <div className="text-xs text-amber-800 flex-1">
+            <div className="bg-yellow-50 border-b border-yellow-200 px-5 py-2.5 flex items-center gap-3">
+              <span className="text-yellow-500 text-base">⏰</span>
+              <div className="text-xs text-yellow-800 flex-1">
                 {d===null?'No hay respaldo registrado en este navegador.':'Han pasado '+Math.floor(d)+' días desde el último respaldo.'} Descarga una copia para proteger la información.
               </div>
               <button onClick={()=>{try{descargarBackupJSON(getLatestData?getLatestData():data);setBkTick(t=>t+1);}catch(_){}}}
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap">⬇️ Descargar respaldo ahora</button>
+                className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap">⬇️ Descargar respaldo ahora</button>
             </div>
           );
         })()}
@@ -1546,12 +1546,12 @@ function APresupuesto({data,save,currentUser,getLatestData}){
       <p className="text-gray-400 text-xs mb-4">Formula el presupuesto anual de ingresos de <b>{periodo}</b>: recurrentes de <b>{priorP}</b> + proyectos reales que ya están en <b>{periodo}</b> + nuevos estimados. El % de facturación por mes alimentará el flujo de caja presupuestado.</p>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <button onClick={openGen} className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">♻️ Generar borrador desde proyectos reales</button>
+        <button onClick={openGen} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">♻️ Generar borrador desde proyectos reales</button>
         <button onClick={addNuevo} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold">＋ Nuevo proyecto estimado</button>
       </div>
 
       {showGen&&(
-        <div className="bg-white rounded-xl border border-teal-200 p-4 mb-4">
+        <div className="bg-white rounded-xl border border-green-200 p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
             <div className="font-semibold text-sm text-gray-700">Proyectos reales para {periodo}: recurrentes de {priorP} + los que ya están en {periodo}</div>
             <button onClick={()=>setShowGen(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕ cerrar</button>
@@ -1566,16 +1566,16 @@ function APresupuesto({data,save,currentUser,getLatestData}){
               {realesCand.map(p=>{const ya=yaGenerados.has(p.id);const enPer=p.periodo===periodo;return(
                 <label key={p.id} className={'flex items-center gap-2 px-3 py-1.5 text-xs '+(ya?'opacity-40':'hover:bg-gray-50 cursor-pointer')}>
                   <input type="checkbox" disabled={ya} checked={!!genSel[p.id]} onChange={e=>setGenSel(s=>({...s,[p.id]:e.target.checked}))}/>
-                  <span className={'text-[9px] px-1.5 py-0.5 rounded-full shrink-0 '+(enPer?'bg-blue-50 text-blue-700':'bg-teal-50 text-teal-700')}>{enPer?'ya real '+periodo:priorP}</span>
+                  <span className={'text-[9px] px-1.5 py-0.5 rounded-full shrink-0 '+(enPer?'bg-blue-50 text-blue-700':'bg-green-100 text-green-700')}>{enPer?'ya real '+periodo:priorP}</span>
                   <span className="font-medium text-gray-700 flex-1 truncate">{p.codigo?p.codigo+' · ':''}{p.name} <span className="text-gray-400">— {p.client}</span></span>
                   <span className="text-gray-500">{$n(p.honorariosTotal||0)}</span>
-                  {ya&&<span className="text-teal-600 font-semibold">ya agregado</span>}
+                  {ya&&<span className="text-green-600 font-semibold">ya agregado</span>}
                 </label>
               );})}
             </div>
           )}
           <div className="flex justify-end mt-3">
-            <button onClick={generar} className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">Agregar seleccionados</button>
+            <button onClick={generar} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">Agregar seleccionados</button>
           </div>
         </div>
       )}
@@ -1597,7 +1597,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
                     {(data.users||[]).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 )}
-                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-teal-50 text-teal-700':x.origen==='actual'?'bg-blue-50 text-blue-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':x.origen==='actual'?'ya real':'nuevo'}</span>
+                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-green-100 text-green-700':x.origen==='actual'?'bg-blue-50 text-blue-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':x.origen==='actual'?'ya real':'nuevo'}</span>
                 <button onClick={()=>del(x.id)} className="text-red-400 hover:text-red-600 text-xs px-1" title="Eliminar">🗑</button>
               </div>
               <div className="flex items-center gap-4 mt-2 flex-wrap text-xs">
@@ -1609,7 +1609,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
                   <input type="number" value={x.costoTerceros||''} onChange={e=>upd(x.id,{costoTerceros:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-24 text-right"/></label>
                 <span className="text-gray-300">|</span>
                 <span className="text-gray-500">Participaciones: <b className="text-gray-700">{$n((+x.honorariosTotal||0)*(+x.pctParticipaciones||0)/100)}</b></span>
-                <span className="text-gray-500">Margen: <b className={margen>=0?'text-emerald-600':'text-red-600'}>{$n(margen)}</b></span>
+                <span className="text-gray-500">Margen: <b className={margen>=0?'text-green-600':'text-red-600'}>{$n(margen)}</b></span>
                 <button onClick={()=>setExpand(ex=>({...ex,[x.id]:!open}))} className="ml-auto text-indigo-600 hover:underline">{open?'▲ ocultar facturación':'▼ facturación mensual'}</button>
               </div>
               {open&&(
@@ -1617,7 +1617,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-[11px] text-gray-400">% facturado por mes (Ago→Jul)</span>
                     <button onClick={()=>repartir(x.id)} className="text-[11px] text-indigo-600 hover:underline">repartir igual</button>
-                    <span className={'ml-auto text-[11px] font-semibold px-2 py-0.5 rounded '+(Math.abs(sf-100)<0.5?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700')}>Suma: {sf.toFixed(1)}%{Math.abs(sf-100)<0.5?' ✓':' (debe ser 100%)'}</span>
+                    <span className={'ml-auto text-[11px] font-semibold px-2 py-0.5 rounded '+(Math.abs(sf-100)<0.5?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800')}>Suma: {sf.toFixed(1)}%{Math.abs(sf-100)<0.5?' ✓':' (debe ser 100%)'}</span>
                   </div>
                   <div className="grid grid-cols-12 gap-1">
                     {MESES_GF.map((mLbl,m)=>(
@@ -1645,9 +1645,9 @@ function APresupuesto({data,save,currentUser,getLatestData}){
           {/* Total general */}
           <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 mt-2 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div><div className="text-[11px] text-gray-500">Honorarios estimados</div><div className="text-base font-bold text-gray-800">{$n(totHon)}</div></div>
-            <div><div className="text-[11px] text-gray-500">Participaciones</div><div className="text-base font-bold text-amber-700">{$n(totPart)}</div></div>
+            <div><div className="text-[11px] text-gray-500">Participaciones</div><div className="text-base font-bold text-yellow-800">{$n(totPart)}</div></div>
             <div><div className="text-[11px] text-gray-500">Terceros</div><div className="text-base font-bold text-red-600">{$n(totTerc)}</div></div>
-            <div><div className="text-[11px] text-gray-500">Margen estimado</div><div className={'text-base font-bold '+(totMargen>=0?'text-emerald-600':'text-red-600')}>{$n(totMargen)}</div></div>
+            <div><div className="text-[11px] text-gray-500">Margen estimado</div><div className={'text-base font-bold '+(totMargen>=0?'text-green-600':'text-red-600')}>{$n(totMargen)}</div></div>
           </div>
         </div>
       )}
