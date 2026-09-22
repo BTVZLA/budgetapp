@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js" crossorigin="anonymous"></script>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif}</style>
 </head>
 <body>
@@ -31,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-22a';
+const APP_VERSION='v2026-09-22b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2086,11 +2087,13 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
     return{mes:MO[m],cobro,ejec,real};
   });
   const expCSV=()=>{
-    const rows=[['Concepto','Rev.Est.','Rev.Real','C.Interno','C.Externo','Participaciones','Costo Total','MB Bruta']];
-    pRows.forEach(p=>rows.push([p.name+'/'+p.client,p.pl.revE,p.pl.revA,p.pl.intC,p.pl.extC,p.pl.partE,p.pl.totC,p.pl.res]));
+    const header=['Concepto','Rev.Est.','Rev.Real','C.Interno','C.Externo','Participaciones','Costo Total','MB Bruta'];
+    const rows=pRows.map(p=>[p.name+' / '+p.client,p.pl.revE,p.pl.revA,p.pl.intC,p.pl.extC,p.pl.partE,p.pl.totC,p.pl.res]);
     rows.push(['GLOBAL',tRE,tRA,tIC,tEC,tPC,tDC,bE]);
-    const csv=rows.map(r=>r.join(',')).join('\n');
-    const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='resumen.csv';a.click();
+    exportarExcelBT('Resumen_'+new Date().toISOString().slice(0,10)+'.xlsx',{
+      sheet:'Resumen',title:'Resumen por Proyecto',
+      meta:['Baker Tilly Venezuela · '+new Date().toLocaleDateString('es-VE')],
+      header,rows,money:[1,2,3,4,5,6,7],boldRows:[rows.length-1]});
   };
   const plRows=[
     {l:'Ingresos Totales',e:tRE,a:tRA,bold:true,color:''},
@@ -2113,7 +2116,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
         <div><h2 className="font-bold text-base">Resumen Integral {YEAR}</h2><p className="text-gray-400 text-xs">Ingresos · Costos · Participaciones · Gastos · Flujo de Caja</p></div>
         <div className="flex items-center gap-3">
           {PeriodoSelector&&<PeriodoSelector/>}
-          <button onClick={expCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs">⬇ CSV</button>
+          <button onClick={expCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-xs">⬇ Excel</button>
         </div>
         {PeriodoSelector&&<PeriodoSelector/>}
       </div>
@@ -2458,6 +2461,45 @@ function descargarBackupJSON(data){
 // Días desde el último respaldo (null si nunca). Usa timestamp ISO fiable, no el texto en español.
 function diasDesdeUltimoBackup(){
   try{const iso=localStorage.getItem('budgetapp_last_backup_iso');if(!iso)return null;const d=(Date.now()-new Date(iso).getTime())/(1000*60*60*24);return isFinite(d)?d:null;}catch(_){return null;}
+}
+
+// Exporta un Excel (.xlsx) presentable con los colores de la firma (Baker Tilly / teal de la app).
+// opts: { sheet, title, meta:[str], header:[str], rows:[[...]], money:[colIdx], boldRows:[dataRowIdx] }
+async function exportarExcelBT(filename, opts){
+  if(typeof ExcelJS==='undefined'){alert('No se cargó el generador de Excel. Recarga con Ctrl+Shift+R e intenta de nuevo.');return;}
+  const {sheet='Hoja1', title='', meta=[], header=[], rows=[], money=[], boldRows=[]}=opts;
+  const DARK='FF00323C', TEAL='FF00BAB3', ZEBRA='FFF4F7F7', TOTAL='FFDDF3F1';
+  const moneySet=new Set(money), boldSet=new Set(boldRows);
+  const wb=new ExcelJS.Workbook();
+  wb.creator='BudgetApp — Baker Tilly Venezuela';
+  const ws=wb.addWorksheet(sheet,{views:[{showGridLines:false}]});
+  const ncol=header.length||1;
+  let r=1;
+  if(title){const c=ws.getCell(r,1);c.value=title;c.font={bold:true,size:14,color:{argb:DARK}};ws.mergeCells(r,1,r,ncol);r++;}
+  meta.forEach(m=>{const c=ws.getCell(r,1);c.value=m;c.font={size:9,italic:true,color:{argb:'FF7A8A8A'}};ws.mergeCells(r,1,r,ncol);r++;});
+  if(title||meta.length) r++; // fila en blanco
+  const hRow=r;
+  header.forEach((h,i)=>{const c=ws.getCell(hRow,i+1);c.value=h;c.font={bold:true,color:{argb:'FFFFFFFF'},size:11};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:DARK}};
+    c.alignment={vertical:'middle',horizontal:moneySet.has(i)?'right':'left'};
+    c.border={bottom:{style:'medium',color:{argb:TEAL}}};});
+  ws.getRow(hRow).height=20;
+  rows.forEach((row,ri)=>{
+    const rr=hRow+1+ri; const isBold=boldSet.has(ri);
+    row.forEach((v,ci)=>{const c=ws.getCell(rr,ci+1);
+      c.value=(moneySet.has(ci)&&typeof v==='number')?v:v;
+      if(moneySet.has(ci)&&typeof v==='number') c.numFmt='"$"#,##0.00';
+      c.alignment={horizontal:moneySet.has(ci)?'right':'left',vertical:'middle'};
+      if(isBold) c.font={bold:true,color:{argb:DARK}};
+      c.fill={type:'pattern',pattern:'solid',fgColor:{argb:isBold?TOTAL:(ri%2?ZEBRA:'FFFFFFFF')}};
+      c.border={bottom:{style:'thin',color:{argb:'FFE5E9E9'}}};});
+  });
+  header.forEach((h,i)=>{let w=String(h).length+2;rows.forEach(row=>{const v=row[i];const l=(moneySet.has(i)&&typeof v==='number')?12:String(v==null?'':v).length;if(l+2>w)w=l+2;});ws.getColumn(i+1).width=Math.min(Math.max(w,10),48);});
+  ws.views=[{state:'frozen',ySplit:hRow,showGridLines:false}];
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
 }
 
 function BackupConf({data}){
@@ -4953,23 +4995,20 @@ function APartReport({data,currentUser}){
   // Etiqueta legible del corte: 'YYYY-MM' → 'Mar 2026'
   const corteLabel=corte?MO_NAMES[parseInt(corte.slice(5,7),10)-1]+' '+corte.slice(0,4):'';
 
-  // Genera reporte CSV de participaciones pagadas, por persona y ordenado por fecha
+  // Genera reporte Excel de participaciones pagadas, por persona y ordenado por fecha
   const exportReporteCSV=()=>{
-    const esc=v=>{const s=String(v==null?'':v);return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
-    const fmt=n=>(Math.round((+n||0)*100)/100).toFixed(2);
-    const rows=[['Persona','Categoria','Fecha','Periodo','Codigo','Proyecto','Cliente','%','Monto USD','Tasa Cambio','Monto Bs','Notas']];
+    const fmt=n=>Math.round((+n||0)*100)/100;
+    const header=['Persona','Categoria','Fecha','Periodo','Codigo','Proyecto','Cliente','%','Monto USD','Tasa Cambio','Monto Bs','Notas'];
+    const rows=[]; const bold=[];
     personaList.forEach(persona=>{
       const pagosP=filtered.filter(p=>p.personId===persona.id).sort((a,b)=>(a.fecha||'')>(b.fecha||'')?1:-1);
       pagosP.forEach(p=>rows.push([persona.name,persona.cat,p.fecha||'',p.periodo,p.projCodigo,p.projName,p.client,p.pct||0,fmt(p.amount),p.tasaCambio||0,fmt((p.amount||0)*(p.tasaCambio||0)),p.notes||'']));
-      rows.push(['','Subtotal '+persona.name,'','','','','','',fmt(pagosP.reduce((s,p)=>s+p.amount,0)),'','','']);
+      rows.push(['','Subtotal '+persona.name,'','','','','','',fmt(pagosP.reduce((s,p)=>s+p.amount,0)),'','','']); bold.push(rows.length-1);
     });
-    rows.push(['','TOTAL GENERAL','','','','','','',fmt(totGlobal),'','','']);
-    const meta='Reporte de Participaciones Pagadas'+(corte?' — Corte al cierre de '+corteLabel:'')+(filtroPeriodo!=='todos'?' — Periodo '+filtroPeriodo:'');
-    const csv=meta+'\n\n'+rows.map(r=>r.map(esc).join(',')).join('\n');
-    const a=document.createElement('a');
-    a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('﻿'+csv);
-    a.download='participaciones_pagadas'+(corte?'_corte_'+corte:'')+'.csv';
-    a.click();
+    rows.push(['','TOTAL GENERAL','','','','','','',fmt(totGlobal),'','','']); bold.push(rows.length-1);
+    const meta=['Reporte de Participaciones Pagadas'+(corte?' — Corte al cierre de '+corteLabel:'')+(filtroPeriodo!=='todos'?' — Periodo '+filtroPeriodo:''),'Baker Tilly Venezuela · '+new Date().toLocaleDateString('es-VE')];
+    exportarExcelBT('participaciones_pagadas'+(corte?'_corte_'+corte:'')+'.xlsx',{
+      sheet:'Participaciones',title:'Participaciones Pagadas',meta,header,rows,money:[8,10],boldRows:bold});
   };
 
   return(
@@ -5024,7 +5063,7 @@ function APartReport({data,currentUser}){
         </div>
         <button onClick={exportReporteCSV} disabled={filtered.length===0}
           className="bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-xs font-medium">
-          ⬇ Generar reporte CSV
+          ⬇ Generar reporte Excel
         </button>
       </div>
       {corte&&<div className="text-gray-400 text-xs mb-3 -mt-1">ℹ️ El corte incluye los pagos con fecha hasta el cierre de <b>{corteLabel}</b>. Los pagos sin fecha asignada quedan excluidos del corte.</div>}
@@ -5801,13 +5840,15 @@ function ARent({data,PeriodoSelector}){
   const tRealC=data.projects.reduce((s,p)=>s+getRealPL(p.id,data).totC,0);
   const tRealR=tRA-tRealC,tRealM=tRA>0?(tRealR/tRA)*100:0;
   const expCSV=()=>{
-    const rows=[['Proyecto','Cliente','Estatus','Hon.Propuesto','Hon.OS','Hon.Neto','Rev.Est.','C.Int.','C.Ext.','Partic.','Total','Resultado','%']];
-    sorted.forEach(p=>{
+    const header=['Proyecto','Cliente','Estatus','Hon.Propuesto','Hon.OS','Hon.Neto','Rev.Est.','C.Int.','C.Ext.','Partic.','Total','Resultado','%'];
+    const rows=sorted.map(p=>{
       const pl=getPL(p.id,data);
-      rows.push([p.name,p.client,p.status||'',p.honorariosTotal||0,p.honorariosOS||0,(p.honorariosTotal||0)-(p.honorariosOS||0),pl.revE,pl.intC,pl.extC,pl.partE,pl.totC,pl.res,pc(pl.mg)]);
+      return [p.name,p.client,p.status||'',p.honorariosTotal||0,p.honorariosOS||0,(p.honorariosTotal||0)-(p.honorariosOS||0),pl.revE,pl.intC,pl.extC,pl.partE,pl.totC,pl.res,pc(pl.mg)];
     });
-    const csv=rows.map(r=>r.join(',')).join('\n');
-    const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='rentabilidad.csv';a.click();
+    exportarExcelBT('Rentabilidad_'+new Date().toISOString().slice(0,10)+'.xlsx',{
+      sheet:'Rentabilidad',title:'Rentabilidad por Proyecto',
+      meta:['Baker Tilly Venezuela · '+new Date().toLocaleDateString('es-VE')],
+      header,rows,money:[3,4,5,6,7,8,9,10,11]});
   };
   const TabBtn=({id,label})=><button onClick={()=>setRentTab(id)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(rentTab===id?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{label}</button>;
   return(
