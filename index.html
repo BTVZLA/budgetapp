@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-22b';
+const APP_VERSION='v2026-09-22c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1764,6 +1764,21 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const proyectosOrdenados=[...proyectos].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   const deptCount=id=>conPeriodo.filter(p=>p.deptId===id).length;
 
+  const expProyectos=()=>{
+    const dN=id=>{const d=(data.departments||[]).find(x=>x.id===id);return d?d.name:'';};
+    const rN=id=>{const u=(data.users||[]).find(x=>x.id===id);return u?u.name:'';};
+    const header=['Codigo','Proyecto','Cliente','Departamento','Responsable','Estatus','Periodo','Tipo','Hon.Total','Hon.OS','Hon.Neto','Ingreso Est.','Costo Dir.Est.','Margen %'];
+    const rows=proyectosOrdenados.map(p=>{
+      const rev=getTotRev(p.id,data,'est'), dir=getTotDir(p.id,data), mg=getMargin(p.id,data);
+      return [p.codigo||'',p.name,p.client,dN(p.deptId),rN(p.responsableId),p.status||'',p.periodo||'',p.tipo||'',p.honorariosTotal||0,p.honorariosOS||0,(p.honorariosTotal||0)-(p.honorariosOS||0),rev,dir,pc(mg)];
+    });
+    const vistaLbl=isPapelera?'Papelera':isClosed?'Cerrados':'Activos';
+    exportarExcelBT('Proyectos_'+vistaLbl+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{
+      sheet:'Proyectos',title:'Proyectos — '+vistaLbl+(filtroPeriodo?' · '+filtroPeriodo:''),
+      meta:['Baker Tilly Venezuela · '+new Date().toLocaleDateString('es-VE')+' · '+proyectosOrdenados.length+' proyectos'],
+      header,rows,money:[8,9,10,11,12]});
+  };
+
   /* ProjCard is defined OUTSIDE AProjects (see above) to prevent cursor-jump.
      We render it here passing all needed props. */
   const cardProps={data,save,isAdmin,canClose,isPapelera,isClosed,editId,
@@ -1778,7 +1793,10 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
           <h2 className="font-bold text-base">Proyectos</h2>
           <p className="text-gray-400 text-xs">{totActivos} activos · {totCerrados} cerrados · {totPapelera} en papelera</p>
         </div>
-        {isAdmin&&vistaTab!=='papelera'&&<button onClick={()=>setShow(!show)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nuevo Proyecto</button>}
+        <div className="flex items-center gap-2">
+          <button onClick={expProyectos} disabled={proyectosOrdenados.length===0} className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-medium">⬇ Excel</button>
+          {isAdmin&&vistaTab!=='papelera'&&<button onClick={()=>setShow(!show)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nuevo Proyecto</button>}
+        </div>
       </div>
 
       {/* New project form */}
