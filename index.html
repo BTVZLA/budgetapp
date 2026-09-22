@@ -31,7 +31,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-20a';
+const APP_VERSION='v2026-09-22a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4114,15 +4114,32 @@ function galacClasifica(code){
   if(code.startsWith('5.')) return 'gasto_fijo';
   return 'otro';
 }
-// Lee el .xlsx del balance de comprobación GALAC → cuentas hoja con su movimiento del período
+// "31/07/2026" → {periodo:"2025-2026", mesIdx:11 (Ago=0..Jul=11)}
+function galacFiscal(fecha){
+  const p=String(fecha||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(!p) return null;
+  const mm=+p[2], yyyy=+p[3];
+  const mesIdx=(mm-8+12)%12;
+  const periodo = mm>=8 ? (yyyy+'-'+(yyyy+1)) : ((yyyy-1)+'-'+yyyy);
+  return {periodo,mesIdx,mm,yyyy,dd:+p[1]};
+}
+// Lee el .xlsx del balance de comprobación GALAC → cuentas hoja + rango de fechas del encabezado
 function parseGalacBalance(arrayBuffer){
   const wb=XLSX.read(arrayBuffer,{type:'array'});
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
   const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
   const re=/^\s*(\d+(?:\.\d+)+)\s*-\s*(.+?)\s*$/;
-  const out=[];
+  const cuentas=[];
+  let desde=null, hasta=null;
   for(const r of rows){
+    // detectar el rango de fechas en cualquier celda ("DEL 01/08/2025 AL 31/07/2026")
+    if(!hasta){
+      for(const cell of r){
+        const m2=String(cell==null?'':cell).match(/DEL\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+AL\s+(\d{1,2}\/\d{1,2}\/\d{4})/i);
+        if(m2){desde=m2[1];hasta=m2[2];break;}
+      }
+    }
     const a=r[0], b=r[1], d=r[3], e=r[4], f=r[5];
     if(b) continue;                 // fila TOTAL (subtotal) → col B
     if(a==null) continue;
@@ -4132,10 +4149,13 @@ function parseGalacBalance(arrayBuffer){
     const code=m[1], name=m[2].replace(/\s+/g,' ').trim();
     if((code.match(/\./g)||[]).length<3) continue; // solo cuentas hoja (4 niveles)
     const debe=num(d), haber=num(e), tipo=galacClasifica(code);
-    const mov = tipo==='ingreso' ? (haber-debe) : (debe-haber); // acumulado del período exportado
-    out.push({code,name,debe,haber,mov,tipo});
+    const mov = tipo==='ingreso' ? (haber-debe) : (debe-haber); // acumulado del rango exportado
+    cuentas.push({code,name,debe,haber,mov,tipo});
   }
-  return out;
+  const fh=galacFiscal(hasta), fd=galacFiscal(desde);
+  // acumulado = arranca el 01/08 (inicio del año fiscal); si arranca el 1° del propio mes de cierre → un solo mes
+  const esAcumulado = !fd || (fd.dd===1 && fd.mm===8);
+  return {cuentas, desde, hasta, periodo:fh?fh.periodo:null, mesIdx:fh?fh.mesIdx:null, esAcumulado};
 }
 
 function AGastosFijos({data,save,getLatestData}){
@@ -4161,8 +4181,9 @@ function AGastosFijos({data,save,getLatestData}){
       try{
         if(typeof XLSX==='undefined'){setGalacErr('No se cargó el lector de Excel (SheetJS). Recarga con Ctrl+Shift+R.');return;}
         const parsed=parseGalacBalance(e.target.result);
-        if(!parsed.length){setGalacErr('No se reconocieron cuentas. ¿Es el balance de comprobación de GALAC en Excel?');setGalacData(null);return;}
+        if(!parsed.cuentas.length){setGalacErr('No se reconocieron cuentas. ¿Es el balance de comprobación de GALAC en Excel?');setGalacData(null);return;}
         setGalacData(parsed);
+        if(parsed.mesIdx!=null) setGalacMes(parsed.mesIdx); // mes detectado del archivo
       }catch(err){setGalacErr('Error al leer el archivo: '+err.message);setGalacData(null);}
     };
     reader.readAsArrayBuffer(file);
@@ -4235,24 +4256,27 @@ function AGastosFijos({data,save,getLatestData}){
   };
 
   // ── Importar Real desde GALAC: crea conceptos (opción B) y llena montosReal por diferencia ──
-  const galacGF=galacData?galacData.filter(a=>a.tipo==='gasto_fijo'):[];
+  const galacGF=galacData?galacData.cuentas.filter(a=>a.tipo==='gasto_fijo'):[];
+  const galacMismatch=galacData&&galacData.periodo&&galacData.periodo!==periodo; // el archivo es de otro año fiscal
   const galacPrev=galacGF.map(a=>{
     const ex=periodoItems.find(x=>(x.cuenta||'')===a.code);
     const mr=ex?(ex.montosReal||[]):[];
-    const prevCumul=mr.slice(0,galacMes).reduce((s,v)=>s+(parseFloat(v)||0),0);
+    const prevCumul=(galacData&&galacData.esAcumulado)?mr.slice(0,galacMes).reduce((s,v)=>s+(parseFloat(v)||0),0):0;
     return {...a, existe:!!ex, prevCumul, mesMov:Math.round((a.mov-prevCumul)*100)/100};
   });
-  const galacTot=t=>galacData?galacData.filter(a=>a.tipo===t).reduce((s,a)=>s+a.mov,0):0;
+  const galacTot=t=>galacData?galacData.cuentas.filter(a=>a.tipo===t).reduce((s,a)=>s+a.mov,0):0;
   const aplicarGalac=()=>{
+    if(galacMismatch){setGalacErr('El archivo es del período '+galacData.periodo+', pero tienes seleccionado '+periodo+'. Cambia el período arriba o exporta el balance correcto.');return;}
     const lat=getLatestData?getLatestData():data;
     let fx=[...(lat.fixedExpenses||[])];
+    const acum=galacData&&galacData.esAcumulado;
     galacGF.forEach(a=>{
       let idx=fx.findIndex(x=>x.periodo===periodo&&(x.cuenta||'')===a.code);
       if(idx<0){fx.push({id:uid(),cuenta:a.code,concepto:a.name,periodo,montos:Array(12).fill(0),montosReal:Array(12).fill(0)});idx=fx.length-1;}
       const item={...fx[idx]};
       const mr=[...(item.montosReal||Array(12).fill(0))]; while(mr.length<12)mr.push(0);
-      const prevCumul=mr.slice(0,galacMes).reduce((s,v)=>s+(parseFloat(v)||0),0);
-      mr[galacMes]=Math.round((a.mov-prevCumul)*100)/100; // movimiento del mes = acumulado − meses ya cargados
+      const prevCumul=acum?mr.slice(0,galacMes).reduce((s,v)=>s+(parseFloat(v)||0),0):0;
+      mr[galacMes]=Math.round((a.mov-prevCumul)*100)/100; // acumulado: mes = acum − meses ya cargados; un solo mes: directo
       item.montosReal=mr; fx[idx]=item;
     });
     save({...lat,fixedExpenses:fx});
@@ -4452,12 +4476,8 @@ function AGastosFijos({data,save,getLatestData}){
             <div className="font-semibold text-sm text-gray-700">⬆️ Importar Real desde GALAC — período {periodo}</div>
             <button onClick={()=>setShowGalac(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕ cerrar</button>
           </div>
-          <div className="text-xs text-gray-500 mb-3">Exporta de GALAC el <b>balance de comprobación acumulado</b> (01/08 hasta el fin del mes) en Excel. La app crea los conceptos de gasto que falten (por cuenta) y calcula el <b>movimiento del mes por diferencia</b> con lo ya cargado.</div>
+          <div className="text-xs text-gray-500 mb-3">Exporta de GALAC el <b>balance de comprobación acumulado</b> (01/08 hasta el fin del mes) en Excel. La app <b>detecta el mes y el año del propio archivo</b> (por el rango de fechas del encabezado), crea los conceptos que falten y calcula el <b>movimiento del mes por diferencia</b>.</div>
           <div className="flex items-center gap-3 mb-3 flex-wrap text-xs">
-            <label className="text-gray-500">Mes acumulado hasta:</label>
-            <select value={galacMes} onChange={e=>setGalacMes(+e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white">
-              {MESES_GF.map((mm,i)=><option key={i} value={i}>{mm}</option>)}
-            </select>
             <label className="bg-gray-100 hover:bg-gray-200 rounded-lg px-3 py-1.5 cursor-pointer font-medium text-gray-700">
               📄 Elegir archivo .xlsx
               <input type="file" accept=".xlsx,.xls" onChange={onGalacFile} className="hidden"/>
@@ -4465,6 +4485,14 @@ function AGastosFijos({data,save,getLatestData}){
             {galacFile&&<span className="text-gray-500 truncate max-w-xs">{galacFile}</span>}
           </div>
           {galacErr&&<div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{galacErr}</div>}
+          {galacData&&(
+            <div className={'text-xs rounded-lg px-3 py-2 mb-3 '+(galacMismatch?'bg-red-50 border border-red-300 text-red-700':'bg-blue-50 border border-blue-200 text-blue-800')}>
+              <b>Archivo detectado:</b> {galacData.esAcumulado?'acumulado':'movimiento'} {galacData.desde} → {galacData.hasta}
+              {galacData.periodo&&<> · período <b>{galacData.periodo}</b> · mes de cierre <b>{galacData.mesIdx!=null?MESES_GF[galacData.mesIdx]:'?'}</b></>}
+              {galacMismatch&&<div className="mt-1 font-semibold">⚠️ Este archivo es del período {galacData.periodo}, pero arriba tienes seleccionado {periodo}. Cambia el período (arriba a la derecha) a {galacData.periodo} para importarlo, o exporta el balance de {periodo}.</div>}
+              {!galacData.periodo&&<div className="mt-1">No se pudo leer el rango de fechas del archivo. Verifica el mes manualmente: <select value={galacMes} onChange={e=>setGalacMes(+e.target.value)} className="border rounded px-1 py-0.5 ml-1">{MESES_GF.map((mm,i)=><option key={i} value={i}>{mm}</option>)}</select></div>}
+            </div>
+          )}
           {galacData&&(
             <div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs">
@@ -4487,7 +4515,7 @@ function AGastosFijos({data,save,getLatestData}){
               </div>
               <div className="text-[11px] text-gray-400 mt-2">Nota: nómina, ingresos y costos de proyecto se muestran como referencia; su comparación se cargará en la siguiente fase. Por ahora se aplica solo a Gastos Fijos.</div>
               <div className="flex justify-end mt-3">
-                <button onClick={aplicarGalac} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold">Aplicar real de {MESES_GF[galacMes]} a Gastos Fijos</button>
+                <button onClick={aplicarGalac} disabled={galacMismatch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">Aplicar real de {MESES_GF[galacMes]} a Gastos Fijos</button>
               </div>
             </div>
           )}
