@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-25d';
+const APP_VERSION='v2026-09-25e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -835,10 +835,11 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   const isResponsable=role==='responsable';
 
   // Period filter - DISPLAY ONLY, never filters data passed to save()
-  const [filtroPeriodo,setFiltroPeriodo]=useState('todos');
+  const [filtroPeriodo,setFiltroPeriodo]=useState(currentPeriodo);
   const periodos=React.useMemo(()=>{
     const ps=new Set((data.projects||[]).map(p=>p.periodo).filter(Boolean));
-    return ['todos',...[...ps].sort().reverse()];
+    ps.add(currentPeriodo);
+    return [...[...ps].sort().reverse(),'todos'];
   },[data.projects]);
 
   // visibleData for responsable role only - NO period filter here to avoid data loss
@@ -1679,7 +1680,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const catsProp=(data.partCats&&data.partCats.length?data.partCats:DEFAULT_PART_CATS);
   const [vistaTab,setVistaTab]=useState('activos');
   const [selDept,setSelDept]=useState('todos');
-  const [filtroPeriodo,setFiltroPeriodo]=useState('');
+  const [filtroPeriodo,setFiltroPeriodo]=useState(currentPeriodo);
   const [show,setShow]=useState(false);
   const [form,setForm]=useState(emptyForm);
   const [editId,setEditId]=useState(null);
@@ -5055,7 +5056,7 @@ function APartReport({data,currentUser}){
   });
 
   const [subTab,setSubTab]=useState('pagadas');
-  const [filtroPeriodo,setFiltroPeriodo]=useState('todos');
+  const [filtroPeriodo,setFiltroPeriodo]=useState(currentPeriodo);
   const [filtroPersona,setFiltroPersona]=useState('todos');
   const [corte,setCorte]=useState(''); // 'YYYY-MM' — corte al cierre de mes
   const [expandedPersonas,setExpandedPersonas]=useState({});
