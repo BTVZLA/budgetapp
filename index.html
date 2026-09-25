@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-22c';
+const APP_VERSION='v2026-09-25a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4274,6 +4274,19 @@ function AGastosFijos({data,save,getLatestData}){
   const totEstAnualItem=item=>item.montos.reduce((s,v)=>s+(parseFloat(v)||0),0);
   const totRealAnualItem=item=>(item.montosReal||[]).reduce((s,v)=>s+(parseFloat(v)||0),0);
 
+  // Comparativo agrupado por cuenta GALAC: suma las sub-líneas del mismo código
+  const compGrupos=(()=>{
+    const map=new Map();
+    filtItems.forEach(it=>{
+      const key=(it.cuenta||'').trim()||('__'+it.id);
+      if(!map.has(key)) map.set(key,{key,cuenta:(it.cuenta||'').trim(),conceptos:[],montos:Array(12).fill(0),montosReal:Array(12).fill(0)});
+      const g=map.get(key);
+      if(it.concepto&&!g.conceptos.includes(it.concepto)) g.conceptos.push(it.concepto);
+      for(let m=0;m<12;m++){g.montos[m]+=parseFloat((it.montos||[])[m])||0; g.montosReal[m]+=parseFloat((it.montosReal||[])[m])||0;}
+    });
+    return [...map.values()].sort((a,b)=>(a.cuenta||'zzz').localeCompare(b.cuenta||'zzz','es'));
+  })();
+
   const emptyF=()=>({cuenta:'',concepto:'',montos:Array(12).fill('')});
 
   const add=()=>{
@@ -4817,14 +4830,15 @@ function AGastosFijos({data,save,getLatestData}){
                 </tr>
               </thead>
               <tbody>
-                {filtItems.map(item=>{
+                {compGrupos.map(item=>{
                   const rAnual=totRealAnualItem(item);
                   const eAnual=totEstAnualItem(item);
+                  const label=item.conceptos.length?item.conceptos[0]+(item.conceptos.length>1?' (+'+(item.conceptos.length-1)+')':''):'(sin concepto)';
                   return(
-                    <tr key={item.id} className="border-t hover:bg-gray-50">
+                    <tr key={item.key} className="border-t hover:bg-gray-50">
                       <td className="px-3 py-1.5">
-                        <div className="font-medium text-gray-700 truncate max-w-52">{item.concepto}</div>
-                        <div className="text-gray-400 font-mono text-xs">{item.cuenta}</div>
+                        <div className="font-medium text-gray-700 truncate max-w-52" title={item.conceptos.join(' · ')}>{label}</div>
+                        <div className="text-gray-400 font-mono text-xs">{item.cuenta||'— sin cuenta —'}</div>
                       </td>
                       {MESES_GF.map((_,m)=>{
                         const est=item.montos[m]||0;
