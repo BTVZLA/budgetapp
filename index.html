@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28a';
+const APP_VERSION='v2026-09-28b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -189,7 +189,7 @@ const fromDB={
   participations:r=>({id:r.id,projectId:r.project_id,catId:r.cat_id,pct:+r.pct}),
   expenses:r=>({id:r.id,deptId:r.dept_id,category:r.category,month:r.month,est:+r.est,act:+r.act}),
   fixed_expenses:r=>({id:r.id,cuenta:r.cuenta||'',concepto:r.concepto||'',periodo:r.periodo||currentPeriodo,montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
-  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false}),
+  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true))}),
   other_labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,categoria:r.categoria||'',concepto:r.concepto||'',montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
   people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||''}),
   clients:r=>({id:r.id,code:r.code||'',name:r.name,shortName:r.short_name||''}),
@@ -222,7 +222,7 @@ const toDB={
   participations:p=>({id:p.id,project_id:p.projectId,cat_id:p.catId,pct:p.pct}),
   expenses:e=>({id:e.id,dept_id:e.deptId,category:e.category,month:e.month,est:e.est,act:e.act}),
   fixed_expenses:e=>({id:e.id,cuenta:e.cuenta||'',concepto:e.concepto||'',periodo:e.periodo||currentPeriodo,montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
-  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false}),
+  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true))}),
   other_labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,categoria:e.categoria||'',concepto:e.concepto||'',montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
   people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null}),
   clients:c=>({id:c.id,code:c.code||'',name:c.name,short_name:c.shortName||''}),
@@ -3799,7 +3799,18 @@ function ACostosLaborales({data,save,getLatestData}){
   const [search,setSearch]=useState('');
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
-  const emptyForm={nombre:'',cargo:'',sueldo:'',ticket:'',bstaff:'',depreciacion:'',asignacion:'',movilidad:'',participaciones:'',notas:'',activo:true};
+  const emptyForm={nombre:'',cargo:'',sueldo:'',ticket:'',bstaff:'',depreciacion:'',asignacion:'',movilidad:'',participaciones:'',notas:'',activo:true,mesesPago:Array(12).fill(true)};
+  const mpLabel=mp=>{if(!Array.isArray(mp)||mp.length!==12||mp.every(x=>x!==false))return 'Mensual';const on=mp.map((v,i)=>v?MESES_GF[i]:null).filter(Boolean);return on.length?on.join(', '):'Sin pago';};
+  const MPChips=({value,onChange})=>{const mp=(Array.isArray(value)&&value.length===12)?value:Array(12).fill(true);return(
+    <div className="flex flex-wrap items-center gap-1">
+      <span className="text-[11px] text-gray-500 mr-1">Meses de pago:</span>
+      {MESES_GF.map((m,i)=>(
+        <button key={i} type="button" onClick={()=>{const n=mp.map(x=>x!==false);n[i]=!n[i];onChange(n);}}
+          className={'text-[10px] px-1.5 py-0.5 rounded '+(mp[i]!==false?'bg-blue-600 text-white':'bg-gray-100 text-gray-400')}>{m}</button>
+      ))}
+      <button type="button" onClick={()=>onChange(Array(12).fill(true))} className="text-[10px] text-indigo-600 ml-1 underline">Todos</button>
+    </div>
+  );};
   const [form,setForm]=useState(emptyForm);
 
   // OLC state
@@ -3859,7 +3870,7 @@ function ACostosLaborales({data,save,getLatestData}){
   const add=()=>{
     if(!form.nombre.trim())return;
     const ni={id:uid(),periodo,...Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(form[c.key])||0])),
-      nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true};
+      nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:(form.mesesPago||Array(12).fill(true))};
     const latLC=getLatestData?getLatestData():data;
     save({...latLC,laborCosts:[...(latLC.laborCosts||[]),ni]});
     setForm(emptyForm);setShowForm(false);
@@ -3868,11 +3879,13 @@ function ACostosLaborales({data,save,getLatestData}){
   const startEdit=item=>{
     setEditId(item.id);
     setEditForm({nombre:item.nombre,cargo:item.cargo||'',notas:item.notas||'',
+      mesesPago:(Array.isArray(item.mesesPago)&&item.mesesPago.length===12?item.mesesPago.map(x=>x!==false):Array(12).fill(true)),
       ...Object.fromEntries(LC_COLS.map(c=>[c.key,String(item[c.key]||0)]))});
   };
   const applyEdit=()=>{
     save({...(getLatestData?getLatestData():data),laborCosts:items.map(i=>i.id===editId?{...i,
       nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,
+      mesesPago:(editForm.mesesPago||Array(12).fill(true)),
       ...Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(editForm[c.key])||0]))}:i)});
     setEditId(null);
   };
@@ -4039,6 +4052,7 @@ function ACostosLaborales({data,save,getLatestData}){
                   </div>
                 </div>
               </div>
+              <div className="mb-3 bg-gray-50 rounded-lg px-3 py-2"><MPChips value={form.mesesPago} onChange={mp=>setForm({...form,mesesPago:mp})}/></div>
               <div className="flex gap-2">
                 <button onClick={add} disabled={!form.nombre.trim()} className="bg-indigo-600 text-white px-5 py-1.5 rounded-lg text-sm disabled:opacity-40">💾 Guardar</button>
                 <button onClick={()=>setShowForm(false)} className="border text-gray-600 px-4 py-1.5 rounded-lg text-sm">Cancelar</button>
@@ -4061,9 +4075,11 @@ function ACostosLaborales({data,save,getLatestData}){
                 {filtItems.length===0?<tr><td colSpan={12} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
                 :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>{
                   const totM=totalMensual(item);
+                  const editing=editId===item.id;
                   return(
-                    <tr key={item.id} className="border-t hover:bg-gray-50">
-                      {editId===item.id?(
+                    <React.Fragment key={item.id}>
+                    <tr className="border-t hover:bg-gray-50">
+                      {editing?(
                         <>
                           <td className="px-3 py-1.5"><input value={editForm.nombre} onChange={e=>setEditForm({...editForm,nombre:e.target.value})} className="border rounded px-2 py-1 text-xs w-44"/></td>
                           <td className="px-3 py-1.5"><input value={editForm.cargo} onChange={e=>setEditForm({...editForm,cargo:e.target.value})} className="border rounded px-2 py-1 text-xs w-24"/></td>
@@ -4077,7 +4093,7 @@ function ACostosLaborales({data,save,getLatestData}){
                         </>
                       ):(
                         <>
-                          <td className="px-3 py-2 font-medium text-gray-700">{item.nombre}</td>
+                          <td className="px-3 py-2 font-medium text-gray-700">{item.nombre}<div className="text-[10px] font-normal text-gray-400">🗓 {mpLabel(item.mesesPago)}</div></td>
                           <td className="px-3 py-2 text-gray-500">{item.cargo||'—'}</td>
                           {LC_COLS.map(c=><td key={c.key} className={'px-2 py-2 text-right '+(item[c.key]>0?c.color:'text-gray-200')}>{item[c.key]>0?$n(item[c.key]):'—'}</td>)}
                           <td className="px-3 py-2 text-right font-bold text-blue-700">{$n(totM)}</td>
@@ -4089,6 +4105,8 @@ function ACostosLaborales({data,save,getLatestData}){
                         </>
                       )}
                     </tr>
+                    {editing&&<tr className="bg-blue-50"><td colSpan={LC_COLS.length+5} className="px-3 py-2"><MPChips value={editForm.mesesPago} onChange={mp=>setEditForm({...editForm,mesesPago:mp})}/></td></tr>}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
