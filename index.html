@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28e';
+const APP_VERSION='v2026-09-28f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -211,6 +211,7 @@ const fromDB={
   solicitudes_liberacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,solicitanteId:r.solicitante_id||'',motivo:r.motivo||'',destinatarios:r.destinatarios||'',fecha:r.fecha||''}),
   presupuesto_proyectos:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',client:r.client||'',clientId:r.client_id||'',deptId:r.dept_id||'',responsableId:r.responsable_id||'',honorariosTotal:+(r.honorarios_total||0),pctParticipaciones:+(r.pct_participaciones||0),costoTerceros:+(r.costo_terceros||0),facturacion:(Array.isArray(r.facturacion)?r.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:r.origen||'nuevo',proyectoOrigenId:r.proyecto_origen_id||'',tipo:r.tipo||'Recurrente',notas:r.notas||''}),
   costos_hora:r=>({id:r.id,periodo:r.periodo||currentPeriodo,personId:r.person_id||'',costos:(Array.isArray(r.costos)?r.costos.map(x=>+x||0):Array(12).fill(0))}),
+  flujo_config:r=>({id:r.id,periodo:r.periodo||currentPeriodo,saldoInicial:+(r.saldo_inicial||0)}),
 };
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
@@ -244,6 +245,7 @@ const toDB={
   solicitudes_liberacion:s=>({id:s.id,project_id:s.projectId||null,user_id:s.userId||null,week_start:s.weekStart,solicitante_id:s.solicitanteId||null,motivo:s.motivo||'',destinatarios:s.destinatarios||'',fecha:s.fecha||null}),
   presupuesto_proyectos:p=>({id:p.id,periodo:p.periodo||currentPeriodo,nombre:p.nombre||'',client:p.client||'',client_id:p.clientId||'',dept_id:p.deptId||'',responsable_id:p.responsableId||'',honorarios_total:p.honorariosTotal||0,pct_participaciones:p.pctParticipaciones||0,costo_terceros:p.costoTerceros||0,facturacion:(Array.isArray(p.facturacion)?p.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:p.origen||'nuevo',proyecto_origen_id:p.proyectoOrigenId||'',tipo:p.tipo||'Recurrente',notas:p.notas||''}),
   costos_hora:c=>({id:c.id,periodo:c.periodo||currentPeriodo,person_id:c.personId||'',costos:(Array.isArray(c.costos)?c.costos.map(x=>+x||0):Array(12).fill(0))}),
+  flujo_config:c=>({id:c.id,periodo:c.periodo||currentPeriodo,saldo_inicial:c.saldoInicial||0}),
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
@@ -269,7 +271,7 @@ async function loadAllData(cfg,tok){
     sbGet(cfg,tok,'external_costs'),sbGet(cfg,tok,'participations'),sbGet(cfg,tok,'expenses'),
   ]);
   // New tables loaded safely — return [] if table doesn't exist yet in Supabase
-  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan,solLib,presProy,costosHora]=await Promise.all([
+  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan,solLib,presProy,costosHora,flujoConfig]=await Promise.all([
     sbGetSafe(cfg,tok,'people',fromDB.people),
     sbGetSafe(cfg,tok,'real_internal_costs',fromDB.real_internal_costs),
     sbGetSafe(cfg,tok,'real_external_costs',fromDB.real_external_costs),
@@ -286,6 +288,7 @@ async function loadAllData(cfg,tok){
     sbGetSafe(cfg,tok,'solicitudes_liberacion',fromDB.solicitudes_liberacion),
     sbGetSafe(cfg,tok,'presupuesto_proyectos',fromDB.presupuesto_proyectos),
     sbGetSafe(cfg,tok,'costos_hora',fromDB.costos_hora),
+    sbGetSafe(cfg,tok,'flujo_config',fromDB.flujo_config),
   ]);
   const s=sets[0]||{rates:{},part_cats:[]};
   return{
@@ -321,6 +324,7 @@ async function loadAllData(cfg,tok){
     solicitudesLiberacion:solLib,
     presupuestoProyectos:presProy,
     costosHora:costosHora,
+    flujoConfig:flujoConfig,
   };
 }
 
@@ -399,6 +403,7 @@ async function syncData(cfg,tok,old,nw){
     safe('solicitudes_liberacion',()=>syncArr('solicitudes_liberacion','solicitudes_liberacion',old.solicitudesLiberacion||[],nw.solicitudesLiberacion||[])),
     safe('presupuesto_proyectos',()=>syncArr('presupuesto_proyectos','presupuesto_proyectos',old.presupuestoProyectos||[],nw.presupuestoProyectos||[])),
     safe('costos_hora',()=>syncArr('costos_hora','costos_hora',old.costosHora||[],nw.costosHora||[])),
+    safe('flujo_config',()=>syncArr('flujo_config','flujo_config',old.flujoConfig||[],nw.flujoConfig||[])),
     sc?sbUpsert(cfg,tok,'settings',[{id:1,rates:nw.rates,part_cats:nw.partCats}]):Promise.resolve(),
   ]);
   if(blockedDeletes.length) errors.unshift('⚠ BORRADO MASIVO BLOQUEADO (datos protegidos, NO se perdieron): '+blockedDeletes.join(', ')+'. Recarga la página (Ctrl+Shift+R) antes de seguir editando.');
@@ -753,6 +758,7 @@ function App(){
     {id:'dashboard',l:'Dashboard',i:'🏠'},
     {id:'proyectos',l:'Proyectos',i:'📁'},
     {id:'presupuesto',l:'Presupuesto Ingresos',i:'📈'},
+    {id:'flujocaja',l:'Flujo de Caja',i:'💵'},
     {id:'gastos-fijos',l:'Gastos Fijos',i:'🧾'},{id:'labor-costs',l:'Costos Laborales',i:'👷'},
     {id:'config',l:'Configuración',i:'⚙️'},
     {id:'consolidado',l:'Consolidado',i:'📋'},
@@ -762,9 +768,9 @@ function App(){
     {id:'planificacion',l:'Planificación del Personal',i:'📆'},
   ];
   const navAllowed={
-    admin:        ['resumen','dashboard','proyectos','presupuesto','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
-    administracion:['resumen','dashboard','proyectos','presupuesto','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
-    socio:        ['resumen','dashboard','proyectos','presupuesto','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    admin:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    administracion:['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    socio:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion'],
     responsable:  ['proyectos','presupuesto','timesheet','planificacion'],
     rrhh:         ['part-report','timesheet','planificacion'],
     user:         ['dashboard','proyectos','gastos','timesheet'],
@@ -873,6 +879,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='dashboard')return <ADash data={visibleData}/>;
   if(tab==='proyectos')return <AProjects data={visibleData} save={save} onProj={setProjId} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='presupuesto')return <APresupuesto data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
+  if(tab==='flujocaja')return <AFlujoCaja data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='config')return isAdminRole?<AConfig data={data} save={save} cfg={cfg} setCfg={setCfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>:<div className="p-8 text-center text-gray-400">Sin acceso a Configuración.</div>;
   if(tab==='consolidado')return <AConsolidado data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='rentabilidad')return <ARent data={filteredData} PeriodoSelector={PeriodoSelector}/>;
@@ -1487,6 +1494,124 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
         <button onClick={saveEdit} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-1.5 rounded-lg text-sm font-medium">💾 Guardar Cambios</button>
         <button onClick={cancelEdit} className="border text-gray-600 px-4 py-1.5 rounded-lg text-sm">Cancelar</button>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════ FLUJO DE CAJA PRESUPUESTADO ═══════════════════
+function AFlujoCaja({data,save,currentUser,getLatestData}){
+  const per=PRESUP_PERIODOS[0];
+  const esResp=currentUser&&currentUser.role==='responsable';
+  const [respF,setRespF]=useState(esResp?currentUser.id:'total');
+  const num=n=>Number(n||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const M=12, zeros=()=>Array(M).fill(0), sum=a=>a.reduce((s,v)=>s+v,0);
+
+  const cfgRow=(data.flujoConfig||[]).find(c=>c.periodo===per);
+  const saldoInicial=cfgRow?(+cfgRow.saldoInicial||0):0;
+  const setSaldoInicial=v=>{
+    const lat=getLatestData?getLatestData():data;
+    let arr=[...(lat.flujoConfig||[])];
+    let idx=arr.findIndex(c=>c.periodo===per);
+    const val=parseFloat(v)||0;
+    if(idx<0)arr.push({id:uid(),periodo:per,saldoInicial:val}); else arr[idx]={...arr[idx],saldoInicial:val};
+    save({...lat,flujoConfig:arr});
+  };
+
+  const showOverhead=(respF==='total');
+  const pps=(data.presupuestoProyectos||[]).filter(p=>p.periodo===per&&(showOverhead||p.responsableId===respF));
+  const cobros=zeros(), participaciones=zeros(), terceros=zeros();
+  pps.forEach(p=>{const hon=+p.honorariosTotal||0,pct=+p.pctParticipaciones||0,terc=+p.costoTerceros||0,f=p.facturacion||[];
+    for(let m=0;m<M;m++){const fr=(+f[m]||0)/100;cobros[m]+=hon*fr;participaciones[m]+=hon*fr*pct/100;terceros[m]+=terc*fr;}});
+
+  const nomina=zeros(), otrosLab=zeros(), gastosFijos=zeros();
+  if(showOverhead){
+    (data.laborCosts||[]).filter(l=>l.periodo===per&&l.activo!==false).forEach(l=>{
+      const mensual=['sueldo','ticket','bstaff','depreciacion','asignacion','movilidad','participaciones'].reduce((s,k)=>s+(+l[k]||0),0);
+      const mp=(Array.isArray(l.mesesPago)&&l.mesesPago.length===12)?l.mesesPago:Array(12).fill(true);
+      for(let m=0;m<M;m++) if(mp[m]!==false) nomina[m]+=mensual;
+    });
+    (data.otherLaborCosts||[]).filter(o=>o.periodo===per).forEach(o=>{const mm=o.montos||[];for(let m=0;m<M;m++)otrosLab[m]+=(+mm[m]||0);});
+    (data.fixedExpenses||[]).filter(g=>g.periodo===per).forEach(g=>{const mm=g.montos||[];for(let m=0;m<M;m++)gastosFijos[m]+=(+mm[m]||0);});
+  }
+
+  const flujoNeto=zeros(), saldoAcum=zeros();
+  for(let m=0;m<M;m++){flujoNeto[m]=cobros[m]-participaciones[m]-terceros[m]-nomina[m]-otrosLab[m]-gastosFijos[m];saldoAcum[m]=(m===0?saldoInicial:saldoAcum[m-1])+flujoNeto[m];}
+
+  const filas=[
+    {l:'(+) Cobros estimados',v:cobros,cls:'text-green-700',neg:false},
+    {l:'(−) Participaciones',v:participaciones,cls:'text-red-600',neg:true},
+    {l:'(−) Pagos a terceros',v:terceros,cls:'text-red-600',neg:true},
+  ];
+  if(showOverhead) filas.push(
+    {l:'(−) Nómina',v:nomina,cls:'text-red-600',neg:true},
+    {l:'(−) Otros costos laborales',v:otrosLab,cls:'text-red-600',neg:true},
+    {l:'(−) Gastos fijos',v:gastosFijos,cls:'text-red-600',neg:true},
+  );
+  const respIds=[...new Set((data.presupuestoProyectos||[]).filter(p=>p.periodo===per).map(p=>p.responsableId).filter(Boolean))];
+  const totEgresos=sum(participaciones)+sum(terceros)+sum(nomina)+sum(otrosLab)+sum(gastosFijos);
+  const huecos=saldoAcum.map((v,i)=>v<0?MESES_GF[i]:null).filter(Boolean);
+
+  return(
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-700">💵 Flujo de Caja Presupuestado — {per}</h2>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-gray-400 font-medium">Ver:</span>
+          <select value={respF} onChange={e=>setRespF(e.target.value)} disabled={esResp} className="border rounded-lg px-2 py-1.5 text-xs bg-white">
+            <option value="total">Total (firma)</option>
+            {respIds.map(id=>{const u=(data.users||[]).find(x=>x.id===id);return <option key={id} value={id}>{u?u.name:id}</option>;})}
+          </select>
+        </div>
+      </div>
+      <p className="text-gray-400 text-xs mb-4">Cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago (nómina, gastos fijos, etc.).{!showOverhead&&' Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo acumulado, que son de la firma).'}</p>
+
+      {showOverhead&&(
+        <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 rounded-xl border px-4 py-3 w-max">
+          <span className="text-gray-500">Saldo inicial de caja ({per}):</span>
+          <span className="text-gray-400">$</span>
+          <input type="number" step="0.01" defaultValue={saldoInicial||''} onBlur={e=>setSaldoInicial(e.target.value)} className="border rounded px-2 py-1 w-36 text-right"/>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border overflow-x-auto">
+        <table className="min-w-max w-full text-xs">
+          <thead className="bg-gray-50 text-gray-500">
+            <tr><th className="text-left px-3 py-2 w-56">Concepto</th>{MESES_GF.map((m,i)=><th key={i} className="text-right px-2 py-2 w-24">{m}</th>)}<th className="text-right px-3 py-2 w-28">Total</th></tr>
+          </thead>
+          <tbody>
+            {filas.map((f,fi)=>(
+              <tr key={fi} className="border-t hover:bg-gray-50">
+                <td className="px-3 py-1.5 text-gray-600">{f.l}</td>
+                {f.v.map((val,m)=><td key={m} className={'px-2 py-1.5 text-right '+f.cls}>{val?num(f.neg?-val:val):'—'}</td>)}
+                <td className={'px-3 py-1.5 text-right font-semibold '+f.cls}>{num((f.neg?-1:1)*sum(f.v))}</td>
+              </tr>
+            ))}
+            <tr className="border-t-2 bg-blue-50 font-bold">
+              <td className="px-3 py-2 text-blue-700">= Flujo neto del mes</td>
+              {flujoNeto.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-blue-700':'text-red-600')}>{num(val)}</td>)}
+              <td className={'px-3 py-2 text-right '+(sum(flujoNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(flujoNeto))}</td>
+            </tr>
+            {showOverhead&&(
+              <tr className="border-t bg-gray-100 font-bold">
+                <td className="px-3 py-2 text-gray-700">= Saldo acumulado de caja</td>
+                {saldoAcum.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-gray-800':'text-red-600 bg-red-50')}>{num(val)}</td>)}
+                <td className="px-3 py-2 text-right text-gray-300">—</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {showOverhead&&(
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          <div className="bg-green-50 rounded-xl border border-green-200 p-3"><div className="text-xs text-gray-500">Total cobros año</div><div className="text-base font-bold text-green-700">{num(sum(cobros))}</div></div>
+          <div className="bg-red-50 rounded-xl border border-red-200 p-3"><div className="text-xs text-gray-500">Total egresos año</div><div className="text-base font-bold text-red-600">{num(totEgresos)}</div></div>
+          <div className="bg-blue-50 rounded-xl border border-blue-200 p-3"><div className="text-xs text-gray-500">Flujo neto año</div><div className={'text-base font-bold '+(sum(flujoNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(flujoNeto))}</div></div>
+          <div className={'rounded-xl border p-3 '+(saldoAcum[M-1]>=0?'bg-gray-50':'bg-red-50 border-red-200')}><div className="text-xs text-gray-500">Saldo final de caja</div><div className={'text-base font-bold '+(saldoAcum[M-1]>=0?'text-gray-800':'text-red-600')}>{num(saldoAcum[M-1])}</div></div>
+        </div>
+      )}
+      {showOverhead&&huecos.length>0&&<div className="mt-3 text-xs bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-yellow-800">⚠ Meses con <b>déficit de caja</b> (saldo acumulado negativo): <b>{huecos.join(', ')}</b></div>}
+      {pps.length===0&&<div className="mt-4 text-xs text-gray-400">No hay proyectos en el Presupuesto Ingresos de {per} para esta vista. Carga proyectos con su calendario de facturación en 📈 Presupuesto Ingresos.</div>}
     </div>
   );
 }
