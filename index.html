@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-25e';
+const APP_VERSION='v2026-09-28a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -788,6 +788,10 @@ function App(){
           <div className="font-medium text-sm truncate">{currentUser&&currentUser.name}</div>
           {saving&&<div className="text-xs mt-0.5" style={{color:'rgb(0,186,179)'}}>💾 Guardando…</div>}
           {saveError&&<div className="text-xs mt-0.5 text-red-500 max-w-xs truncate" title={saveError}>⚠️ Error al guardar — {saveError}</div>}
+        </div>
+        <div className="mx-3 mt-3 mb-1 rounded-xl px-3 py-2 text-center" style={{background:'rgba(0,186,179,0.15)',border:'1px solid rgba(0,186,179,0.45)'}} title="Año fiscal en curso (Ago–Jul)">
+          <div className="text-[10px] uppercase tracking-widest" style={{color:'rgba(255,255,255,0.55)'}}>📅 Período actual</div>
+          <div className="font-bold text-lg leading-tight" style={{color:'rgb(0,186,179)'}}>{currentPeriodo}</div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map(n=>(
