@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28f';
+const APP_VERSION='v2026-09-28g';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1501,8 +1501,10 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
 // ═══════════════════ FLUJO DE CAJA PRESUPUESTADO ═══════════════════
 function AFlujoCaja({data,save,currentUser,getLatestData}){
   const per=PRESUP_PERIODOS[0];
+  const perY=parseInt((per||'').split('-')[0],10)||2025;
   const esResp=currentUser&&currentUser.role==='responsable';
   const [respF,setRespF]=useState(esResp?currentUser.id:'total');
+  const [vista,setVista]=useState('ppto'); // 'ppto' | 'real' | 'comp'
   const num=n=>Number(n||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
   const M=12, zeros=()=>Array(M).fill(0), sum=a=>a.reduce((s,v)=>s+v,0);
 
@@ -1537,24 +1539,52 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const flujoNeto=zeros(), saldoAcum=zeros();
   for(let m=0;m<M;m++){flujoNeto[m]=cobros[m]-participaciones[m]-terceros[m]-nomina[m]-otrosLab[m]-gastosFijos[m];saldoAcum[m]=(m===0?saldoInicial:saldoAcum[m-1])+flujoNeto[m];}
 
+  // ── REAL (por fecha, dentro del período) ──
+  const fechaToMes=fecha=>{if(!fecha)return null;const d=new Date(fecha+'T12:00:00');if(isNaN(d))return null;const gm=d.getMonth(),gy=d.getFullYear();const fy=gm>=7?gy:gy-1;if(fy!==perY)return null;return (gm-7+12)%12;};
+  const projIds=new Set((data.projects||[]).filter(p=>showOverhead||p.responsableId===respF).map(p=>p.id));
+  const cobrosR=zeros(), participacionesR=zeros(), tercerosR=zeros(), otrosLabR=zeros(), gastosFijosR=zeros(), nominaR=zeros();
+  (data.realCobros||[]).forEach(c=>{if(!projIds.has(c.projectId))return;const m=fechaToMes(c.fecha);if(m!=null)cobrosR[m]+=(+c.amount||0);});
+  (data.pagosParticipaciones||[]).forEach(p=>{if(!projIds.has(p.projectId))return;const m=fechaToMes(p.fecha);if(m!=null)participacionesR[m]+=(+p.amount||0);});
+  (data.realExternalCosts||[]).forEach(c=>{if(!projIds.has(c.projectId))return;const m=fechaToMes(c.fecha);if(m!=null)tercerosR[m]+=(+c.amount||0);});
+  if(showOverhead){
+    (data.otherLaborCosts||[]).filter(o=>o.periodo===per).forEach(o=>{const mm=o.montosReal||[];for(let m=0;m<M;m++)otrosLabR[m]+=(+mm[m]||0);});
+    (data.fixedExpenses||[]).filter(g=>g.periodo===per).forEach(g=>{const mm=g.montosReal||[];for(let m=0;m<M;m++)gastosFijosR[m]+=(+mm[m]||0);});
+    // nómina real: no se registra por mes en la app (viene de GALAC 5.1.01) → queda en 0
+  }
+  const flujoNetoR=zeros(), saldoAcumR=zeros();
+  for(let m=0;m<M;m++){flujoNetoR[m]=cobrosR[m]-participacionesR[m]-tercerosR[m]-nominaR[m]-otrosLabR[m]-gastosFijosR[m];saldoAcumR[m]=(m===0?saldoInicial:saldoAcumR[m-1])+flujoNetoR[m];}
+
+  const isReal=vista==='real';
+  const dCob=isReal?cobrosR:cobros, dPar=isReal?participacionesR:participaciones, dTer=isReal?tercerosR:terceros, dNom=isReal?nominaR:nomina, dOl=isReal?otrosLabR:otrosLab, dGf=isReal?gastosFijosR:gastosFijos, dNeto=isReal?flujoNetoR:flujoNeto, dAcum=isReal?saldoAcumR:saldoAcum;
   const filas=[
-    {l:'(+) Cobros estimados',v:cobros,cls:'text-green-700',neg:false},
-    {l:'(−) Participaciones',v:participaciones,cls:'text-red-600',neg:true},
-    {l:'(−) Pagos a terceros',v:terceros,cls:'text-red-600',neg:true},
+    {l:'(+) Cobros',v:dCob,cls:'text-green-700',neg:false},
+    {l:'(−) Participaciones',v:dPar,cls:'text-red-600',neg:true},
+    {l:'(−) Pagos a terceros',v:dTer,cls:'text-red-600',neg:true},
   ];
   if(showOverhead) filas.push(
-    {l:'(−) Nómina',v:nomina,cls:'text-red-600',neg:true},
-    {l:'(−) Otros costos laborales',v:otrosLab,cls:'text-red-600',neg:true},
-    {l:'(−) Gastos fijos',v:gastosFijos,cls:'text-red-600',neg:true},
+    {l:'(−) Nómina',v:dNom,cls:'text-red-600',neg:true},
+    {l:'(−) Otros costos laborales',v:dOl,cls:'text-red-600',neg:true},
+    {l:'(−) Gastos fijos',v:dGf,cls:'text-red-600',neg:true},
   );
   const respIds=[...new Set((data.presupuestoProyectos||[]).filter(p=>p.periodo===per).map(p=>p.responsableId).filter(Boolean))];
-  const totEgresos=sum(participaciones)+sum(terceros)+sum(nomina)+sum(otrosLab)+sum(gastosFijos);
-  const huecos=saldoAcum.map((v,i)=>v<0?MESES_GF[i]:null).filter(Boolean);
+  const totEgresos=sum(dPar)+sum(dTer)+sum(dNom)+sum(dOl)+sum(dGf);
+  const huecos=dAcum.map((v,i)=>v<0?MESES_GF[i]:null).filter(Boolean);
+  const compRows=[
+    {l:'Cobros',ppto:sum(cobros),real:sum(cobrosR)},
+    {l:'Participaciones',ppto:sum(participaciones),real:sum(participacionesR),neg:true},
+    {l:'Pagos a terceros',ppto:sum(terceros),real:sum(tercerosR),neg:true},
+  ];
+  if(showOverhead) compRows.push(
+    {l:'Nómina',ppto:sum(nomina),real:sum(nominaR),neg:true,nota:'real viene de GALAC'},
+    {l:'Otros costos laborales',ppto:sum(otrosLab),real:sum(otrosLabR),neg:true},
+    {l:'Gastos fijos',ppto:sum(gastosFijos),real:sum(gastosFijosR),neg:true},
+  );
+  const compNetoP=sum(flujoNeto), compNetoR=sum(flujoNetoR);
 
   return(
     <div className="p-6">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-        <h2 className="text-lg font-bold text-gray-700">💵 Flujo de Caja Presupuestado — {per}</h2>
+        <h2 className="text-lg font-bold text-gray-700">💵 Flujo de Caja — {per}</h2>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-gray-400 font-medium">Ver:</span>
           <select value={respF} onChange={e=>setRespF(e.target.value)} disabled={esResp} className="border rounded-lg px-2 py-1.5 text-xs bg-white">
@@ -1563,9 +1593,17 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
           </select>
         </div>
       </div>
-      <p className="text-gray-400 text-xs mb-4">Cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago (nómina, gastos fijos, etc.).{!showOverhead&&' Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo acumulado, que son de la firma).'}</p>
+      <div className="flex items-center gap-2 mb-3">
+        {[['ppto','📋 Presupuestado'],['real','✅ Real'],['comp','📊 Comparativo']].map(([v,l])=>(
+          <button key={v} onClick={()=>setVista(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(vista===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
+        ))}
+      </div>
+      <p className="text-gray-400 text-xs mb-4">
+        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal. La nómina real no se registra por mes en la app (viene de GALAC), por eso queda en 0.':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago.'}
+        {!showOverhead&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
+      </p>
 
-      {showOverhead&&(
+      {showOverhead&&vista!=='comp'&&(
         <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 rounded-xl border px-4 py-3 w-max">
           <span className="text-gray-500">Saldo inicial de caja ({per}):</span>
           <span className="text-gray-400">$</span>
@@ -1573,6 +1611,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       )}
 
+      {vista!=='comp'?(<>
       <div className="bg-white rounded-xl border overflow-x-auto">
         <table className="min-w-max w-full text-xs">
           <thead className="bg-gray-50 text-gray-500">
@@ -1588,13 +1627,13 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
             ))}
             <tr className="border-t-2 bg-blue-50 font-bold">
               <td className="px-3 py-2 text-blue-700">= Flujo neto del mes</td>
-              {flujoNeto.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-blue-700':'text-red-600')}>{num(val)}</td>)}
-              <td className={'px-3 py-2 text-right '+(sum(flujoNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(flujoNeto))}</td>
+              {dNeto.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-blue-700':'text-red-600')}>{num(val)}</td>)}
+              <td className={'px-3 py-2 text-right '+(sum(dNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(dNeto))}</td>
             </tr>
             {showOverhead&&(
               <tr className="border-t bg-gray-100 font-bold">
                 <td className="px-3 py-2 text-gray-700">= Saldo acumulado de caja</td>
-                {saldoAcum.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-gray-800':'text-red-600 bg-red-50')}>{num(val)}</td>)}
+                {dAcum.map((val,m)=><td key={m} className={'px-2 py-2 text-right '+(val>=0?'text-gray-800':'text-red-600 bg-red-50')}>{num(val)}</td>)}
                 <td className="px-3 py-2 text-right text-gray-300">—</td>
               </tr>
             )}
@@ -1604,13 +1643,36 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
 
       {showOverhead&&(
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <div className="bg-green-50 rounded-xl border border-green-200 p-3"><div className="text-xs text-gray-500">Total cobros año</div><div className="text-base font-bold text-green-700">{num(sum(cobros))}</div></div>
+          <div className="bg-green-50 rounded-xl border border-green-200 p-3"><div className="text-xs text-gray-500">Total cobros año</div><div className="text-base font-bold text-green-700">{num(sum(dCob))}</div></div>
           <div className="bg-red-50 rounded-xl border border-red-200 p-3"><div className="text-xs text-gray-500">Total egresos año</div><div className="text-base font-bold text-red-600">{num(totEgresos)}</div></div>
-          <div className="bg-blue-50 rounded-xl border border-blue-200 p-3"><div className="text-xs text-gray-500">Flujo neto año</div><div className={'text-base font-bold '+(sum(flujoNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(flujoNeto))}</div></div>
-          <div className={'rounded-xl border p-3 '+(saldoAcum[M-1]>=0?'bg-gray-50':'bg-red-50 border-red-200')}><div className="text-xs text-gray-500">Saldo final de caja</div><div className={'text-base font-bold '+(saldoAcum[M-1]>=0?'text-gray-800':'text-red-600')}>{num(saldoAcum[M-1])}</div></div>
+          <div className="bg-blue-50 rounded-xl border border-blue-200 p-3"><div className="text-xs text-gray-500">Flujo neto año</div><div className={'text-base font-bold '+(sum(dNeto)>=0?'text-blue-700':'text-red-600')}>{num(sum(dNeto))}</div></div>
+          <div className={'rounded-xl border p-3 '+(dAcum[M-1]>=0?'bg-gray-50':'bg-red-50 border-red-200')}><div className="text-xs text-gray-500">Saldo final de caja</div><div className={'text-base font-bold '+(dAcum[M-1]>=0?'text-gray-800':'text-red-600')}>{num(dAcum[M-1])}</div></div>
         </div>
       )}
       {showOverhead&&huecos.length>0&&<div className="mt-3 text-xs bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-yellow-800">⚠ Meses con <b>déficit de caja</b> (saldo acumulado negativo): <b>{huecos.join(', ')}</b></div>}
+      </>):(
+      <div className="bg-white rounded-xl border overflow-hidden max-w-2xl">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-500"><tr><th className="text-left px-4 py-2">Concepto</th><th className="text-right px-4 py-2">Presupuesto</th><th className="text-right px-4 py-2">Real</th><th className="text-right px-4 py-2">Variación</th></tr></thead>
+          <tbody>
+            {compRows.map((r,ri)=>{const dif=r.real-r.ppto;const good=r.neg?dif<0:dif>=0;return(
+              <tr key={ri} className="border-t">
+                <td className="px-4 py-2 text-gray-700">{r.l}{r.nota&&<span className="text-[10px] text-gray-400 ml-1">({r.nota})</span>}</td>
+                <td className="px-4 py-2 text-right text-gray-600">{num(r.ppto)}</td>
+                <td className="px-4 py-2 text-right text-gray-800 font-medium">{num(r.real)}</td>
+                <td className={'px-4 py-2 text-right '+(dif===0?'text-gray-400':(good?'text-green-600':'text-red-600'))}>{(dif>0?'+':'')+num(dif)}</td>
+              </tr>
+            );})}
+            <tr className="border-t-2 bg-blue-50 font-bold">
+              <td className="px-4 py-2 text-blue-700">Flujo neto</td>
+              <td className="px-4 py-2 text-right text-blue-700">{num(compNetoP)}</td>
+              <td className="px-4 py-2 text-right text-blue-700">{num(compNetoR)}</td>
+              <td className={'px-4 py-2 text-right '+((compNetoR-compNetoP)>=0?'text-green-600':'text-red-600')}>{((compNetoR-compNetoP)>0?'+':'')+num(compNetoR-compNetoP)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      )}
       {pps.length===0&&<div className="mt-4 text-xs text-gray-400">No hay proyectos en el Presupuesto Ingresos de {per} para esta vista. Carga proyectos con su calendario de facturación en 📈 Presupuesto Ingresos.</div>}
     </div>
   );
