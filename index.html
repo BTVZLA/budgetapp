@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28g';
+const APP_VERSION='v2026-09-28h';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -211,7 +211,7 @@ const fromDB={
   solicitudes_liberacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,solicitanteId:r.solicitante_id||'',motivo:r.motivo||'',destinatarios:r.destinatarios||'',fecha:r.fecha||''}),
   presupuesto_proyectos:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',client:r.client||'',clientId:r.client_id||'',deptId:r.dept_id||'',responsableId:r.responsable_id||'',honorariosTotal:+(r.honorarios_total||0),pctParticipaciones:+(r.pct_participaciones||0),costoTerceros:+(r.costo_terceros||0),facturacion:(Array.isArray(r.facturacion)?r.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:r.origen||'nuevo',proyectoOrigenId:r.proyecto_origen_id||'',tipo:r.tipo||'Recurrente',notas:r.notas||''}),
   costos_hora:r=>({id:r.id,periodo:r.periodo||currentPeriodo,personId:r.person_id||'',costos:(Array.isArray(r.costos)?r.costos.map(x=>+x||0):Array(12).fill(0))}),
-  flujo_config:r=>({id:r.id,periodo:r.periodo||currentPeriodo,saldoInicial:+(r.saldo_inicial||0)}),
+  flujo_config:r=>({id:r.id,periodo:r.periodo||currentPeriodo,saldoInicial:+(r.saldo_inicial||0),nominaReal:(Array.isArray(r.nomina_real)&&r.nomina_real.length===12?r.nomina_real.map(x=>+x||0):Array(12).fill(0))}),
 };
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
@@ -245,7 +245,7 @@ const toDB={
   solicitudes_liberacion:s=>({id:s.id,project_id:s.projectId||null,user_id:s.userId||null,week_start:s.weekStart,solicitante_id:s.solicitanteId||null,motivo:s.motivo||'',destinatarios:s.destinatarios||'',fecha:s.fecha||null}),
   presupuesto_proyectos:p=>({id:p.id,periodo:p.periodo||currentPeriodo,nombre:p.nombre||'',client:p.client||'',client_id:p.clientId||'',dept_id:p.deptId||'',responsable_id:p.responsableId||'',honorarios_total:p.honorariosTotal||0,pct_participaciones:p.pctParticipaciones||0,costo_terceros:p.costoTerceros||0,facturacion:(Array.isArray(p.facturacion)?p.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:p.origen||'nuevo',proyecto_origen_id:p.proyectoOrigenId||'',tipo:p.tipo||'Recurrente',notas:p.notas||''}),
   costos_hora:c=>({id:c.id,periodo:c.periodo||currentPeriodo,person_id:c.personId||'',costos:(Array.isArray(c.costos)?c.costos.map(x=>+x||0):Array(12).fill(0))}),
-  flujo_config:c=>({id:c.id,periodo:c.periodo||currentPeriodo,saldo_inicial:c.saldoInicial||0}),
+  flujo_config:c=>({id:c.id,periodo:c.periodo||currentPeriodo,saldo_inicial:c.saldoInicial||0,nomina_real:(Array.isArray(c.nominaReal)&&c.nominaReal.length===12?c.nominaReal.map(x=>+x||0):Array(12).fill(0))}),
 };
 
 const sbGetSafe=async(cfg,tok,table,mapper)=>{
@@ -1549,7 +1549,9 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   if(showOverhead){
     (data.otherLaborCosts||[]).filter(o=>o.periodo===per).forEach(o=>{const mm=o.montosReal||[];for(let m=0;m<M;m++)otrosLabR[m]+=(+mm[m]||0);});
     (data.fixedExpenses||[]).filter(g=>g.periodo===per).forEach(g=>{const mm=g.montosReal||[];for(let m=0;m<M;m++)gastosFijosR[m]+=(+mm[m]||0);});
-    // nómina real: no se registra por mes en la app (viene de GALAC 5.1.01) → queda en 0
+    // nómina real: de GALAC (cuentas 5.1.01), cargada al importar el balance
+    const nrArr=(cfgRow&&Array.isArray(cfgRow.nominaReal)&&cfgRow.nominaReal.length===12)?cfgRow.nominaReal:null;
+    if(nrArr)for(let m=0;m<M;m++)nominaR[m]=(+nrArr[m]||0);
   }
   const flujoNetoR=zeros(), saldoAcumR=zeros();
   for(let m=0;m<M;m++){flujoNetoR[m]=cobrosR[m]-participacionesR[m]-tercerosR[m]-nominaR[m]-otrosLabR[m]-gastosFijosR[m];saldoAcumR[m]=(m===0?saldoInicial:saldoAcumR[m-1])+flujoNetoR[m];}
@@ -1575,7 +1577,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
     {l:'Pagos a terceros',ppto:sum(terceros),real:sum(tercerosR),neg:true},
   ];
   if(showOverhead) compRows.push(
-    {l:'Nómina',ppto:sum(nomina),real:sum(nominaR),neg:true,nota:'real viene de GALAC'},
+    {l:'Nómina',ppto:sum(nomina),real:sum(nominaR),neg:true,nota:'real de GALAC'},
     {l:'Otros costos laborales',ppto:sum(otrosLab),real:sum(otrosLabR),neg:true},
     {l:'Gastos fijos',ppto:sum(gastosFijos),real:sum(gastosFijosR),neg:true},
   );
@@ -1599,7 +1601,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         ))}
       </div>
       <p className="text-gray-400 text-xs mb-4">
-        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal. La nómina real no se registra por mes en la app (viene de GALAC), por eso queda en 0.':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago.'}
+        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago.'}
         {!showOverhead&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
       </p>
 
@@ -4655,7 +4657,17 @@ function AGastosFijos({data,save,getLatestData}){
       mr[galacMes]=Math.round((a.mov-prevCumul)*100)/100; // acumulado: mes = acum − meses ya cargados; un solo mes: directo
       item.montosReal=mr; fx[idx]=item;
     });
-    save({...lat,fixedExpenses:fx});
+    // Nómina real del mes (cuentas 5.1.01.*) → guardar en flujo_config para el Flujo de Caja
+    let fc=[...(lat.flujoConfig||[])];
+    const nomCumul=galacData.cuentas.filter(a=>a.tipo==='nomina').reduce((s,a)=>s+a.mov,0);
+    let fi=fc.findIndex(c=>c.periodo===periodo);
+    if(fi<0){fc.push({id:uid(),periodo,saldoInicial:0,nominaReal:Array(12).fill(0)});fi=fc.length-1;}
+    const fcItem={...fc[fi]};
+    const nr=[...((Array.isArray(fcItem.nominaReal)&&fcItem.nominaReal.length===12)?fcItem.nominaReal:Array(12).fill(0))];
+    const prevNom=acum?nr.slice(0,galacMes).reduce((s,v)=>s+(parseFloat(v)||0),0):0;
+    nr[galacMes]=Math.round((nomCumul-prevNom)*100)/100;
+    fcItem.nominaReal=nr; fc[fi]=fcItem;
+    save({...lat,fixedExpenses:fx,flujoConfig:fc});
     setShowGalac(false);setGalacData(null);setGalacFile('');setVista('comparativo');
   };
 
@@ -4889,7 +4901,7 @@ function AGastosFijos({data,save,getLatestData}){
                   </div>
                 ))}
               </div>
-              <div className="text-[11px] text-gray-400 mt-2">Nota: nómina, ingresos y costos de proyecto se muestran como referencia; su comparación se cargará en la siguiente fase. Por ahora se aplica solo a Gastos Fijos.</div>
+              <div className="text-[11px] text-gray-400 mt-2">Al aplicar: se llenan los <b>Gastos Fijos</b> (real por cuenta) y la <b>Nómina real</b> del mes (cuentas 5.1.01) que alimenta el Flujo de Caja. Ingresos y costos de proyecto se muestran solo como referencia.</div>
               <div className="flex justify-end mt-3">
                 <button onClick={aplicarGalac} disabled={galacMismatch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">Aplicar real de {MESES_GF[galacMes]} a Gastos Fijos</button>
               </div>
