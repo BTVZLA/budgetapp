@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28b';
+const APP_VERSION='v2026-09-28c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -752,7 +752,7 @@ function App(){
     {id:'resumen',l:'Resumen',i:'📊'},
     {id:'dashboard',l:'Dashboard',i:'🏠'},
     {id:'proyectos',l:'Proyectos',i:'📁'},
-    {id:'presupuesto',l:'Presupuesto',i:'📈'},
+    {id:'presupuesto',l:'Presupuesto Ingresos',i:'📈'},
     {id:'gastos-fijos',l:'Gastos Fijos',i:'🧾'},{id:'labor-costs',l:'Costos Laborales',i:'👷'},
     {id:'config',l:'Configuración',i:'⚙️'},
     {id:'consolidado',l:'Consolidado',i:'📋'},
@@ -1549,7 +1549,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
   return(
     <div className="p-6 max-w-6xl">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
-        <h2 className="text-lg font-bold text-gray-700">📈 Presupuesto — Proyectos Estimados</h2>
+        <h2 className="text-lg font-bold text-gray-700">📈 Presupuesto Ingresos — Proyectos Estimados</h2>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-gray-400 font-medium">Presupuestar período:</span>
           <select value={periodo} onChange={e=>setPeriodo(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs bg-white font-semibold">
