@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28c';
+const APP_VERSION='v2026-09-28d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -874,7 +874,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='proyectos')return <AProjects data={visibleData} save={save} onProj={setProjId} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='presupuesto')return <APresupuesto data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='config')return isAdminRole?<AConfig data={data} save={save} cfg={cfg} setCfg={setCfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>:<div className="p-8 text-center text-gray-400">Sin acceso a Configuración.</div>;
-  if(tab==='consolidado')return <AConsolidado data={filteredData} PeriodoSelector={PeriodoSelector}/>;
+  if(tab==='consolidado')return <AConsolidado data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='rentabilidad')return <ARent data={filteredData} PeriodoSelector={PeriodoSelector}/>;
   if(tab==='gastos-fijos')return <AGastosFijos data={data} save={save} getLatestData={getLatestData}/>;
   if(tab==='labor-costs')return <ACostosLaborales data={data} save={save} getLatestData={getLatestData}/>;
@@ -5547,37 +5547,27 @@ function APartPorPagar({data,currentUser}){
 }
 
 
-function AConsolidado({data,PeriodoSelector}){
+function AConsolidado({data,PeriodoSelector,selPeriodo}){
   const [view,setView]=useState('ingresos');
-  // Only show 12 months of current period
-  const periodoMeses=React.useMemo(()=>MO.map((name,i)=>({name,i})).filter(({i})=>{
-    const yr=moYear(i);
-    const absM=(i+6)%12;
-    if(currentPeriodo.includes('-')){
-      const [y1,y2]=currentPeriodo.split('-').map(Number);
-      if(yr===y1&&absM>=7) return true;  // Aug-Dec of first year
-      if(yr===y2&&absM<7) return true;   // Jan-Jul of second year
-      return false;
-    }
-    return yr===YEAR;
-  }),[]);
-  // Pre-compute all values to avoid recalculation during render
+  const per=(selPeriodo&&selPeriodo!=='todos')?selPeriodo:currentPeriodo;
+  const perY=parseInt((per||'').split('-')[0],10)||2025;
+  // 12 meses del período (Ago→Jul). j = mes 0-11 (para estimados por mes); abs = índice absoluto (para reales por fecha).
+  const periodoMeses=React.useMemo(()=>MESES_GF.map((name,j)=>({name,j,abs:(perY-2025)*12+1+j})),[perY]);
   const estMap=React.useMemo(()=>{
     const m={};
     data.departments.forEach(dept=>{
       const projs=data.projects.filter(p=>!p.enPapelera&&p.deptId===dept.id);
-      m[dept.id]=periodoMeses.map(({i})=>({
-        est:getDeptRev(dept.id,i,data,'est'),
-        act:getDeptRev(dept.id,i,data,'act'),
-        exp:getDeptExp(dept.id,i,data),
-        real:getDeptRealCobros(dept.id,i,data),
+      m[dept.id]=periodoMeses.map(({j,abs})=>({
+        est:getDeptRev(dept.id,j,data,'est'),
+        act:getDeptRev(dept.id,j,data,'act'),
+        exp:getDeptExp(dept.id,j,data),
+        real:getDeptRealCobros(dept.id,abs,data),
       }));
-      // Annual total uses getEffectiveRevE (consistent with Resumen)
       m[dept.id]._totalEst=projs.reduce((s,p)=>s+getEffectiveRevE(p.id,data),0);
-      m[dept.id]._totalExp=projs.reduce((s,p)=>s+MO.reduce((ss,_,m)=>ss+getExtCost(p.id,m,data),0),0);
+      m[dept.id]._totalExp=projs.reduce((s,p)=>s+[0,1,2,3,4,5,6,7,8,9,10,11].reduce((ss,mm)=>ss+getExtCost(p.id,mm,data),0),0);
       m[dept.id]._totalReal=projs.reduce((s,p)=>s+getTotRealCobros(p.id,data),0);
       m[dept.id]._totalExtReal=projs.reduce((s,p)=>s+(data.realExternalCosts||[]).filter(c=>c.projectId===p.id).reduce((ss,c)=>ss+(c.amount||0),0),0);
-      m[dept.id].extReal=periodoMeses.map(({i:mi})=>getDeptRealExtCosts(dept.id,mi,data));
+      m[dept.id].extReal=periodoMeses.map(({abs})=>getDeptRealExtCosts(dept.id,abs,data));
     });
     return m;
   },[data,periodoMeses]);
@@ -5585,7 +5575,7 @@ function AConsolidado({data,PeriodoSelector}){
   return(
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="font-bold text-base">Consolidado Anual {YEAR}</h2>
+        <h2 className="font-bold text-base">Consolidado {per}</h2>
         <div className="flex items-center gap-3">
           {PeriodoSelector&&<PeriodoSelector/>}
           {[['ingresos','📈 Ingresos'],['gastos','📦 Costos Ext.'],['porcobrar','⏳ Por Cobrar'],['presupuesto','📊 Presupuesto vs Real']].map(([v,l])=>(
@@ -5664,8 +5654,8 @@ function AConsolidado({data,PeriodoSelector}){
                 })}
                 <tr className="border-t bg-orange-100 font-bold">
                   <td className="px-3 py-2">TOTAL REAL</td>
-                  {periodoMeses.map(({name},mi)=>{
-                    const t=data.departments.reduce((s,d)=>s+getDeptRealExtCosts(d.id,mi,data),0);
+                  {periodoMeses.map(({name,abs})=>{
+                    const t=data.departments.reduce((s,d)=>s+getDeptRealExtCosts(d.id,abs,data),0);
                     return <td key={name} className="px-2 py-2 text-right text-orange-600">{t>0?$n(t):'—'}</td>;
                   })}
                   <td className="px-3 py-2 text-right text-orange-700">{$n(data.departments.reduce((s,d)=>s+(estMap[d.id]?._totalExtReal||0),0))}</td>
@@ -5676,7 +5666,7 @@ function AConsolidado({data,PeriodoSelector}){
         </div>
       )}
       {view==='ingresos'&&<div className="mt-8">
-        <h3 className="font-semibold text-sm mb-3">✅ Cobros Reales por Departamento — {YEAR} <span className="text-gray-400 font-normal text-xs">(solo cobros con fecha dentro del período Ago'25–Jul'26)</span></h3>
+        <h3 className="font-semibold text-sm mb-3">✅ Cobros Reales por Departamento — {per} <span className="text-gray-400 font-normal text-xs">(solo cobros con fecha dentro del período Ago–Jul de {per})</span></h3>
         <div className="bg-white rounded-xl border overflow-x-auto">
           <table className="min-w-max w-full text-xs">
             <thead className="bg-emerald-50">
@@ -5702,11 +5692,11 @@ function AConsolidado({data,PeriodoSelector}){
               })}
               <tr className="border-t bg-emerald-100 font-bold">
                 <td className="px-3 py-2">TOTAL REAL</td>
-                {periodoMeses.map(({name,i:m})=>{
-                  const t=data.departments.reduce((s,d)=>s+getDeptRealCobros(d.id,m,data),0);
+                {periodoMeses.map(({name,abs})=>{
+                  const t=data.departments.reduce((s,d)=>s+getDeptRealCobros(d.id,abs,data),0);
                   return <td key={name} className="px-2 py-2 text-right text-emerald-700">{t>0?$n(t):'—'}</td>;
                 })}
-                <td className="px-3 py-2 text-right text-emerald-700">{$n(data.departments.reduce((s,d)=>s+periodoMeses.reduce((ss,{i:m})=>ss+getDeptRealCobros(d.id,m,data),0),0))}</td>
+                <td className="px-3 py-2 text-right text-emerald-700">{$n(data.departments.reduce((s,d)=>s+periodoMeses.reduce((ss,{abs})=>ss+getDeptRealCobros(d.id,abs,data),0),0))}</td>
               </tr>
             </tbody>
           </table>
