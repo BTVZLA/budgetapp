@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28d';
+const APP_VERSION='v2026-09-28e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5553,17 +5553,19 @@ function AConsolidado({data,PeriodoSelector,selPeriodo}){
   const perY=parseInt((per||'').split('-')[0],10)||2025;
   // 12 meses del período (Ago→Jul). j = mes 0-11 (para estimados por mes); abs = índice absoluto (para reales por fecha).
   const periodoMeses=React.useMemo(()=>MESES_GF.map((name,j)=>({name,j,abs:(perY-2025)*12+1+j})),[perY]);
+  // Ingreso estimado por depto y mes = honorarios × % facturación del Presupuesto Ingresos (presupuesto_proyectos)
+  const presByDeptMes=(deptId,j)=>(data.presupuestoProyectos||[]).filter(pp=>pp.periodo===per&&pp.deptId===deptId).reduce((s,pp)=>s+((+pp.honorariosTotal||0)*((+(pp.facturacion||[])[j]||0))/100),0);
   const estMap=React.useMemo(()=>{
     const m={};
     data.departments.forEach(dept=>{
       const projs=data.projects.filter(p=>!p.enPapelera&&p.deptId===dept.id);
       m[dept.id]=periodoMeses.map(({j,abs})=>({
-        est:getDeptRev(dept.id,j,data,'est'),
+        est:presByDeptMes(dept.id,j),
         act:getDeptRev(dept.id,j,data,'act'),
         exp:getDeptExp(dept.id,j,data),
         real:getDeptRealCobros(dept.id,abs,data),
       }));
-      m[dept.id]._totalEst=projs.reduce((s,p)=>s+getEffectiveRevE(p.id,data),0);
+      m[dept.id]._totalEst=periodoMeses.reduce((s,{j})=>s+presByDeptMes(dept.id,j),0);
       m[dept.id]._totalExp=projs.reduce((s,p)=>s+[0,1,2,3,4,5,6,7,8,9,10,11].reduce((ss,mm)=>ss+getExtCost(p.id,mm,data),0),0);
       m[dept.id]._totalReal=projs.reduce((s,p)=>s+getTotRealCobros(p.id,data),0);
       m[dept.id]._totalExtReal=projs.reduce((s,p)=>s+(data.realExternalCosts||[]).filter(c=>c.projectId===p.id).reduce((ss,c)=>ss+(c.amount||0),0),0);
@@ -5585,7 +5587,7 @@ function AConsolidado({data,PeriodoSelector,selPeriodo}){
       </div>
       {(view==='ingresos'||view==='gastos')&&<>
       <div className="mb-2 text-sm font-semibold text-gray-700">
-        {view==='ingresos'?'📈 Ingresos Estimados por Departamento':'📦 Costos Externos Estimados por Departamento'}
+        {view==='ingresos'?'📈 Ingresos Estimados por Departamento (según calendario de facturación del Presupuesto Ingresos)':'📦 Costos Externos Estimados por Departamento'}
       </div>
       <div className="bg-white rounded-xl border overflow-x-auto">
         <table className="min-w-max w-full text-xs">
