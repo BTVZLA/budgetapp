@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28l';
+const APP_VERSION='v2026-09-28m';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -766,14 +766,15 @@ function App(){
     {id:'part-report',l:'Participaciones',i:'🏆'},
     {id:'timesheet',l:'TimeSheet',i:'⏱️'},
     {id:'planificacion',l:'Planificación del Personal',i:'📆'},
+    {id:'planvsreal',l:'Planificación vs Horas Cargadas',i:'⚖️'},
     {id:'config',l:'Configuración',i:'⚙️'},
   ];
   const navAllowed={
-    admin:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
-    administracion:['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion'],
-    socio:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion'],
+    admin:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
+    administracion:['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
+    socio:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
     responsable:  ['proyectos','presupuesto','timesheet','planificacion'],
-    rrhh:         ['part-report','timesheet','planificacion'],
+    rrhh:         ['part-report','timesheet','planificacion','planvsreal'],
     user:         ['dashboard','proyectos','gastos','timesheet'],
     equipo:       ['timesheet'],
   };
@@ -889,6 +890,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='part-report')return <APartReport data={data} currentUser={currentUser}/>;
   if(tab==='timesheet')return <ATimeSheet data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='planificacion')return <APlanificacion data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
+  if(tab==='planvsreal')return (isAdminRole||isSocio||isRRHH)?<APlanVsReal data={data}/>:<div className="p-8 text-center text-gray-400">Sin acceso.</div>;
   return null;
 }
 
@@ -1495,6 +1497,56 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
         <button onClick={saveEdit} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-1.5 rounded-lg text-sm font-medium">💾 Guardar Cambios</button>
         <button onClick={cancelEdit} className="border text-gray-600 px-4 py-1.5 rounded-lg text-sm">Cancelar</button>
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════ PLANIFICACIÓN vs HORAS CARGADAS ═══════════════════
+function APlanVsReal({data}){
+  const num=n=>Number(n||0).toLocaleString('es-VE');
+  const plans=data.planificacion||[];
+  const sheets=data.timesheets||[];
+  const userName=id=>{const u=(data.users||[]).find(x=>x.id===id);return u?u.name:'(usuario '+id+')';};
+  const weeks=[...new Set([...plans.map(p=>p.weekStart),...sheets.map(t=>t.weekStart)].filter(Boolean))].sort();
+  const [desde,setDesde]=useState('');
+  const [hasta,setHasta]=useState('');
+  const wIn=w=>(!w)?false:((!desde||w>=desde)&&(!hasta||w<=hasta));
+  const map={};
+  plans.forEach(p=>{if(!wIn(p.weekStart))return;const h=(Array.isArray(p.horas)?p.horas:[]).reduce((s,v)=>s+(+v||0),0);(map[p.userId]=map[p.userId]||{plan:0,real:0}).plan+=h;});
+  sheets.forEach(t=>{if(!wIn(t.weekStart))return;(map[t.userId]=map[t.userId]||{plan:0,real:0}).real+=(+t.hours||0);});
+  const rows=Object.entries(map).map(([uid,v])=>({uid,nombre:userName(uid),plan:v.plan,real:v.real,dif:v.real-v.plan})).filter(r=>r.plan>0||r.real>0).sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  const tot=rows.reduce((a,r)=>({plan:a.plan+r.plan,real:a.real+r.real}),{plan:0,real:0});
+  return(
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+        <h2 className="text-lg font-bold text-gray-700">⚖️ Planificación vs Horas Cargadas</h2>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-gray-400 font-medium">Semanas:</span>
+          <select value={desde} onChange={e=>setDesde(e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white"><option value="">Desde (inicio)</option>{weeks.map(w=><option key={w} value={w}>{w}</option>)}</select>
+          <span className="text-gray-400">→</span>
+          <select value={hasta} onChange={e=>setHasta(e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white"><option value="">Hasta (fin)</option>{weeks.map(w=><option key={w} value={w}>{w}</option>)}</select>
+        </div>
+      </div>
+      <p className="text-gray-400 text-xs mb-4">Por persona: horas <b>planificadas</b> (Planificación del Personal) vs horas <b>reales cargadas</b> (TimeSheet), en el rango de semanas seleccionado.</p>
+      <div className="bg-white rounded-xl border overflow-hidden max-w-3xl">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 text-gray-400"><tr><th className="text-left px-4 py-2">Persona</th><th className="text-right px-4 py-2">Planificadas</th><th className="text-right px-4 py-2">Reales cargadas</th><th className="text-right px-4 py-2">Diferencia</th><th className="text-right px-4 py-2">% Cumpl.</th></tr></thead>
+          <tbody>
+            {rows.length===0&&<tr><td colSpan={5} className="text-center py-8 text-gray-400">Sin datos de planificación ni horas en el rango.</td></tr>}
+            {rows.map(r=>{const pct=r.plan>0?(r.real/r.plan*100):0;return(
+              <tr key={r.uid} className="border-t hover:bg-gray-50">
+                <td className="px-4 py-1.5 font-medium text-gray-700">{r.nombre}</td>
+                <td className="px-4 py-1.5 text-right text-indigo-700">{num(r.plan)}</td>
+                <td className="px-4 py-1.5 text-right text-green-700">{num(r.real)}</td>
+                <td className={'px-4 py-1.5 text-right font-medium '+(r.dif>0?'text-blue-600':r.dif<0?'text-red-600':'text-gray-400')}>{(r.dif>0?'+':'')+num(r.dif)}</td>
+                <td className="px-4 py-1.5 text-right text-gray-600">{r.plan>0?pct.toFixed(0)+'%':'—'}</td>
+              </tr>
+            );})}
+          </tbody>
+          <tfoot className="border-t-2 bg-gray-50 font-bold"><tr><td className="px-4 py-2 text-gray-700">TOTAL</td><td className="px-4 py-2 text-right text-indigo-700">{num(tot.plan)}</td><td className="px-4 py-2 text-right text-green-700">{num(tot.real)}</td><td className={'px-4 py-2 text-right '+((tot.real-tot.plan)>0?'text-blue-600':(tot.real-tot.plan)<0?'text-red-600':'text-gray-400')}>{((tot.real-tot.plan)>0?'+':'')+num(tot.real-tot.plan)}</td><td className="px-4 py-2 text-right text-gray-600">{tot.plan>0?(tot.real/tot.plan*100).toFixed(0)+'%':'—'}</td></tr></tfoot>
+        </table>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-3">Diferencia (Real − Plan): <span className="text-blue-600">positiva (azul)</span> = cargó más horas que las planificadas · <span className="text-red-600">negativa (roja)</span> = cargó menos. % Cumpl. = reales ÷ planificadas.</p>
     </div>
   );
 }
