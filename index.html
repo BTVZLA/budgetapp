@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-28k';
+const APP_VERSION='v2026-09-28l';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -6763,7 +6763,7 @@ function ProjDetail({projId,data,save,onBack,getLatestData}){
         <Card label="Participaciones Estimadas" value={$n(pl.partE)} sub={'Real causadas: '+$n(pl.partA)} color="teal"/>
         <DualResultCard estVal={pl.res} estPct={pc(pl.mg)} realVal={getRealPL(projId,data).res} realPct={pc(getRealPL(projId,data).mg)}/>
       </div>
-      {!readOnly&&(
+      {!readOnly&&['ingresos','internos','externos','gastos','real-int','real-ext'].includes(tab)&&(
         <div className="bg-white rounded-xl border p-4 mb-4">
           <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Selecciona el mes a editar</div>
           <div className="flex gap-1 flex-wrap">
@@ -6785,19 +6785,19 @@ function ProjDetail({projId,data,save,onBack,getLatestData}){
         </div>
       )}
       <div className="flex gap-2 mb-2 flex-wrap">
-        <span className="text-xs text-gray-400 self-center font-semibold">📋 PRESUPUESTO:</span>
+        <span className="text-sm font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg self-center">📋 PRESUPUESTO</span>
         {[['ingresos','💰 Ingresos y Cobro'],['internos','👥 Prof. Internos'],['externos','🤝 Prof. Externos'],['participaciones','🏆 Participaciones'],['gastos','💸 Gastos Depto.']].map(([v,l])=>(
           <button key={v} onClick={()=>setTab(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
         ))}
       </div>
       <div className="flex gap-2 mb-4 flex-wrap">
-        <span className="text-xs text-emerald-600 self-center font-semibold">✅ REAL:</span>
+        <span className="text-sm font-bold text-green-700 bg-green-100 border border-green-200 px-3 py-1.5 rounded-lg self-center">✅ REAL</span>
         {[['real-int','👥 Internos Real'],['real-ext','🤝 Externos Real'],['real-cobros','💰 Cobros Reales'],['real-part','💸 Participaciones Real'],['comparativo','📊 Presupuesto vs Real']].map(([v,l])=>(
           <button key={v} onClick={()=>setTab(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab===v?'bg-emerald-600 text-white':'bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100')}>{l}</button>
         ))}
       </div>
       <div className="flex gap-2 mb-4 flex-wrap">
-        <span className="text-xs text-blue-600 self-center font-semibold">⏱️ HORAS:</span>
+        <span className="text-sm font-bold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg self-center">⏱️ HORAS</span>
         <button onClick={()=>setTab('horas')} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab==='horas'?'bg-blue-600 text-white':'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100')}>⏱️ Estimadas vs Reales</button>
       </div>
       {tab==='ingresos'&&<ProjRev projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
