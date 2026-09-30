@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30c';
+const APP_VERSION='v2026-09-30d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -9663,20 +9663,32 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
     byUser[e.userId].push(e);
   });
 
-  const totalHoursForUser=(uid)=>(byUser[uid]||[]).reduce((s,e)=>s+e.hours,0);
   const myRole2=currentUser&&currentUser.role||'admin';
   const myId2=currentUser&&currentUser.id;
+  const seeAll=['admin','administracion','socio','rrhh'].includes(myRole2);
+  const isResp2=myRole2==='responsable';
+  // Proyectos donde el usuario es responsable → puede ver el equipo COMPLETO de esos proyectos
+  const myProjIds=isResp2?new Set((data.projects||[]).filter(p=>p.responsableId===myId2).map(p=>p.id)):null;
+  // Subordinados por jerarquía de rol (comportamiento previo)
+  const miRank=EVAL_ROLE_ORDER.indexOf(myRole2);
+  const subordinateIds=new Set(users.filter(u=>EVAL_ROLE_ORDER.indexOf(u.role)>miRank&&u.id!==myId2).map(u=>u.id));
+  // Usuario "externo": visible solo porque cargó horas a un proyecto donde soy responsable (p.ej. socio, gerente, otro responsable)
+  const isExternal=(uid)=>isResp2&&!subordinateIds.has(uid)&&uid!==myId2;
+  // Entradas visibles de un usuario: a los externos solo se les muestran las horas de MIS proyectos (sin fuga de otros proyectos)
+  const entriesFor=(uid)=>{const arr=byUser[uid]||[];return (seeAll||subordinateIds.has(uid)||uid===myId2)?arr:(isResp2?arr.filter(e=>myProjIds.has(e.projectId)):[]);};
+  const totalHoursForUser=(uid)=>entriesFor(uid).reduce((s,e)=>s+e.hours,0);
   // Excluir del reporte a las personas desincorporadas (match por nombre)
   const normNm=n=>(n||'').toLowerCase().trim().replace(/\s+/g,' ');
   const desincNames=new Set((data.people||[]).filter(p=>p.desincorporado).map(p=>normNm([p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name)));
-  // admin, socio, rrhh see all; others see only lower roles
-  const visibleUsers=((['admin','administracion','socio','rrhh'].includes(myRole2))
-    ?users
-    :users.filter(u=>{
-        const mi=EVAL_ROLE_ORDER.indexOf(myRole2);
-        const ti=EVAL_ROLE_ORDER.indexOf(u.role);
-        return ti>mi&&u.id!==myId2;
-      })).filter(u=>!desincNames.has(normNm(u.name)));
+  // admin/socio/rrhh ven a todos; responsable ve a sus subordinados + quien cargó horas a sus proyectos; el resto solo subordinados
+  const visibleUsers=(seeAll?users:users.filter(u=>{
+      if(u.id===myId2)return false;
+      if(subordinateIds.has(u.id))return true;
+      if(isResp2)return (byUser[u.id]||[]).some(e=>myProjIds.has(e.projectId));
+      return false;
+    })).filter(u=>!desincNames.has(normNm(u.name)));
+  // Solo se aprueba la semana completa de subordinados (o si ves todo); nunca la de un externo
+  const canApproveUser=(uid)=>canApprove&&(seeAll||subordinateIds.has(uid));
   const [expanded,setExpanded]=React.useState({});
   const toggleExpand=id=>setExpanded(p=>({...p,[id]:!p[id]}));
 
@@ -9687,7 +9699,7 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
         <button onClick={prevWeek} className="text-gray-400 hover:text-indigo-600 text-lg px-2">‹</button>
         <div className="text-center">
           <div className="font-semibold text-gray-700 text-sm">Semana del {fmtWeekLabel(weekStart)}</div>
-          <div className="text-xs text-gray-400 mt-0.5">{visibleUsers.filter(u=>(byUser[u.id]||[]).length>0).length} usuarios con horas registradas</div>
+          <div className="text-xs text-gray-400 mt-0.5">{visibleUsers.filter(u=>entriesFor(u.id).length>0).length} usuarios con horas registradas</div>
         </div>
         <button onClick={nextWeek} className="text-gray-400 hover:text-indigo-600 text-lg px-2">›</button>
       </div>
@@ -9696,9 +9708,10 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
 
       <div className="space-y-2">
         {visibleUsers.map(u=>{
-          const entries=byUser[u.id]||[];
+          const entries=entriesFor(u.id);
           const totalHours=entries.reduce((s,e)=>s+e.hours,0);
-          const isComplete=Math.abs(totalHours-40)<0.01;
+          const ext=isExternal(u.id);
+          const isComplete=!ext&&Math.abs(totalHours-40)<0.01;
           const hasEntries=entries.length>0;
 
           return(
@@ -9714,21 +9727,21 @@ function TimesheetReport({data,weekStart,prevWeek,nextWeek,getProjectName,approv
                       <div className="text-sm font-semibold text-gray-800">{u.name}</div>
                       {hasEntries&&<span className="text-gray-300 text-xs">{expanded[u.id]?'▲':'▼'}</span>}
                     </div>
-                    <div className="text-xs text-gray-400">{ROLE_LABEL(u.role)}</div>
+                    <div className="text-xs text-gray-400">{ROLE_LABEL(u.role)}{ext&&<span className="ml-1.5 px-1.5 py-0.5 bg-blue-50 text-blue-500 rounded-full text-[10px] font-medium" title="Solo se muestran las horas cargadas a tus proyectos">📁 solo tus proyectos</span>}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  {isWeekApproved&&isWeekApproved(u.id,weekStart)&&(
+                  {!ext&&isWeekApproved&&isWeekApproved(u.id,weekStart)&&(
                     <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">✅ Aprobado</span>
                   )}
                   {hasEntries?(
-                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${isComplete?'bg-green-100 text-green-700':totalHours>40?'bg-red-100 text-red-600':'bg-orange-100 text-orange-600'}`}>
-                      {totalHours.toFixed(1)}h / 40h
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${ext?'bg-blue-50 text-blue-600':isComplete?'bg-green-100 text-green-700':totalHours>40?'bg-red-100 text-red-600':'bg-orange-100 text-orange-600'}`}>
+                      {totalHours.toFixed(1)}h{ext?'':' / 40h'}
                     </span>
                   ):(
                     <span className="text-xs text-gray-300 italic">Sin horas registradas</span>
                   )}
-                  {canApprove&&hasEntries&&(isWeekApproved&&isWeekApproved(u.id,weekStart)?(
+                  {canApproveUser(u.id)&&hasEntries&&(isWeekApproved&&isWeekApproved(u.id,weekStart)?(
                     <button onClick={()=>unapproveWeek&&unapproveWeek(u.id,weekStart)}
                       className="text-xs px-2.5 py-1.5 bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-lg border transition-colors">
                       🔓 Revertir
