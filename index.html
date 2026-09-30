@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-29a';
+const APP_VERSION='v2026-09-30a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -182,7 +182,7 @@ const parseSupabaseError=r=>{
 const fromDB={
   departments:r=>({id:r.id,name:r.name}),
   app_users:r=>({id:r.id,name:r.name,initials:r.initials||autoInitials(r.name),deptId:r.dept_id,role:r.role,authId:r.auth_id}),
-  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||''}),
+  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||'',preCierre:r.pre_cierre===true,fechaPreCierre:r.fecha_pre_cierre||'',cierreSolicitado:r.cierre_solicitado===true,cierreSolicitadoPor:r.cierre_solicitado_por||'',fechaSolicitudCierre:r.fecha_solicitud_cierre||''}),
   revenues:r=>({id:r.id,projectId:r.project_id,month:r.month,est:+r.est,act:+r.act,cobro:+(r.cobro||0)}),
   internal_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,level:r.level,hours:+r.hours}),
   external_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,name:r.name,type:r.type,rate:+r.rate,hours:+r.hours,amount:+r.amount}),
@@ -216,7 +216,7 @@ const fromDB={
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
   app_users:u=>({id:u.id,name:u.name,initials:u.initials||autoInitials(u.name),dept_id:u.deptId,role:u.role,auth_id:u.authId||null}),
-  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||''}),
+  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||'',pre_cierre:p.preCierre===true,fecha_pre_cierre:p.fechaPreCierre||null,cierre_solicitado:p.cierreSolicitado===true,cierre_solicitado_por:p.cierreSolicitadoPor||'',fecha_solicitud_cierre:p.fechaSolicitudCierre||null}),
   revenues:r=>({id:r.id,project_id:r.projectId,month:r.month,est:r.est,act:r.act,cobro:r.cobro||0}),
   internal_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,level:c.level,hours:c.hours}),
   external_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,name:c.name,type:c.type,rate:c.rate,hours:c.hours,amount:c.amount}),
@@ -809,7 +809,7 @@ function App(){
               onMouseEnter={e=>{if(tab!==n.id)e.currentTarget.style.background='rgba(0,186,179,0.2)';}}
               onMouseLeave={e=>{if(tab!==n.id)e.currentTarget.style.background='transparent';}}>
               <span className="flex-1">{n.i} {n.l}</span>
-              {n.id==='proyectos'&&isAdminRole&&(()=>{const c=(data.projects||[]).filter(p=>p.validado===false&&!p.enPapelera).length;return c>0?<span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full" title={c+' proyecto(s) por validar'}>{c}</span>:null;})()}
+              {n.id==='proyectos'&&(isAdminRole||isSocio)&&(()=>{const ps=(data.projects||[]).filter(p=>!p.enPapelera);const cCrea=isAdminRole?ps.filter(p=>p.validado===false).length:0;const cCierre=ps.filter(p=>p.cierreSolicitado===true&&!p.cerrado).length;const c=cCrea+cCierre;return c>0?<span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full" title={cCrea+' por validar · '+cCierre+' cierre(s) por aprobar'}>{c}</span>:null;})()}
             </button>
           ))}
         </nav>
@@ -909,7 +909,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const role=(currentUser&&currentUser.role)||'';
   const isResp=role==='responsable';
   const isRRHH=role==='rrhh';
-  const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado);
+  const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado&&!p.preCierre&&p.validado!==false);
   // Planificar: todos los que planifican ven TODOS los proyectos/clientes; RRHH → ninguno (solo reporte)
   const myProjects=isRRHH?[]:allProjects;
   const myProjIds=new Set(myProjects.map(p=>p.id));
@@ -1937,7 +1937,11 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const isAdmin=currentUser&&(currentUser.role==='admin'||currentUser.role==='administracion');
   const role=currentUser&&currentUser.role;
   const puedeCrear=isAdmin||role==='socio'||role==='responsable';
-  const canClose=isAdmin;
+  const puedeEditar=puedeCrear; // admin, socio y responsable pueden editar (los responsables solo ven/editan los suyos)
+  const puedePreCierre=puedeCrear; // aplicar/quitar pre-cierre (sin validación)
+  const canValidarCierre=isAdmin||role==='socio'; // admin/administración/socio: validan y cierran directo
+  const puedeSolicitarCierre=role==='responsable'; // responsables solicitan cierre (requiere validación)
+  const canClose=canValidarCierre;
 
   const notificarValidacion=np=>{
     const admins=(data.users||[]).filter(u=>u.role==='admin'||u.role==='administracion');
@@ -2007,14 +2011,41 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
       responsableId:editForm.responsableId||''}:p)});
     setEditId(null);
   };
+  const notificarCierre=p=>{
+    const vals=(data.users||[]).filter(u=>u.role==='admin'||u.role==='administracion'||u.role==='socio');
+    const emails=vals.map(u=>{const pe=(data.people||[]).find(pp=>(pp.name||'').trim().toLowerCase()===(u.name||'').trim().toLowerCase());return pe&&pe.email?pe.email:null;}).filter(Boolean);
+    const subject='Solicitud de cierre de proyecto: '+p.name;
+    const body='El usuario '+((currentUser&&currentUser.name)||'')+' solicitó el cierre definitivo del proyecto "'+p.name+'" (cliente: '+p.client+(p.codigo?', '+p.codigo:'')+') en BudgetApp.\n\nEntra a Proyectos para aprobar o rechazar el cierre.';
+    try{window.location.href='mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);}catch(_){}
+  };
+  const togglePreCierre=id=>{
+    if(!puedePreCierre)return;
+    const today=new Date().toISOString().split('T')[0];
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,preCierre:!p.preCierre,fechaPreCierre:!p.preCierre?today:''}:p)});
+  };
+  const solicitarCierre=id=>{
+    if(!window.confirm('¿Solicitar el cierre definitivo de este proyecto? Un administrador o socio debe validarlo.'))return;
+    const today=new Date().toISOString().split('T')[0];
+    const lat=getLatestData?getLatestData():data;
+    const proj=(lat.projects||[]).find(p=>p.id===id);
+    save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,cierreSolicitado:true,cierreSolicitadoPor:(currentUser&&currentUser.id)||'',fechaSolicitudCierre:today}:p)});
+    if(proj)notificarCierre(proj);
+  };
   const cerrarProyecto=id=>{
-    if(!canClose)return;
+    if(!canValidarCierre)return;
     const today=new Date().toISOString().split('T')[0];
     const latC=getLatestData?getLatestData():data;
-    save({...latC,projects:(latC.projects||[]).map(p=>p.id===id?{...p,cerrado:true,fechaCierre:today}:p)});
+    save({...latC,projects:(latC.projects||[]).map(p=>p.id===id?{...p,cerrado:true,fechaCierre:today,cierreSolicitado:false}:p)});
+  };
+  const rechazarCierre=id=>{
+    if(!canValidarCierre)return;
+    if(!window.confirm('¿Rechazar la solicitud de cierre? El proyecto seguirá activo.'))return;
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,cierreSolicitado:false,cierreSolicitadoPor:'',fechaSolicitudCierre:''}:p)});
   };
   const reabrirProyecto=id=>{
-    if(!canClose)return;
+    if(!canValidarCierre)return;
     const latR=getLatestData?getLatestData():data;
     save({...latR,projects:(latR.projects||[]).map(p=>p.id===id?{...p,cerrado:false,fechaCierre:''}:p)});
   };
@@ -2233,7 +2264,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
           {proyectosOrdenados.map(p=>(
             <div key={p.id} className={'bg-white rounded-xl border overflow-hidden '+(isPapelera?'opacity-80 border-red-200':'')}>
               {/* Edit form — rendered as separate stable component to prevent cursor-jump */}
-              {editId===p.id&&isAdmin&&!isPapelera&&(
+              {editId===p.id&&puedeEditar&&!isPapelera&&(
                 <ProjEditForm
                   key={`edit-${p.id}`}
                   editForm={editForm}
@@ -2258,12 +2289,25 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                     {!isAdmin&&<span className="text-[11px] text-yellow-600">Esperando validación del administrador</span>}
                   </div>
                 )}
+                {p.cierreSolicitado&&!p.cerrado&&!isPapelera&&(
+                  <div className="mb-3 flex items-center justify-between gap-2 flex-wrap bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                    <div className="text-xs text-orange-600">🔒 <b>Cierre solicitado</b> · por <b>{(()=>{const u=(data.users||[]).find(x=>x.id===p.cierreSolicitadoPor);return u?u.name:'—';})()}</b>{p.fechaSolicitudCierre?' el '+p.fechaSolicitudCierre:''}</div>
+                    {canValidarCierre?(
+                      <div className="flex items-center gap-2">
+                        <button onClick={()=>{if(window.confirm('¿Aprobar el cierre de "'+p.name+'"?'))cerrarProyecto(p.id);}} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✓ Aprobar cierre</button>
+                        <button onClick={()=>rechazarCierre(p.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold">✕ Rechazar</button>
+                      </div>
+                    ):(
+                      <span className="text-[11px] text-orange-600">Esperando validación de un administrador o socio</span>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                       <span className={'font-medium text-sm '+(isPapelera?'text-gray-400 line-through':isClosed?'text-gray-500':'')}>{p.name}</span>
                       {p.codigo&&<span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded font-mono text-xs font-bold tracking-wide">{p.codigo}</span>}
-                      {!p.codigo&&isAdmin&&!isPapelera&&(
+                      {!p.codigo&&puedeEditar&&!isPapelera&&(
                         <button onClick={()=>startEdit(p)}
                           className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded text-xs hover:bg-orange-200">
                           + Asignar código
@@ -2271,7 +2315,9 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                       )}
                       <span className={'px-1.5 py-0.5 rounded text-xs font-medium '+(TIPO_CLS[p.tipo||'Recurrente'])}>{p.tipo||'Recurrente'}</span>
                       {isClosed&&!isPapelera&&<span className="px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full text-xs">🔒 {p.fechaCierre||'Cerrado'}</span>}
-                      {!isClosed&&!isPapelera&&<span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">✅ Activo</span>}
+                      {!isClosed&&!isPapelera&&(p.preCierre
+                        ?<span className="px-2 py-0.5 bg-orange-100 text-orange-600 rounded-full text-xs" title={p.fechaPreCierre?'Pre-cierre desde '+p.fechaPreCierre:''}>🟠 Pre-cierre</span>
+                        :<span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">✅ Activo</span>)}
                       <span className="px-2 py-0.5 bg-blue-50 text-blue-500 rounded-full text-xs">{p.periodo||currentPeriodo}</span>
                     </div>
                     <div className="text-gray-400 text-xs mb-1">
@@ -2336,10 +2382,12 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                     </>
                   ):(
                     <>
-                      {isAdmin&&!isClosed&&<button onClick={()=>editId===p.id?setEditId(null):startEdit(p)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(editId===p.id?'bg-yellow-100 text-yellow-700':'bg-indigo-50 hover:bg-indigo-100 text-indigo-600')}>✏️ {editId===p.id?'Cerrar':'Editar'}</button>}
+                      {puedeEditar&&!isClosed&&<button onClick={()=>editId===p.id?setEditId(null):startEdit(p)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(editId===p.id?'bg-yellow-100 text-yellow-700':'bg-indigo-50 hover:bg-indigo-100 text-indigo-600')}>✏️ {editId===p.id?'Cerrar':'Editar'}</button>}
                       <button onClick={()=>onProj(p.id)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(isClosed?'bg-gray-50 hover:bg-gray-100 text-gray-600':'bg-green-50 hover:bg-green-100 text-green-700')}>📂 {isClosed?'Ver':'Abrir'}</button>
-                      {canClose&&!isClosed&&<button onClick={()=>{if(window.confirm('¿Cerrar "'+p.name+'"?'))cerrarProyecto(p.id);}} className="bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-medium">🔒 Cerrar</button>}
-                      {canClose&&isClosed&&<button onClick={()=>reabrirProyecto(p.id)} className="bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-medium">🔓 Reabrir</button>}
+                      {puedePreCierre&&!isClosed&&<button onClick={()=>togglePreCierre(p.id)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(p.preCierre?'bg-gray-100 hover:bg-gray-200 text-gray-600':'bg-yellow-50 hover:bg-yellow-100 text-yellow-700')}>{p.preCierre?'↩ Quitar pre-cierre':'🟠 Pre-cierre'}</button>}
+                      {canValidarCierre&&!isClosed&&<button onClick={()=>{if(window.confirm('¿Cerrar "'+p.name+'"?'))cerrarProyecto(p.id);}} className="bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-medium">🔒 Cerrar</button>}
+                      {puedeSolicitarCierre&&!isClosed&&!p.cierreSolicitado&&<button onClick={()=>solicitarCierre(p.id)} className="bg-orange-50 hover:bg-orange-100 text-orange-600 px-3 py-1.5 rounded-lg text-xs font-medium">🔒 Solicitar cierre</button>}
+                      {canValidarCierre&&isClosed&&<button onClick={()=>reabrirProyecto(p.id)} className="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-lg text-xs font-medium">🔓 Reabrir</button>}
                       {isAdmin&&<button onClick={()=>moverAPapelera(p.id)} className="bg-red-50 hover:bg-red-100 text-red-500 px-3 py-1.5 rounded-lg text-xs font-medium">🗑</button>}
                     </>
                   )}
@@ -9292,8 +9340,8 @@ function ATimeSheet({data,save,currentUser,getLatestData}){
     )});
   };
 
-  // Active projects (not closed, not in papelera)
-  const activeProjects=(data.projects||[]).filter(p=>!p.cerrado&&!p.enPapelera)
+  // Active projects (not closed, not pre-closed, not pending validation, not in papelera)
+  const activeProjects=(data.projects||[]).filter(p=>!p.cerrado&&!p.enPapelera&&!p.preCierre&&p.validado!==false)
     .sort((a,b)=>a.name.localeCompare(b.name));
 
   // Hours per day for current user
