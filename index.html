@@ -32,7 +32,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30b';
+const APP_VERSION='v2026-09-30c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -910,7 +910,7 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   const isResp=role==='responsable';
   const isRRHH=role==='rrhh';
   const allProjects=(data.projects||[]).filter(p=>!p.enPapelera&&!p.cerrado&&!p.preCierre&&p.validado!==false)
-    .sort((a,b)=>((a.codigo?a.codigo+' · ':'')+a.name).localeCompare((b.codigo?b.codigo+' · ':'')+b.name,'es',{sensitivity:'base'}));
+    .sort((a,b)=>((a.name||'')+' '+(a.client||'')).localeCompare((b.name||'')+' '+(b.client||''),'es',{sensitivity:'base'}));
   // Planificar: todos los que planifican ven TODOS los proyectos/clientes; RRHH → ninguno (solo reporte)
   const myProjects=isRRHH?[]:allProjects;
   const myProjIds=new Set(myProjects.map(p=>p.id));
