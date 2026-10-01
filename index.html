@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30k';
+const APP_VERSION='v2026-09-30l';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -778,7 +778,7 @@ function App(){
     administracion:['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
     socio:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
     responsable:  ['proyectos','presupuesto','timesheet','planificacion'],
-    rrhh:         ['part-report','timesheet','planificacion','planvsreal'],
+    rrhh:         ['labor-costs','part-report','timesheet','planificacion','planvsreal'],
     user:         ['dashboard','proyectos','gastos','timesheet'],
     equipo:       ['timesheet'],
   };
