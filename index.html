@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30g';
+const APP_VERSION='v2026-09-30h';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -884,7 +884,7 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
 
   if(projId)return <ProjDetail projId={projId} data={visibleData} save={save} onBack={()=>setProjId(null)} getLatestData={getLatestData}/>;
   if(tab==='resumen')return <AResumen data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
-  if(tab==='dashboard')return <ADash data={{...visibleData,projects:visibleData.projects.filter(p=>p.validado!==false)}}/>;
+  if(tab==='dashboard')return <ADash data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='proyectos')return <AProjects data={visibleData} save={save} onProj={setProjId} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='presupuesto')return <APresupuesto data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='flujocaja')return <AFlujoCaja data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
@@ -2716,10 +2716,12 @@ function PieChart({slices,size=160}){
 
 const DEPT_COLORS=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6'];
 
-function ADash({data}){
+function ADash({data,PeriodoSelector,selPeriodo}){
+  const perMeses=(selPeriodo&&selPeriodo!=='todos')?selPeriodo:currentPeriodo;
   const periodoMesesDash=MO.map((name,i)=>({name,i})).filter(({i})=>{
+    if(selPeriodo==='todos')return true;
     const yr=moYear(i);const absM=(i+6)%12;
-    if(currentPeriodo.includes('-')){const [y1,y2]=currentPeriodo.split('-').map(Number);if(yr===y1&&absM>=7)return true;if(yr===y2&&absM<7)return true;return false;}
+    if(perMeses.includes('-')){const [y1,y2]=perMeses.split('-').map(Number);if(yr===y1&&absM>=7)return true;if(yr===y2&&absM<7)return true;return false;}
     return yr===YEAR;
   });
   const tE=data.projects.reduce((s,p)=>s+getEffectiveRevE(p.id,data),0);
@@ -2740,7 +2742,10 @@ function ADash({data}){
 
   return(
     <div className="p-6">
-      <h2 className="font-bold text-base mb-4">Dashboard General</h2>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h2 className="font-bold text-base">Dashboard General{selPeriodo&&selPeriodo!=='todos'?<span className="ml-2 text-xs font-normal text-gray-400">· {selPeriodo}</span>:''}</h2>
+        {PeriodoSelector&&<PeriodoSelector/>}
+      </div>
       <div className="grid grid-cols-4 gap-3 mb-6">
         <Card label="Ingresos Estimados" value={$n(tE)} color="indigo"/>
         <Card label="Cobros Reales" value={$n(tA)} sub={tE>0?pc(tA/tE*100)+'% del est.':''} color="emerald"/>
