@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30i';
+const APP_VERSION='v2026-09-30j';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2845,12 +2845,17 @@ function ADash({data,PeriodoSelector,selPeriodo}){
 }
 
 function AConfig({data,save,cfg,setCfg,session,currentUser,getLatestData}){
-  const [sub,setSub]=useState('rates');
+  const esAdminIT=currentUser&&currentUser.role==='admin';
+  const soloClientes=currentUser&&currentUser.role==='administracion'; // Administración: solo gestiona Clientes
+  const tabs=soloClientes
+    ? [['clients','🏢 Clientes']]
+    : [['rates','💰 Tarifas'],['partcats','🤝 Participaciones'],['departments','🏢 Departamentos'],['team','👥 Equipo'],['clients','🏢 Clientes'],['backup','💾 Backup'],...(esAdminIT?[['seguridad','🔒 Seguridad']]:[])];
+  const [sub,setSub]=useState(soloClientes?'clients':'rates');
   return(
     <div className="p-6">
       <h2 className="font-bold text-base mb-4">Configuración</h2>
       <div className="flex gap-2 mb-5 flex-wrap">
-        {[['rates','💰 Tarifas'],['partcats','🤝 Participaciones'],['departments','🏢 Departamentos'],['team','👥 Equipo'],['clients','🏢 Clientes'],...((currentUser&&(currentUser.role==='admin'||currentUser.role==='administracion'))?[['backup','💾 Backup']]:[]),...((currentUser&&currentUser.role==='admin')?[['seguridad','🔒 Seguridad']]:[]) ].map(([id,l])=>(
+        {tabs.map(([id,l])=>(
           <button key={id} onClick={()=>setSub(id)} className={'px-4 py-1.5 rounded-lg text-sm font-medium '+(sub===id?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
         ))}
       </div>
