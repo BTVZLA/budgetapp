@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30e';
+const APP_VERSION='v2026-09-30f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -184,7 +184,7 @@ const parseSupabaseError=r=>{
 const fromDB={
   departments:r=>({id:r.id,name:r.name}),
   app_users:r=>({id:r.id,name:r.name,initials:r.initials||autoInitials(r.name),deptId:r.dept_id,role:r.role,authId:r.auth_id}),
-  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||'',preCierre:r.pre_cierre===true,fechaPreCierre:r.fecha_pre_cierre||'',cierreSolicitado:r.cierre_solicitado===true,cierreSolicitadoPor:r.cierre_solicitado_por||'',fechaSolicitudCierre:r.fecha_solicitud_cierre||''}),
+  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||'',preCierre:r.pre_cierre===true,fechaPreCierre:r.fecha_pre_cierre||'',cierreSolicitado:r.cierre_solicitado===true,cierreSolicitadoPor:r.cierre_solicitado_por||'',fechaSolicitudCierre:r.fecha_solicitud_cierre||'',fechaAprobacion:r.fecha_aprobacion||'',fechaInicio:r.fecha_inicio||''}),
   revenues:r=>({id:r.id,projectId:r.project_id,month:r.month,est:+r.est,act:+r.act,cobro:+(r.cobro||0)}),
   internal_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,level:r.level,hours:+r.hours}),
   external_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,name:r.name,type:r.type,rate:+r.rate,hours:+r.hours,amount:+r.amount}),
@@ -218,7 +218,7 @@ const fromDB={
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
   app_users:u=>({id:u.id,name:u.name,initials:u.initials||autoInitials(u.name),dept_id:u.deptId,role:u.role,auth_id:u.authId||null}),
-  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||'',pre_cierre:p.preCierre===true,fecha_pre_cierre:p.fechaPreCierre||null,cierre_solicitado:p.cierreSolicitado===true,cierre_solicitado_por:p.cierreSolicitadoPor||'',fecha_solicitud_cierre:p.fechaSolicitudCierre||null}),
+  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||'',pre_cierre:p.preCierre===true,fecha_pre_cierre:p.fechaPreCierre||null,cierre_solicitado:p.cierreSolicitado===true,cierre_solicitado_por:p.cierreSolicitadoPor||'',fecha_solicitud_cierre:p.fechaSolicitudCierre||null,fecha_aprobacion:p.fechaAprobacion||null,fecha_inicio:p.fechaInicio||null}),
   revenues:r=>({id:r.id,project_id:r.projectId,month:r.month,est:r.est,act:r.act,cobro:r.cobro||0}),
   internal_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,level:c.level,hours:c.hours}),
   external_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,name:c.name,type:c.type,rate:c.rate,hours:c.hours,amount:c.amount}),
@@ -1452,6 +1452,10 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
             {TIPO_OPTS.map(t=><option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <div><label className="text-gray-500 text-xs mb-1 block">Fecha aprobación de propuesta</label>
+          <input type="date" value={editForm.fechaAprobacion||''} onChange={e=>setEditForm(f=>({...f,fechaAprobacion:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="text-gray-500 text-xs mb-1 block">Fecha de inicio del proyecto</label>
+          <input type="date" value={editForm.fechaInicio||''} onChange={e=>setEditForm(f=>({...f,fechaInicio:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="text-gray-500 text-xs mb-1 block">Período</label>
           <select value={editForm.periodo||currentPeriodo} onChange={e=>setEditForm(f=>({...f,periodo:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm">
             {PERIODOS.map(pp=><option key={pp} value={pp}>{pp} · {periodoLabel(pp)}</option>)}
@@ -1929,7 +1933,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
 }
 
 function AProjects({data,save,onProj,currentUser,getLatestData}){
-  const emptyForm={name:'',client:'',clientId:'',deptId:(data.departments[0]||{}).id||'',status:'Por Enviar',tipo:'Recurrente',periodo:currentPeriodo,honorariosTotal:'',honorariosOS:'',serviceCode:'AE',codigo:'',responsableId:'',horasEst:{}};
+  const emptyForm={name:'',client:'',clientId:'',deptId:(data.departments[0]||{}).id||'',status:'Por Enviar',tipo:'Recurrente',periodo:currentPeriodo,honorariosTotal:'',honorariosOS:'',serviceCode:'AE',codigo:'',responsableId:'',horasEst:{},fechaAprobacion:'',fechaInicio:''};
   const catsProp=(data.partCats&&data.partCats.length?data.partCats:DEFAULT_PART_CATS);
   const [vistaTab,setVistaTab]=useState('activos');
   const [selDept,setSelDept]=useState('todos');
@@ -1961,7 +1965,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     const horasEst=Object.entries(form.horasEst||{}).map(([catId,v])=>({catId,horas:parseFloat(v)||0})).filter(e=>e.horas>0);
     const autoValida=isAdmin; // admin/administración publican directo; socio/responsable quedan "por validar"
     const today=new Date().toISOString().split('T')[0];
-    const np={id:uid(),name:form.name.trim(),client:form.client.trim(),clientId:form.clientId||'',deptId:form.deptId,status:form.status,tipo:form.tipo,periodo:form.periodo||currentPeriodo,honorariosTotal:parseFloat(form.honorariosTotal)||0,honorariosOS:parseFloat(form.honorariosOS)||0,recurrente:form.tipo==='Recurrente',cerrado:false,fechaCierre:'',enPapelera:false,fechaPapelera:'',codigo:codigoFinal,responsableId:form.responsableId||'',horasEst,validado:autoValida,creadoPor:(currentUser&&currentUser.id)||'',fechaCreacion:today};
+    const np={id:uid(),name:form.name.trim(),client:form.client.trim(),clientId:form.clientId||'',deptId:form.deptId,status:form.status,tipo:form.tipo,periodo:form.periodo||currentPeriodo,honorariosTotal:parseFloat(form.honorariosTotal)||0,honorariosOS:parseFloat(form.honorariosOS)||0,recurrente:form.tipo==='Recurrente',cerrado:false,fechaCierre:'',enPapelera:false,fechaPapelera:'',codigo:codigoFinal,responsableId:form.responsableId||'',horasEst,validado:autoValida,creadoPor:(currentUser&&currentUser.id)||'',fechaCreacion:today,fechaAprobacion:form.fechaAprobacion||'',fechaInicio:form.fechaInicio||''};
     save({...(getLatestData?getLatestData():data),projects:[...(getLatestData?getLatestData():data).projects,np]});
     setForm(emptyForm);setShow(false);
     if(!autoValida){setVistaTab('porvalidar');notificarValidacion(np);}
@@ -2000,7 +2004,8 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     setEditForm({name:p.name,client:p.client,clientId:p.clientId||'',deptId:p.deptId,
       status:p.status,tipo:p.tipo||'Recurrente',periodo:p.periodo||currentPeriodo,
       honorariosTotal:String(p.honorariosTotal||''),honorariosOS:String(p.honorariosOS||''),
-      codigo:p.codigo||'',responsableId:p.responsableId||''});
+      codigo:p.codigo||'',responsableId:p.responsableId||'',
+      fechaAprobacion:p.fechaAprobacion||'',fechaInicio:p.fechaInicio||''});
   };
   const saveEdit=()=>{
     if(!editForm.name||!editForm.client)return;
@@ -2013,7 +2018,8 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
       honorariosOS:parseFloat(editForm.honorariosOS)||0,
       recurrente:editForm.tipo==='Recurrente',
       codigo:editForm.codigo||p.codigo||'',
-      responsableId:editForm.responsableId||''}:p)});
+      responsableId:editForm.responsableId||'',
+      fechaAprobacion:editForm.fechaAprobacion||'',fechaInicio:editForm.fechaInicio||''}:p)});
     setEditId(null);
   };
   const notificarCierre=p=>{
@@ -2071,6 +2077,9 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const proyectos=selDept==='todos'?conPeriodo:conPeriodo.filter(p=>p.deptId===selDept);
   const proyectosOrdenados=[...proyectos].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   const deptCount=id=>conPeriodo.filter(p=>p.deptId===id).length;
+  // Totales de honorarios de los proyectos visibles (respeta la vista por responsable + filtros de período/depto)
+  const sumHonTotales=proyectos.reduce((s,p)=>s+(+p.honorariosTotal||0),0);
+  const sumPorCobrar=proyectos.reduce((s,p)=>{const neto=(+p.honorariosTotal||0)-(+p.honorariosOS||0);return s+Math.max(0,neto-getTotRealCobros(p.id,data));},0);
 
   const expProyectos=()=>{
     const dN=id=>{const d=(data.departments||[]).find(x=>x.id===id);return d?d.name:'';};
@@ -2101,9 +2110,16 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
           <h2 className="font-bold text-base">Proyectos</h2>
           <p className="text-gray-400 text-xs">{totActivos} activos · {totCerrados} cerrados · {totPapelera} en papelera</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={expProyectos} disabled={proyectosOrdenados.length===0} className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-medium">⬇ Excel</button>
-          {puedeCrear&&vistaTab!=='papelera'&&vistaTab!=='porvalidar'&&<button onClick={()=>setShow(!show)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nuevo Proyecto</button>}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="text-right">
+            <div className="text-[11px] text-gray-400 uppercase tracking-wide">Honorarios totales</div>
+            <div className="text-base font-bold text-indigo-700 leading-tight">{$n(sumHonTotales)}</div>
+            <div className="text-xs font-semibold text-orange-600" title="Honorarios netos pendientes de cobrar en los proyectos visibles">Por cobrar: {$n(sumPorCobrar)}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={expProyectos} disabled={proyectosOrdenados.length===0} className="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white px-4 py-2 rounded-lg text-sm font-medium">⬇ Excel</button>
+            {puedeCrear&&vistaTab!=='papelera'&&vistaTab!=='porvalidar'&&<button onClick={()=>setShow(!show)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium">+ Nuevo Proyecto</button>}
+          </div>
         </div>
       </div>
 
@@ -2157,6 +2173,8 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                 {TIPO_OPTS.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            <div><label className="text-gray-400 text-xs mb-1 block">Fecha aprobación de propuesta</label><input type="date" value={form.fechaAprobacion||''} onChange={e=>setForm({...form,fechaAprobacion:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="text-gray-400 text-xs mb-1 block">Fecha de inicio del proyecto</label><input type="date" value={form.fechaInicio||''} onChange={e=>setForm({...form,fechaInicio:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="text-gray-400 text-xs mb-1 block">Período</label>
               <select value={form.periodo} onChange={e=>{const np=form.serviceCode?nextProjectCode(e.target.value,form.serviceCode,data.projects):'';setForm({...form,periodo:e.target.value,codigo:np});}} className="w-full border rounded-lg px-3 py-2 text-sm">
                 {PERIODOS.map(pp=><option key={pp} value={pp}>{pp} · {periodoLabel(pp)}</option>)}
@@ -6892,6 +6910,11 @@ function ProjDetail({projId,data,save,onBack,getLatestData}){
             <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs">Período {proj.periodo||currentPeriodo}</span>
           </div>
           <p className="text-gray-400 text-xs">{proj.client} {dept.name&&<span className="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full">{dept.name}</span>}</p>
+          {(proj.fechaAprobacion||proj.fechaInicio)&&(()=>{const fmt=f=>f?new Date(f+'T12:00:00').toLocaleDateString('es-VE'):'—';return(
+            <div className="flex gap-4 mt-1 text-xs text-gray-500">
+              <span>📝 Aprobación propuesta: <b>{fmt(proj.fechaAprobacion)}</b></span>
+              <span>🚀 Inicio del proyecto: <b>{fmt(proj.fechaInicio)}</b></span>
+            </div>);})()}
           {proj.honorariosTotal>0&&(
             <div className="flex gap-4 mt-1 text-xs">
               <span className="text-gray-500">Hon. Propuesto: <b>{$n(proj.honorariosTotal)}</b></span>
