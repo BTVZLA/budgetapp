@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30f';
+const APP_VERSION='v2026-09-30g';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2433,8 +2433,9 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
   const tIC=data.projects.reduce((s,p)=>s+MO.reduce((ss,_,m)=>ss+getIntCost(p.id,m,data),0),0);
   const tEC=data.projects.reduce((s,p)=>s+MO.reduce((ss,_,m)=>ss+getExtCost(p.id,m,data),0),0);
   const tPC=data.projects.reduce((s,p)=>s+getPartCostEst(p.id,data),0);
+  const tTercE=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+(+p.honorariosOS||0),0); // Costo de terceros estimado (Honorarios OS)
   const tPA=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+getTotRealPartCausadas(p.id,data),0);
-  const tDC=tIC+tEC+tPC;
+  const tDC=tIC+tEC+tTercE+tPC;
   const tEE=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'est'),0);
   const tEA=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'act'),0);
   // Gastos Fijos del período actual
@@ -2494,7 +2495,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
     {l:'Ingresos Totales',e:tRE,a:tRA,bold:true,color:''},
     {l:'  Costos Internos',e:-tIC,a:-tIC_r,bold:false,color:'text-orange-600'},
     {l:'  Costos Externos',e:-tEC,a:-tEC_r,bold:false,color:'text-red-500'},
-    {l:'  Pagos a Terceros',e:0,a:-tTerc_r,bold:false,color:'text-red-400'},
+    {l:'  Pagos a Terceros',e:-tTercE,a:-tTerc_r,bold:false,color:'text-red-400'},
     {l:'  Otros Costos en Cobranza',e:0,a:-tOtrosCC_r,bold:false,color:'text-pink-600'},
     {l:'  Participaciones',e:-tPC,a:-tPA,bold:false,color:'text-teal-600'},
     {l:'Total Costos Directos',e:-tDC,a:-tDC_r,bold:true,color:'text-orange-700',sep:true},
