@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30j';
+const APP_VERSION='v2026-09-30k';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2846,11 +2846,12 @@ function ADash({data,PeriodoSelector,selPeriodo}){
 
 function AConfig({data,save,cfg,setCfg,session,currentUser,getLatestData}){
   const esAdminIT=currentUser&&currentUser.role==='admin';
-  const soloClientes=currentUser&&currentUser.role==='administracion'; // Administración: solo gestiona Clientes
-  const tabs=soloClientes
-    ? [['clients','🏢 Clientes']]
-    : [['rates','💰 Tarifas'],['partcats','🤝 Participaciones'],['departments','🏢 Departamentos'],['team','👥 Equipo'],['clients','🏢 Clientes'],['backup','💾 Backup'],...(esAdminIT?[['seguridad','🔒 Seguridad']]:[])];
-  const [sub,setSub]=useState(soloClientes?'clients':'rates');
+  const esAdministracion=currentUser&&currentUser.role==='administracion'; // Administración: todo MENOS Equipo (y Seguridad)
+  const base=[['rates','💰 Tarifas'],['partcats','🤝 Participaciones'],['departments','🏢 Departamentos'],['team','👥 Equipo'],['clients','🏢 Clientes'],['backup','💾 Backup']];
+  const tabs=esAdministracion
+    ? base.filter(([id])=>id!=='team')
+    : [...base,...(esAdminIT?[['seguridad','🔒 Seguridad']]:[])];
+  const [sub,setSub]=useState('rates');
   return(
     <div className="p-6">
       <h2 className="font-bold text-base mb-4">Configuración</h2>
@@ -2862,7 +2863,7 @@ function AConfig({data,save,cfg,setCfg,session,currentUser,getLatestData}){
       {sub==='rates'&&<RatesConf data={data} save={save}/>}
       {sub==='partcats'&&<PartCatsConf data={data} save={save}/>}
       {sub==='departments'&&<DeptConf data={data} save={save}/>}
-      {sub==='team'&&<TeamConf data={data} save={save} cfg={cfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>}
+      {sub==='team'&&!esAdministracion&&<TeamConf data={data} save={save} cfg={cfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>}
       {sub==='clients'&&<ClientsConf data={data} save={save} getLatestData={getLatestData}/>}
       {sub==='backup'&&(currentUser&&(currentUser.role==='admin'||currentUser.role==='administracion'))&&<BackupConf data={data}/>}
       {sub==='seguridad'&&currentUser&&currentUser.role==='admin'&&<SecurityConf cfg={cfg} setCfg={setCfg}/>}
