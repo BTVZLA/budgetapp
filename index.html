@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-09-30l';
+const APP_VERSION='v2026-10-01a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -6775,6 +6775,7 @@ function ProjHoras({projId,data,save,readOnly,getLatestData}){
   const cats=(data.partCats&&data.partCats.length?data.partCats:DEFAULT_PART_CATS);
   const people=data.people||[];
   const users=data.users||[];
+  const [expU,setExpU]=useState({}); // detalle expandible de horas por persona
   const est=Array.isArray(proj.horasEst)?proj.horasEst:[];
   const estMap={}; est.forEach(e=>{estMap[e.catId]=(+e.horas||0);});
   const setEst=(catId,val)=>{
@@ -6882,14 +6883,44 @@ function ProjHoras({projId,data,save,readOnly,getLatestData}){
       </div>
 
       <div className="bg-white rounded-xl border overflow-hidden">
-        <div className="px-4 py-3 border-b font-semibold text-sm">👥 Horas reales por persona</div>
+        <div className="px-4 py-3 border-b font-semibold text-sm">👥 Horas reales por persona <span className="text-gray-400 font-normal">— clic en una persona para ver el detalle (semana, día, notas)</span></div>
         <table className="w-full text-xs">
           <thead className="bg-gray-50 text-gray-400"><tr><th className="text-left px-4 py-2">Persona</th><th className="text-left px-4 py-2">Cargo</th><th className="text-right px-4 py-2">Horas</th><th className="text-right px-4 py-2">Costo</th></tr></thead>
           <tbody>
             {personasReal.length===0&&<tr><td colSpan={4} className="text-center py-6 text-gray-400">Nadie ha cargado horas en este proyecto aún.</td></tr>}
-            {personasReal.map(p=>(
-              <tr key={p.uid} className="border-t"><td className="px-4 py-1.5 text-gray-700 font-medium">{p.nombre}</td><td className="px-4 py-1.5 text-gray-500">{p.cargo}</td><td className="px-4 py-1.5 text-right text-green-700 font-medium">{num(p.horas)}</td><td className="px-4 py-1.5 text-right text-red-600">{p.costo>0?$n(p.costo):'—'}</td></tr>
-            ))}
+            {personasReal.map(p=>{
+              const open=!!expU[p.uid];
+              const ents=(tsByUser[p.uid]||[]).slice().sort((a,b)=>(a.weekStart||'').localeCompare(b.weekStart||'')||((a.dayOfWeek||0)-(b.dayOfWeek||0)));
+              return(
+              <React.Fragment key={p.uid}>
+                <tr className="border-t hover:bg-indigo-50 cursor-pointer" onClick={()=>setExpU(s=>({...s,[p.uid]:!s[p.uid]}))}>
+                  <td className="px-4 py-1.5 text-gray-700 font-medium"><span className="text-gray-300 mr-1">{open?'▼':'▶'}</span>{p.nombre}</td>
+                  <td className="px-4 py-1.5 text-gray-500">{p.cargo}</td>
+                  <td className="px-4 py-1.5 text-right text-green-700 font-medium">{num(p.horas)}</td>
+                  <td className="px-4 py-1.5 text-right text-red-600">{p.costo>0?$n(p.costo):'—'}</td>
+                </tr>
+                {open&&(
+                  <tr className="bg-gray-50"><td colSpan={4} className="px-4 py-2">
+                    <table className="w-full text-[11px]">
+                      <thead className="text-gray-400"><tr><th className="text-left py-1">Semana</th><th className="text-left py-1">Día</th><th className="text-right py-1">Horas</th><th className="text-left py-1 pl-3">Lugar</th><th className="text-left py-1 pl-3">Notas</th></tr></thead>
+                      <tbody>
+                        {ents.map(e=>(
+                          <tr key={e.id} className="border-t border-gray-200">
+                            <td className="py-1 text-gray-600">{fmtWeekLabel(e.weekStart)}</td>
+                            <td className="py-1 text-gray-600">{DAY_NAMES[(e.dayOfWeek||1)-1]||'—'}</td>
+                            <td className="py-1 text-right text-green-700 font-medium">{num(e.hours)}</td>
+                            <td className="py-1 pl-3 text-teal-600">{e.lugar||'—'}</td>
+                            <td className="py-1 pl-3 text-gray-400">{e.notes||'—'}</td>
+                          </tr>
+                        ))}
+                        {ents.length===0&&<tr><td colSpan={5} className="py-2 text-center text-gray-400">Sin detalle.</td></tr>}
+                      </tbody>
+                    </table>
+                  </td></tr>
+                )}
+              </React.Fragment>
+              );
+            })}
           </tbody>
           {totCosto>0&&<tfoot className="border-t-2 bg-gray-50 font-bold"><tr><td className="px-4 py-2 text-gray-700" colSpan={2}>TOTAL</td><td className="px-4 py-2 text-right text-green-700">{num(totReal)}</td><td className="px-4 py-2 text-right text-red-600">{$n(totCosto)}</td></tr></tfoot>}
         </table>
