@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01a';
+const APP_VERSION='v2026-10-01b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -477,8 +477,11 @@ const getEffectiveRevE=(pid,d)=>{
   return((d.projects||[]).find(p=>p.id===pid)||{}).honorariosTotal||0;
 };
 const getPartCostEst=(pid,d)=>{
-  const rev=getEffectiveRevE(pid,d);
-  return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*rev,0);
+  // Base de participaciones estimadas = ingreso estimado NETO de terceros (ingreso − honorarios OS),
+  // igual que las reales que usan la base neta (factura − pagos a terceros − descuentos).
+  const proj=(d.projects||[]).find(p=>p.id===pid)||{};
+  const base=Math.max(0,getEffectiveRevE(pid,d)-(+proj.honorariosOS||0));
+  return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*base,0);
 };
 const getRealPL=(pid,d)=>{
   const revA=getTotRealCobros(pid,d);          // Ingreso real = cobros reales acumulados
