@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01d';
+const APP_VERSION='v2026-10-01e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -418,7 +418,7 @@ const getRev=(pid,m,d,t)=>(d.revenues.find(r=>r.projectId===pid&&r.month===m)||{
 const getTotRev=(pid,d,t)=>MO.reduce((s,_,m)=>s+getRev(pid,m,d,t||'est'),0);
 const getIntCost=(pid,m,d)=>d.internalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+c.hours*(d.rates[c.level]||0),0);
 const getExtCost=(pid,m,d)=>d.externalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+(c.type==='fixed'?c.amount:c.rate*c.hours),0);
-const getPartCost=(pid,d,t)=>{const rev=getTotRev(pid,d,t||'est');return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*rev,0);};
+const getPartCost=(pid,d,t)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};const rev=Math.max(0,getTotRev(pid,d,t||'est')-(+proj.honorariosOS||0));return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*rev,0);};
 const getTotDir=(pid,d)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};return MO.reduce((s,_,m)=>s+getIntCost(pid,m,d)+getExtCost(pid,m,d),0)+getPartCostEst(pid,d)+(+proj.honorariosOS||0);};
 const getMargin=(pid,d)=>{const r=getTotRev(pid,d),c=getTotDir(pid,d);return r>0?(r-c)/r*100:0;};
 const getDeptRev=(did,m,d,t)=>d.projects.filter(p=>p.deptId===did&&!p.enPapelera).reduce((s,p)=>{
@@ -8407,7 +8407,7 @@ function ProjComparativo({projId,data}){
                     </tr>
                     {catRPs.map(rp=>{
                       const person=people.find(p=>p.id===rp.personId);
-                      const causa=(rp.pct/100)*totCobros;
+                      const causa=(rp.pct/100)*baseNetaReal;
                       return(
                         <tr key={rp.id} className="border-t hover:bg-gray-50">
                           <td className="px-4 py-2 pl-8 text-gray-600">
