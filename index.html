@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01c';
+const APP_VERSION='v2026-10-01d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -7272,6 +7272,9 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
   const cats=data.partCats||DEFAULT_PART_CATS;
   const parts=(data.participations||[]).filter(p=>p.projectId===projId);
   const revE=getTotRev(projId,data,'est'),revA=getTotRealCobros(projId,data);
+  const proj=data.projects.find(p=>p.id===projId)||{};
+  const baseEst=Math.max(0,revE-(+proj.honorariosOS||0)); // base NETA de terceros para participaciones estimadas
+  const baseReal=getTotBaseCalculo(projId,data);          // base real neta (factura − terceros − descuentos)
   const [selCat,setSelCat]=useState((cats[0]||{}).id||'');
   const [pct,setPct]=useState('');
   const [showBulk,setShowBulk]=useState(false);
@@ -7286,7 +7289,7 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
   };
   const [bulk,setBulk]=useState(initBulk);
   const selObj=cats.find(c=>c.id===selCat);
-  const pE=revE*(parseFloat(pct)||0)/100,pA=revA*(parseFloat(pct)||0)/100;
+  const pE=baseEst*(parseFloat(pct)||0)/100,pA=baseReal*(parseFloat(pct)||0)/100;
   const add=()=>{
     if(!selCat||!pct)return;
     const ex=parts.find(p=>p.catId===selCat);
@@ -7313,8 +7316,8 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
     setShowBulk(false);
   };
   const del=id=>save({...(getLatestData?getLatestData():data),participations:(data.participations||[]).filter(p=>p.id!==id)});
-  const tE=parts.reduce((s,p)=>s+(p.pct/100)*revE,0);
-  const tA=parts.reduce((s,p)=>s+(p.pct/100)*revA,0);
+  const tE=parts.reduce((s,p)=>s+(p.pct/100)*baseEst,0);
+  const tA=parts.reduce((s,p)=>s+(p.pct/100)*baseReal,0);
   const tP=parts.reduce((s,p)=>s+p.pct,0);
   const bulkTotal=Object.values(bulk).reduce((s,b)=>s+(b.checked?parseFloat(b.pct)||0:0),0);
   return(
@@ -7323,6 +7326,7 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
       {revE===0&&<div className="bg-yellow-50 border border-yellow-200 text-yellow-700 text-xs rounded-lg px-4 py-2 mb-4">⚠️ Sin ingresos estimados aún. Define ingresos primero.</div>}
       <div className="flex gap-3 mb-4 text-xs flex-wrap">
         <div className="px-3 py-2 bg-indigo-50 rounded-lg">Rev. Est. <b className="text-indigo-700">{$n(revE)}</b></div>
+        {(+proj.honorariosOS||0)>0&&<div className="px-3 py-2 bg-teal-50 rounded-lg" title="Base de participaciones = ingreso estimado − terceros (Honorarios OS)">Base part. (neto) <b className="text-teal-700">{$n(baseEst)}</b></div>}
         <div className="px-3 py-2 bg-green-50 rounded-lg">Rev. Real <b className="text-green-700">{$n(revA)}</b></div>
         <div className="px-3 py-2 bg-teal-50 rounded-lg">% Total <b className={tP>100?'text-red-600':'text-teal-700'}>{tP.toFixed(2)}%</b></div>
         <button onClick={()=>{setBulk(initBulk());setShowBulk(!showBulk);}}
@@ -7339,7 +7343,7 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
           <div className="space-y-2 mb-3">
             {cats.map(c=>{
               const b=bulk[c.id]||{checked:false,pct:String(c.defaultPct)};
-              const monto=revE*(parseFloat(b.pct)||0)/100;
+              const monto=baseEst*(parseFloat(b.pct)||0)/100;
               return(
                 <div key={c.id} className={'flex items-center gap-3 px-3 py-2 rounded-lg border '+(b.checked?'bg-white border-teal-300':'bg-gray-50 border-gray-200')}>
                   <input type="checkbox" checked={b.checked} onChange={e=>setBulk({...bulk,[c.id]:{...b,checked:e.target.checked}})}
@@ -7396,7 +7400,7 @@ function ProjPart({projId,data,save,readOnly,getLatestData}){
           <tbody>
             {parts.map(p=>{
               const cat=cats.find(c=>c.id===p.catId);
-              const mE=(p.pct/100)*revE,mA=(p.pct/100)*revA;
+              const mE=(p.pct/100)*baseEst,mA=(p.pct/100)*baseReal;
               return(
                 <tr key={p.id} className="border-t hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium">{cat?cat.name:p.catId}</td>
@@ -8360,6 +8364,8 @@ function ProjComparativo({projId,data}){
       {/* Participaciones detail */}
       {(()=>{
         const totCobros=getTotRealCobros(projId,data);
+        const baseNetaEst=Math.max(0,pl.revE-(pl.tercE||0)); // base estimada = ingreso − terceros (honorarios OS)
+        const baseNetaReal=getTotBaseCalculo(projId,data);   // base real = factura − terceros − descuentos
         const budParts=(data.participations||[]).filter(p=>p.projectId===projId);
         const realParts=(data.realParticipations||[]).filter(p=>p.projectId===projId);
         if(budParts.length===0&&realParts.length===0)return null;
@@ -8368,10 +8374,10 @@ function ProjComparativo({projId,data}){
         // Build rows per category
         const catRows=cats.map(cat=>{
           const budPart=budParts.find(p=>p.catId===cat.id);
-          const budAmt=budPart?(budPart.pct/100)*pl.revE:0;
+          const budAmt=budPart?(budPart.pct/100)*baseNetaEst:0;
           const catPpl=people.filter(p=>p.catId===cat.id);
           const catRPs=realParts.filter(rp=>catPpl.some(p=>p.id===rp.personId));
-          const realAmt=catRPs.reduce((s,p)=>s+(p.pct/100)*totCobros,0);
+          const realAmt=catRPs.reduce((s,p)=>s+(p.pct/100)*baseNetaReal,0);
           if(budAmt===0&&realAmt===0)return null;
           return{cat,budAmt,realAmt,catRPs};
         }).filter(Boolean);
