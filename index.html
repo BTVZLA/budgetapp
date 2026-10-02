@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01b';
+const APP_VERSION='v2026-10-01c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1590,7 +1590,8 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const pps=(data.presupuestoProyectos||[]).filter(p=>p.periodo===per&&(showOverhead||p.responsableId===respF));
   const cobros=zeros(), participaciones=zeros(), terceros=zeros();
   pps.forEach(p=>{const hon=+p.honorariosTotal||0,pct=+p.pctParticipaciones||0,terc=+p.costoTerceros||0,f=p.facturacion||[];
-    for(let m=0;m<M;m++){const fr=(+f[m]||0)/100;cobros[m]+=hon*fr;participaciones[m]+=hon*fr*pct/100;terceros[m]+=terc*fr;}});
+    const netHon=Math.max(0,hon-terc); // base de participaciones = neto de terceros
+    for(let m=0;m<M;m++){const fr=(+f[m]||0)/100;cobros[m]+=hon*fr;participaciones[m]+=netHon*fr*pct/100;terceros[m]+=terc*fr;}});
 
   const nomina=zeros(), otrosLab=zeros(), gastosFijos=zeros();
   if(showOverhead){
@@ -1793,7 +1794,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
   };
 
   const totHon=items.reduce((s,x)=>s+(+x.honorariosTotal||0),0);
-  const totPart=items.reduce((s,x)=>s+(+x.honorariosTotal||0)*(+x.pctParticipaciones||0)/100,0);
+  const totPart=items.reduce((s,x)=>s+Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100,0);
   const totTerc=items.reduce((s,x)=>s+(+x.costoTerceros||0),0);
   const totMargen=totHon-totPart-totTerc;
   const sumFact=x=>(x.facturacion||[]).reduce((s,v)=>s+(+v||0),0);
@@ -1864,7 +1865,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
         <div className="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Aún no hay proyectos estimados para {periodo}. Genera el borrador desde {priorP} o agrega uno nuevo.</div>
       ):(
         <div className="space-y-2">
-          {items.map(x=>{const sf=sumFact(x);const margen=(+x.honorariosTotal||0)-(+x.honorariosTotal||0)*(+x.pctParticipaciones||0)/100-(+x.costoTerceros||0);const open=!!expand[x.id];return(
+          {items.map(x=>{const sf=sumFact(x);const partX=Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100;const margen=(+x.honorariosTotal||0)-partX-(+x.costoTerceros||0);const open=!!expand[x.id];return(
             <div key={x.id} className="bg-white rounded-xl border p-3">
               <div className="flex items-start gap-2 flex-wrap">
                 <input value={x.nombre} onChange={e=>upd(x.id,{nombre:e.target.value})} placeholder="Nombre del proyecto" className="border rounded px-2 py-1 text-sm font-medium flex-1 min-w-[180px]"/>
@@ -1888,7 +1889,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
                 <label className="flex items-center gap-1"><span className="text-gray-400">Terceros $</span>
                   <input type="number" value={x.costoTerceros||''} onChange={e=>upd(x.id,{costoTerceros:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-24 text-right"/></label>
                 <span className="text-gray-300">|</span>
-                <span className="text-gray-500">Participaciones: <b className="text-gray-700">{$n((+x.honorariosTotal||0)*(+x.pctParticipaciones||0)/100)}</b></span>
+                <span className="text-gray-500">Participaciones: <b className="text-gray-700">{$n(partX)}</b></span>
                 <span className="text-gray-500">Margen: <b className={margen>=0?'text-green-600':'text-red-600'}>{$n(margen)}</b></span>
                 <button onClick={()=>setExpand(ex=>({...ex,[x.id]:!open}))} className="ml-auto text-indigo-600 hover:underline">{open?'▲ ocultar facturación':'▼ facturación mensual'}</button>
               </div>
