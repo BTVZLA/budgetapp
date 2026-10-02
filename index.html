@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01e';
+const APP_VERSION='v2026-10-01f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1587,11 +1587,25 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   };
 
   const showOverhead=(respF==='total');
-  const pps=(data.presupuestoProyectos||[]).filter(p=>p.periodo===per&&(showOverhead||p.responsableId===respF));
+  // Cobros = "Cobro Planificado (flujo caja)" de cada proyecto (revenues.cobro), por mes.
+  // El mes del flujo (0=Ago..11=Jul) mapea al índice absoluto de revenues: abs=(perY-2025)*12+1+m.
+  // Participaciones y terceros se derivan proporcionalmente a lo cobrado cada mes.
+  const projsScope=(data.projects||[]).filter(p=>!p.enPapelera&&(p.periodo||currentPeriodo)===per&&(showOverhead||p.responsableId===respF));
+  const pctPartOf=pid=>(data.participations||[]).filter(x=>x.projectId===pid).reduce((s,x)=>s+(+x.pct||0),0)/100;
   const cobros=zeros(), participaciones=zeros(), terceros=zeros();
-  pps.forEach(p=>{const hon=+p.honorariosTotal||0,pct=+p.pctParticipaciones||0,terc=+p.costoTerceros||0,f=p.facturacion||[];
-    const netHon=Math.max(0,hon-terc); // base de participaciones = neto de terceros
-    for(let m=0;m<M;m++){const fr=(+f[m]||0)/100;cobros[m]+=hon*fr;participaciones[m]+=netHon*fr*pct/100;terceros[m]+=terc*fr;}});
+  projsScope.forEach(p=>{
+    const hon=+p.honorariosTotal||0, os=+p.honorariosOS||0, pctP=pctPartOf(p.id);
+    const fracOS=hon>0?os/hon:0, fracNet=1-fracOS; // OS = terceros (del bruto); resto = neto
+    for(let m=0;m<M;m++){
+      const abs=(perY-2025)*12+1+m;
+      const rv=(data.revenues||[]).find(r=>r.projectId===p.id&&r.month===abs);
+      const cobro=rv?(+rv.cobro||0):0;
+      if(!cobro)continue;
+      cobros[m]+=cobro;
+      terceros[m]+=cobro*fracOS;
+      participaciones[m]+=cobro*fracNet*pctP; // participaciones sobre el neto cobrado
+    }
+  });
 
   const nomina=zeros(), otrosLab=zeros(), gastosFijos=zeros();
   if(showOverhead){
@@ -1669,7 +1683,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         ))}
       </div>
       <p className="text-gray-400 text-xs mb-4">
-        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros según el calendario de facturación del Presupuesto Ingresos; egresos según sus calendarios de pago.'}
+        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
         {!showOverhead&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
       </p>
 
@@ -1743,7 +1757,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </table>
       </div>
       )}
-      {pps.length===0&&<div className="mt-4 text-xs text-gray-400">No hay proyectos en el Presupuesto Ingresos de {per} para esta vista. Carga proyectos con su calendario de facturación en 📈 Presupuesto Ingresos.</div>}
+      {projsScope.length===0&&<div className="mt-4 text-xs text-gray-400">No hay proyectos del período {per} para esta vista. Crea proyectos y carga su <b>Cobro Planificado</b> por mes en cada proyecto (pestaña 💰 Ingresos y Cobro).</div>}
     </div>
   );
 }
