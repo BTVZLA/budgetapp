@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-06c';
+const APP_VERSION='v2026-10-06d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2459,7 +2459,10 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                         <div className={'font-medium '+(getPL(p.id,data).res>=0?'text-blue-600':'text-red-600')}>{$n(getPL(p.id,data).res)} <span className="text-gray-400">est.</span></div>
                         {(()=>{const rl=getRealPL(p.id,data);return rl.revA>0?<div className={'font-medium '+(rl.res>=0?'text-green-600':'text-red-500')}>{$n(rl.res)} <span className="text-gray-400">real</span></div>:null;})()}
                       </div>
-                      <div><div className="text-gray-400">Margen</div><Mbadge m={getPL(p.id,data).mg}/></div>
+                      <div><div className="text-gray-400">Margen</div>
+                        <div className="whitespace-nowrap"><Mbadge m={getPL(p.id,data).mg}/> <span className="text-gray-400">est.</span></div>
+                        {(()=>{const rl=getRealPL(p.id,data);return rl.revA>0?<div className="mt-0.5 whitespace-nowrap"><Mbadge m={rl.mg}/> <span className="text-gray-400">real</span></div>:null;})()}
+                      </div>
                     </div>
                   )}
                 </div>
