@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-06b';
+const APP_VERSION='v2026-10-06c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -7812,6 +7812,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
   // Personas a mostrar = asignadas al proyecto + asignadas en alguna factura
   const partPersonIds=(()=>{const s=new Set(realParts.map(p=>p.personId));cobros.forEach(c=>{if(Array.isArray(c.participaciones))c.participaciones.forEach(pp=>pp&&pp.personId&&s.add(pp.personId));});return [...s];})();
   const personRows=partPersonIds.map(pid=>({personId:pid,rp:realParts.find(r=>r.personId===pid)||null,caus:causadaPersona(pid),pag:totPagadoPersona(pid)}));
+  const hayPorFactura=cobros.some(c=>Array.isArray(c.participaciones)&&c.participaciones.length);
   // Helpers equipo por factura
   const setCobroParticip=(cobroId,arr)=>{const lat=getLatestData?getLatestData():data;save({...lat,realCobros:(lat.realCobros||[]).map(c=>c.id===cobroId?{...c,participaciones:arr}:c)});};
   const addFactPersona=(c)=>{if(!factPersona||!factPct)return;const cur=Array.isArray(c.participaciones)?c.participaciones:[];const ex=cur.find(p=>p.personId===factPersona);const arr=ex?cur.map(p=>p.personId===factPersona?{...p,pct:parseFloat(factPct)||0}:p):[...cur,{personId:factPersona,pct:parseFloat(factPct)||0}];setCobroParticip(c.id,arr);setFactPersona('');setFactPct('');};
