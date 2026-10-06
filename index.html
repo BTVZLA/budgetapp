@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-01f';
+const APP_VERSION='v2026-10-06a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1955,6 +1955,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const catsProp=(data.partCats&&data.partCats.length?data.partCats:DEFAULT_PART_CATS);
   const [vistaTab,setVistaTab]=useState('activos');
   const [selDept,setSelDept]=useState('todos');
+  const [selResp,setSelResp]=useState('todos');
   const [filtroPeriodo,setFiltroPeriodo]=useState(currentPeriodo);
   const [show,setShow]=useState(false);
   const [form,setForm]=useState(emptyForm);
@@ -2092,7 +2093,15 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     isPorValidar?(p.validado===false&&!p.enPapelera):isPapelera?p.enPapelera===true:isClosed?(p.cerrado===true&&!p.enPapelera&&p.validado!==false):(!p.cerrado&&!p.enPapelera&&p.validado!==false)
   );
   const conPeriodo=filtroPeriodo?base.filter(p=>p.periodo===filtroPeriodo):base;
-  const proyectos=selDept==='todos'?conPeriodo:conPeriodo.filter(p=>p.deptId===selDept);
+  const puedeFiltrarResp=isAdmin||role==='socio'; // admin/administración/socio ven todos → pueden filtrar por responsable
+  const respConPeriodo=(!puedeFiltrarResp||selResp==='todos')?conPeriodo:conPeriodo.filter(p=>selResp==='__none__'?!p.responsableId:p.responsableId===selResp);
+  const proyectos=selDept==='todos'?respConPeriodo:respConPeriodo.filter(p=>p.deptId===selDept);
+  // Opciones de responsable (según los proyectos visibles del período)
+  const respOptions=[...new Set(conPeriodo.map(p=>p.responsableId).filter(Boolean))]
+    .map(id=>({id,name:((data.users||[]).find(u=>u.id===id)||{}).name||'—'}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
+  const haySinResp=conPeriodo.some(p=>!p.responsableId);
+  const respCount=id=>conPeriodo.filter(p=>id==='__none__'?!p.responsableId:p.responsableId===id).length;
   const proyectosOrdenados=[...proyectos].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   const deptCount=id=>conPeriodo.filter(p=>p.deptId===id).length;
   // Totales de honorarios de los proyectos visibles (respeta la vista por responsable + filtros de período/depto)
@@ -2266,11 +2275,11 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
             className={'px-4 py-2 text-sm font-medium border-l '+(vistaTab==='cerrados'?'bg-gray-600 text-white':'bg-white text-gray-600 hover:bg-gray-50')}>
             🔒 Cerrados <span className={'ml-1 px-1.5 py-0.5 rounded-full text-xs '+(vistaTab==='cerrados'?'bg-white text-gray-700':'bg-gray-100 text-gray-600')}>{totCerrados}</span>
           </button>
-          <button onClick={()=>{setVistaTab('porvalidar');setEditId(null);setSelDept('todos');}}
+          <button onClick={()=>{setVistaTab('porvalidar');setEditId(null);setSelDept('todos');setSelResp('todos');}}
             className={'px-4 py-2 text-sm font-medium border-l '+(vistaTab==='porvalidar'?'bg-yellow-500 text-white':'bg-white text-gray-600 hover:bg-gray-50')}>
             ⏳ Por validar {totPorValidar>0&&<span className={'ml-1 px-1.5 py-0.5 rounded-full text-xs '+(vistaTab==='porvalidar'?'bg-white text-yellow-700':'bg-yellow-100 text-yellow-700')}>{totPorValidar}</span>}
           </button>
-          <button onClick={()=>{setVistaTab('papelera');setEditId(null);setSelDept('todos');}}
+          <button onClick={()=>{setVistaTab('papelera');setEditId(null);setSelDept('todos');setSelResp('todos');}}
             className={'px-4 py-2 text-sm font-medium border-l '+(vistaTab==='papelera'?'bg-red-600 text-white':'bg-white text-gray-600 hover:bg-gray-50')}>
             🗑 Papelera {totPapelera>0&&<span className={'ml-1 px-1.5 py-0.5 rounded-full text-xs '+(vistaTab==='papelera'?'bg-white text-red-600':'bg-red-100 text-red-600')}>{totPapelera}</span>}
           </button>
@@ -2287,6 +2296,19 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
                 ))}
               </select>
             </div>
+            {puedeFiltrarResp&&(
+              <div className="flex items-center gap-2">
+                <label className="text-gray-500 text-xs font-medium whitespace-nowrap">Responsable:</label>
+                <select value={selResp} onChange={e=>{setSelResp(e.target.value);setEditId(null);}}
+                  className="border rounded-lg px-3 py-2 text-sm min-w-44 focus:outline-none">
+                  <option value="todos">— Todos ({conPeriodo.length})</option>
+                  {respOptions.map(r=>(
+                    <option key={r.id} value={r.id}>{r.name} ({respCount(r.id)})</option>
+                  ))}
+                  {haySinResp&&<option value="__none__">Sin responsable ({respCount('__none__')})</option>}
+                </select>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <label className="text-gray-500 text-xs font-medium whitespace-nowrap">Período:</label>
               <select value={filtroPeriodo} onChange={e=>setFiltroPeriodo(e.target.value)}
@@ -2317,6 +2339,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
         <div className="bg-white rounded-xl border p-10 text-center text-gray-400 text-sm">
           {isPapelera?'La papelera está vacía. 🎉':isClosed?'Sin proyectos cerrados':'Sin proyectos activos'}
           {!isPapelera&&selDept!=='todos'&&` en ${(data.departments.find(d=>d.id===selDept)||{}).name||''}`}
+          {!isPapelera&&puedeFiltrarResp&&selResp!=='todos'&&` · responsable ${selResp==='__none__'?'(sin asignar)':((data.users||[]).find(u=>u.id===selResp)||{}).name||''}`}
           {!isPapelera&&filtroPeriodo&&` · período ${filtroPeriodo}`}
         </div>
       ):(
