@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-06d';
+const APP_VERSION='v2026-10-06e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -2110,9 +2110,17 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   const respCount=id=>conPeriodo.filter(p=>id==='__none__'?!p.responsableId:p.responsableId===id).length;
   const proyectosOrdenados=[...proyectos].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   const deptCount=id=>conPeriodo.filter(p=>p.deptId===id).length;
-  // Totales de honorarios de los proyectos visibles (respeta la vista por responsable + filtros de período/depto)
-  const sumHonTotales=proyectos.reduce((s,p)=>s+(+p.honorariosTotal||0),0);
-  const sumPorCobrar=proyectos.reduce((s,p)=>{const neto=(+p.honorariosTotal||0)-(+p.honorariosOS||0);return s+Math.max(0,neto-getTotRealCobros(p.id,data));},0);
+  // Honorarios del período (ACTIVOS + CERRADOS) respetando los filtros de período/depto/responsable (independiente de la sub-pestaña)
+  const porCobrarDe=p=>{const neto=(+p.honorariosTotal||0)-(+p.honorariosOS||0);return Math.max(0,neto-getTotRealCobros(p.id,data));};
+  const honScope=data.projects.filter(p=>!p.enPapelera&&p.validado!==false
+    &&(!filtroPeriodo||p.periodo===filtroPeriodo)
+    &&(selDept==='todos'||p.deptId===selDept)
+    &&(!puedeFiltrarResp||selResp==='todos'||(selResp==='__none__'?!p.responsableId:p.responsableId===selResp)));
+  const honAct=honScope.filter(p=>!p.cerrado), honCer=honScope.filter(p=>p.cerrado);
+  const sumHonAct=honAct.reduce((s,p)=>s+(+p.honorariosTotal||0),0);
+  const sumHonCer=honCer.reduce((s,p)=>s+(+p.honorariosTotal||0),0);
+  const sumHonAll=sumHonAct+sumHonCer;
+  const sumPCAll=honScope.reduce((s,p)=>s+porCobrarDe(p),0);
   // Honorarios por cobrar PENDIENTES de períodos anteriores (informativo, por período)
   const refStartY=parseInt(((filtroPeriodo&&filtroPeriodo!=='todos')?filtroPeriodo:currentPeriodo).split('-')[0],10)||0;
   const pendAntMap={};
@@ -2156,9 +2164,10 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="text-right">
-            <div className="text-[11px] text-gray-400 uppercase tracking-wide">Honorarios totales</div>
-            <div className="text-base font-bold text-indigo-700 leading-tight">{$n(sumHonTotales)}</div>
-            <div className="text-xs font-semibold text-orange-600" title="Honorarios netos pendientes de cobrar en los proyectos visibles">Por cobrar: {$n(sumPorCobrar)}</div>
+            <div className="text-[11px] text-gray-400 uppercase tracking-wide" title="Incluye proyectos activos y cerrados del período/filtros">Honorarios totales</div>
+            <div className="text-base font-bold text-indigo-700 leading-tight">{$n(sumHonAll)}</div>
+            <div className="text-[11px] text-gray-500">Activos: <b className="text-green-700">{$n(sumHonAct)}</b> · Cerrados: <b className="text-gray-600">{$n(sumHonCer)}</b></div>
+            <div className="text-xs font-semibold text-orange-600" title="Honorarios netos pendientes de cobrar (activos + cerrados del período/filtros)">Por cobrar: {$n(sumPCAll)}</div>
             {pendAnt.length>0&&(
               <div className="mt-1 pt-1 border-t border-gray-100">
                 <div className="text-[10px] text-gray-400 uppercase tracking-wide">Pendiente de períodos anteriores</div>
