@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-06a';
+const APP_VERSION='v2026-10-06b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -198,7 +198,7 @@ const fromDB={
   real_internal_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,level:r.level,hours:+r.hours}),
   real_external_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,name:r.name,type:r.type||'fixed',rate:+r.rate,hours:+r.hours,amount:+r.amount,fecha:r.fecha||''}),
   real_participations:r=>({id:r.id,projectId:r.project_id,personId:r.person_id,pct:+(r.pct||0),pagadas:+(r.pagadas||0),fechaPagadas:r.fecha_pagadas||'',notes:r.notes||''}),
-  real_cobros:r=>({id:r.id,projectId:r.project_id,fecha:r.fecha||'',numFactura:r.num_factura||'',amount:+(r.amount||0),pagosTerceros:+(r.pagos_terceros||r.descuento||0),otrosDescuentos:+(r.otros_descuentos||0),otrosCostosCobranza:+(r.otros_costos_cobranza||0),notes:r.notes||''}),
+  real_cobros:r=>({id:r.id,projectId:r.project_id,fecha:r.fecha||'',numFactura:r.num_factura||'',amount:+(r.amount||0),pagosTerceros:+(r.pagos_terceros||r.descuento||0),otrosDescuentos:+(r.otros_descuentos||0),otrosCostosCobranza:+(r.otros_costos_cobranza||0),notes:r.notes||'',participaciones:(Array.isArray(r.participaciones)?r.participaciones.map(p=>({personId:p.personId||p.person_id||'',pct:+(p.pct||0)})).filter(p=>p.personId):[])}),
   pagos_participaciones:r=>({id:r.id,projectId:r.project_id,personId:r.person_id,amount:+(r.amount||0),tasaCambio:+(r.tasa_cambio||0),fecha:r.fecha||'',notes:r.notes||'',pctPago:r.pct_pago!=null?+(r.pct_pago):null}),
   evaluaciones:r=>({id:r.id,evaluadoId:r.evaluado_id,evaluadorId:r.evaluador_id,
     periodoInicio:r.periodo_inicio||'',periodoFin:r.periodo_fin||'',
@@ -232,7 +232,7 @@ const toDB={
   real_internal_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,level:c.level,hours:c.hours}),
   real_external_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,name:c.name,type:c.type||'fixed',rate:c.rate||0,hours:c.hours||0,amount:c.amount||0,fecha:c.fecha||null}),
   real_participations:p=>({id:p.id,project_id:p.projectId,person_id:p.personId,pct:p.pct||0,pagadas:p.pagadas||0,fecha_pagadas:p.fechaPagadas||null,notes:p.notes||''}),
-  real_cobros:c=>({id:c.id,project_id:c.projectId,fecha:c.fecha||null,num_factura:c.numFactura||'',amount:c.amount||0,pagos_terceros:c.pagosTerceros||0,otros_descuentos:c.otrosDescuentos||0,otros_costos_cobranza:c.otrosCostosCobranza||0,notes:c.notes||''}),
+  real_cobros:c=>({id:c.id,project_id:c.projectId,fecha:c.fecha||null,num_factura:c.numFactura||'',amount:c.amount||0,pagos_terceros:c.pagosTerceros||0,otros_descuentos:c.otrosDescuentos||0,otros_costos_cobranza:c.otrosCostosCobranza||0,notes:c.notes||'',participaciones:(Array.isArray(c.participaciones)?c.participaciones.map(p=>({personId:p.personId||'',pct:+(p.pct||0)})).filter(p=>p.personId):[])}),
   pagos_participaciones:p=>({id:p.id,project_id:p.projectId,person_id:p.personId,amount:p.amount||0,tasa_cambio:p.tasaCambio||0,fecha:p.fecha||null,notes:p.notes||'',pct_pago:p.pctPago!=null?p.pctPago:null}),
   evaluaciones:e=>({id:e.id,evaluado_id:e.evaluadoId,evaluador_id:e.evaluadorId,
     periodo_inicio:e.periodoInicio||null,periodo_fin:e.periodoFin||null,
@@ -466,8 +466,14 @@ const getTotBaseCalculo=(pid,d)=>(d.realCobros||[]).filter(c=>c.projectId===pid)
 const getTotPagosTerceros=(pid,d)=>(d.realCobros||[]).filter(c=>c.projectId===pid).reduce((s,c)=>s+(c.pagosTerceros||0),0);
 const getTotOtrosCostosCobranza=(pid,d)=>(d.realCobros||[]).filter(c=>c.projectId===pid).reduce((s,c)=>s+(c.otrosCostosCobranza||0),0);
 // Causadas = pct% × base de cálculo (neto: factura - descuentos)
-const getPersonaCausadas=(rp,pid,d)=>(rp.pct/100)*getTotBaseCalculo(pid,d);
-const getTotRealPartCausadas=(pid,d)=>(d.realParticipations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+getPersonaCausadas(p,pid,d),0);
+// Participaciones efectivas de UNA factura: las propias (por factura) si existen; si no, las del proyecto (realParticipations).
+const getCobroParts=(c,d)=>(Array.isArray(c.participaciones)&&c.participaciones.length)
+  ? c.participaciones.filter(p=>p&&p.personId)
+  : (d.realParticipations||[]).filter(rp=>rp.projectId===c.projectId).map(rp=>({personId:rp.personId,pct:+rp.pct||0}));
+const getPersonaCausadas=(rp,pid,d)=>(rp.pct/100)*getTotBaseCalculo(pid,d); // compat (% proyecto × base total)
+const getTotRealPartCausadas=(pid,d)=>(d.realCobros||[]).filter(c=>c.projectId===pid).reduce((s,c)=>{const base=getBaseCalculo(c);return s+getCobroParts(c,d).reduce((ss,p)=>ss+((+p.pct||0)/100)*base,0);},0);
+// Causadas acumuladas de UNA persona en el proyecto (suma factura por factura, con respaldo al % del proyecto)
+const getPersonaCausadasTot=(personId,pid,d)=>(d.realCobros||[]).filter(c=>c.projectId===pid).reduce((s,c)=>{const base=getBaseCalculo(c);return s+getCobroParts(c,d).filter(p=>p.personId===personId).reduce((ss,p)=>ss+((+p.pct||0)/100)*base,0);},0);
 const getTotRealPartPagadas=(pid,d)=>(d.pagosParticipaciones||[]).filter(p=>p.projectId===pid).reduce((s,c)=>s+c.amount,0);
 const getPagosPersona=(pid,personId,d)=>(d.pagosParticipaciones||[]).filter(p=>p.projectId===pid&&p.personId===personId);
 // Participaciones presupuestadas = pct% × ingreso estimado total del proyecto
@@ -5901,10 +5907,7 @@ function APartPorPagar({data,currentUser}){
     if(!isAdmin&&isSocioCat(person.catId))return;
     const proj=projects.find(p=>p.id===rp.projectId);
     if(!proj)return;
-    const allPartsForProj=realParts.filter(r=>r.projectId===rp.projectId);
-    const totalPct=allPartsForProj.reduce((s,r)=>s+(r.pct||0),0)||100;
-    const causadaTotal=getTotRealPartCausadas(rp.projectId,data);
-    const personCausada=totalPct>0?(rp.pct/totalPct)*causadaTotal:0;
+    const personCausada=getPersonaCausadasTot(rp.personId,rp.projectId,data);
     const totalPagado=pagos.filter(p=>p.projectId===rp.projectId&&p.personId===rp.personId).reduce((s,p)=>s+(p.amount||0),0);
     const porPagar=personCausada-totalPagado;
     if(porPagar>0.01){
@@ -7790,17 +7793,31 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
   const [editRpPct,setEditRpPct]=useState('');
   const [editCobro,setEditCobro]=useState(null);
   const [editCobroForm,setEditCobroForm]=useState({pagosTerceros:'',otrosDescuentos:'',otrosCostosCobranza:''});
+  // Equipo por factura
+  const [expCobro,setExpCobro]=useState(null); // factura con el equipo expandido
+  const [factPersona,setFactPersona]=useState('');
+  const [factPct,setFactPct]=useState('');
 
   const totCobrosReales=getTotRealCobros(projId,data);   // ingreso real bruto
   const totBase=getTotBaseCalculo(projId,data);            // base neta = facturas - descuentos
   const cobros=(data.realCobros||[]).filter(c=>c.projectId===projId);
   const budPart=getPartCostEst(projId,data);
-  const causadasDe=rp=>(rp.pct/100)*totBase;              // causadas sobre base neta
+  const causadaPersona=pid=>getPersonaCausadasTot(pid,projId,data); // causadas factura por factura (respaldo al % del proyecto)
+  const causadasDe=rp=>causadaPersona(rp.personId);
   const pagosDePersona=personId=>allPagos.filter(p=>p.personId===personId);
   const totPagadoPersona=personId=>pagosDePersona(personId).reduce((s,p)=>s+p.amount,0);
-  const totCausadas=realParts.reduce((s,p)=>s+causadasDe(p),0);
+  const totCausadas=getTotRealPartCausadas(projId,data);
   const totPagadas=allPagos.reduce((s,p)=>s+p.amount,0);
   const totSaldo=totCausadas-totPagadas;
+  // Personas a mostrar = asignadas al proyecto + asignadas en alguna factura
+  const partPersonIds=(()=>{const s=new Set(realParts.map(p=>p.personId));cobros.forEach(c=>{if(Array.isArray(c.participaciones))c.participaciones.forEach(pp=>pp&&pp.personId&&s.add(pp.personId));});return [...s];})();
+  const personRows=partPersonIds.map(pid=>({personId:pid,rp:realParts.find(r=>r.personId===pid)||null,caus:causadaPersona(pid),pag:totPagadoPersona(pid)}));
+  // Helpers equipo por factura
+  const setCobroParticip=(cobroId,arr)=>{const lat=getLatestData?getLatestData():data;save({...lat,realCobros:(lat.realCobros||[]).map(c=>c.id===cobroId?{...c,participaciones:arr}:c)});};
+  const addFactPersona=(c)=>{if(!factPersona||!factPct)return;const cur=Array.isArray(c.participaciones)?c.participaciones:[];const ex=cur.find(p=>p.personId===factPersona);const arr=ex?cur.map(p=>p.personId===factPersona?{...p,pct:parseFloat(factPct)||0}:p):[...cur,{personId:factPersona,pct:parseFloat(factPct)||0}];setCobroParticip(c.id,arr);setFactPersona('');setFactPct('');};
+  const delFactPersona=(c,personId)=>setCobroParticip(c.id,(Array.isArray(c.participaciones)?c.participaciones:[]).filter(p=>p.personId!==personId));
+  const limpiarFactParticip=(c)=>{if(window.confirm('¿Quitar la asignación propia de esta factura? Volverá a usar el % del proyecto.'))setCobroParticip(c.id,[]);};
+  const personName=pid=>{const p=people.find(x=>x.id===pid);return p?p.name:'—';};
 
   const filteredPeople=(filterCat?people.filter(p=>p.catId===filterCat):people).filter(p=>!p.desincorporado);
 
@@ -7924,13 +7941,15 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                 <th className="text-right px-4 py-2 text-orange-400">Otros Descuentos</th>
                 <th className="text-right px-4 py-2 text-pink-500">Otros Costos Cobr.</th>
                 <th className="text-right px-4 py-2 text-teal-600 font-semibold">Base Cálculo</th>
+                <th className="text-center px-4 py-2">Equipo</th>
               </tr>
             </thead>
             <tbody>
               {cobros.sort((a,b)=>a.fecha>b.fecha?1:-1).map(c=>{
                 const isEditingCobro=editCobro===c.id;
                 return(
-                  <tr key={c.id} className="border-t hover:bg-gray-50">
+                  <React.Fragment key={c.id}>
+                  <tr className="border-t hover:bg-gray-50">
                     <td className="px-4 py-2">
                       <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full font-mono">{c.numFactura||'—'}</span>
                     </td>
@@ -7986,7 +8005,49 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                         </td>
                       </>
                     )}
+                    <td className="px-4 py-2 text-center">
+                      {(()=>{const n=(Array.isArray(c.participaciones)?c.participaciones.length:0);const own=n>0;return(
+                        <button onClick={()=>{setExpCobro(expCobro===c.id?null:c.id);setFactPersona('');setFactPct('');}} className={'px-2 py-0.5 rounded-full text-xs font-medium '+(own?'bg-teal-100 text-teal-700':'bg-gray-100 text-gray-500')} title={own?'Equipo propio de esta factura':'Usa el % del proyecto'}>
+                          👥 {own?n:'proyecto'} {expCobro===c.id?'▲':'▼'}
+                        </button>);})()}
+                    </td>
                   </tr>
+                  {expCobro===c.id&&(
+                    <tr className="bg-gray-50">
+                      <td colSpan={8} className="px-4 py-3">
+                        <div className="text-xs font-semibold text-gray-600 mb-2">👥 Equipo de la factura {c.numFactura||'—'} <span className="font-normal text-gray-400">· base {$n(getBaseCalculo(c))}</span></div>
+                        {(()=>{const own=Array.isArray(c.participaciones)&&c.participaciones.length;const eff=getCobroParts(c,data);return(<>
+                          {!own&&<div className="text-[11px] text-gray-400 mb-2">Esta factura usa el <b>% del proyecto</b> (heredado). Si agregas personas aquí, solo aplicará a <b>esta factura</b>.</div>}
+                          <table className="w-full text-xs mb-2 max-w-lg">
+                            <thead className="text-gray-400"><tr><th className="text-left py-1">Persona</th><th className="text-right py-1">%</th><th className="text-right py-1">Causado</th><th></th></tr></thead>
+                            <tbody>
+                              {eff.map((p,i)=>(
+                                <tr key={p.personId+'_'+i} className="border-t border-gray-200">
+                                  <td className="py-1 text-gray-700">{personName(p.personId)}</td>
+                                  <td className="py-1 text-right">{(+p.pct||0)}%</td>
+                                  <td className="py-1 text-right text-amber-600">{$n((+p.pct||0)/100*getBaseCalculo(c))}</td>
+                                  <td className="py-1 text-right">{own?<button onClick={()=>delFactPersona(c,p.personId)} className="text-red-400">✕</button>:<span className="text-gray-300 text-[10px]">heredado</span>}</td>
+                                </tr>
+                              ))}
+                              {eff.length===0&&<tr><td colSpan={4} className="py-2 text-center text-gray-400">Sin personas.</td></tr>}
+                            </tbody>
+                          </table>
+                          <div className="flex items-end gap-2 flex-wrap">
+                            <div><label className="text-gray-400 text-[10px] block mb-0.5">Persona</label>
+                              <select value={factPersona} onChange={e=>{setFactPersona(e.target.value);const per=people.find(x=>x.id===e.target.value);const cat=per?cats.find(cc=>cc.id===per.catId):null;if(cat)setFactPct(String(cat.defaultPct));}} className="border rounded px-2 py-1 text-xs">
+                                <option value="">— Seleccionar —</option>
+                                {people.filter(p=>!p.desincorporado).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}
+                              </select></div>
+                            <div><label className="text-gray-400 text-[10px] block mb-0.5">%</label>
+                              <input type="number" step="0.5" value={factPct} onChange={e=>setFactPct(e.target.value)} className="border rounded px-2 py-1 text-xs w-20 text-right" placeholder="0"/></div>
+                            <button onClick={()=>addFactPersona(c)} disabled={!factPersona||!factPct} className="bg-teal-600 hover:bg-teal-700 disabled:opacity-40 text-white px-3 py-1 rounded text-xs font-medium">+ Agregar a esta factura</button>
+                            {own&&<button onClick={()=>limpiarFactParticip(c)} className="text-gray-400 hover:text-red-500 text-xs underline ml-2">Volver a usar % del proyecto</button>}
+                          </div>
+                        </>);})()}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -7998,6 +8059,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                 <td className="px-4 py-2 text-right text-orange-500">{cobros.some(c=>c.otrosDescuentos>0)?$n(cobros.reduce((s,c)=>s+(c.otrosDescuentos||0),0)):'—'}</td>
                 <td className="px-4 py-2 text-right text-pink-600">{cobros.some(c=>(c.otrosCostosCobranza||0)>0)?$n(cobros.reduce((s,c)=>s+(c.otrosCostosCobranza||0),0)):'—'}</td>
                 <td className="px-4 py-2 text-right text-teal-700 bg-teal-50">{$n(totBase)}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
@@ -8039,7 +8101,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
       </div>
 
       {/* ── Sección 2: Registrar pago ── */}
-      {realParts.length>0&&(
+      {personRows.length>0&&(
         <div className="bg-white rounded-xl border p-5">
           <div className="font-semibold text-sm mb-3">💚 Registrar Pago de Participación</div>
           <div className="grid grid-cols-7 gap-3 mb-3">
@@ -8047,12 +8109,10 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
               <label className="text-gray-400 text-xs mb-1 block">Persona</label>
               <select value={pagoPersonId} onChange={e=>setPagoPersonId(e.target.value)} className="w-full border-2 border-emerald-300 rounded-lg px-3 py-1.5 text-sm">
                 <option value="">— Seleccionar —</option>
-                {realParts.map(rp=>{
-                  const person=people.find(p=>p.id===rp.personId);
-                  const caus=causadasDe(rp);
-                  const pagado=totPagadoPersona(rp.personId);
-                  const saldo=caus-pagado;
-                  return <option key={rp.id} value={rp.personId}>{person?person.name:rp.personId} — saldo: {saldo>0?'$'+Math.round(saldo):'saldado'}</option>;
+                {personRows.map(pr=>{
+                  const person=people.find(p=>p.id===pr.personId);
+                  const saldo=pr.caus-pr.pag;
+                  return <option key={pr.personId} value={pr.personId}>{person?person.name:pr.personId} — saldo: {saldo>0?'$'+Math.round(saldo):'saldado'}</option>;
                 })}
               </select>
             </div>
@@ -8097,7 +8157,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
       )}
 
       {/* ── Tabs ── */}
-      {realParts.length>0&&(
+      {personRows.length>0&&(
         <div className="flex gap-2">
           {[['resumen','📊 Resumen'],['detalle','👤 Por Persona y Pagos']].map(([v,l])=>(
             <button key={v} onClick={()=>setView(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(view===v?'bg-indigo-600 text-white':'bg-white border text-gray-600')}>{l}</button>
@@ -8106,42 +8166,44 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
       )}
 
       {/* ── Vista: Resumen por categoría ── */}
-      {view==='resumen'&&realParts.length>0&&(
+      {view==='resumen'&&personRows.length>0&&(
         <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="px-4 py-3 border-b font-semibold text-sm">Resumen por Categoría</div>
+          <div className="px-4 py-3 border-b font-semibold text-sm">Resumen por Categoría{hayPorFactura&&<span className="ml-2 text-xs font-normal text-teal-600">· incluye asignaciones por factura</span>}</div>
           <table className="w-full text-xs">
             <thead className="bg-gray-50 text-gray-400"><tr>
               <th className="text-left px-4 py-2">Categoría</th>
               <th className="text-right px-4 py-2">Personas</th>
-              <th className="text-right px-4 py-2">% Total</th>
+              <th className="text-right px-4 py-2">% Proyecto</th>
               <th className="text-right px-4 py-2 text-amber-600">Causado</th>
               <th className="text-right px-4 py-2 text-emerald-600">Pagado</th>
               <th className="text-right px-4 py-2">Saldo</th>
             </tr></thead>
             <tbody>
               {cats.map(cat=>{
-                const catPpl=people.filter(p=>p.catId===cat.id);
-                const catRPs=realParts.filter(rp=>catPpl.some(p=>p.id===rp.personId));
-                if(catRPs.length===0)return null;
-                const cPct=catRPs.reduce((s,p)=>s+p.pct,0);
-                const cCaus=catRPs.reduce((s,p)=>s+causadasDe(p),0);
-                const cPag=catRPs.reduce((s,p)=>s+totPagadoPersona(p.personId),0);
+                const rows=personRows.filter(pr=>{const per=people.find(p=>p.id===pr.personId);return per&&per.catId===cat.id;});
+                if(rows.length===0)return null;
+                const cPct=rows.reduce((s,r)=>s+(r.rp?(+r.rp.pct||0):0),0);
+                const cCaus=rows.reduce((s,r)=>s+r.caus,0);
+                const cPag=rows.reduce((s,r)=>s+r.pag,0);
                 return(
                   <tr key={cat.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-2 font-medium">{cat.name}</td>
-                    <td className="px-4 py-2 text-right text-gray-500">{catRPs.length}</td>
-                    <td className="px-4 py-2 text-right font-medium">{cPct.toFixed(2)}%</td>
+                    <td className="px-4 py-2 text-right text-gray-500">{rows.length}</td>
+                    <td className="px-4 py-2 text-right font-medium">{cPct>0?cPct.toFixed(2)+'%':'—'}</td>
                     <td className="px-4 py-2 text-right text-amber-600 font-medium">{$n(cCaus)}</td>
                     <td className="px-4 py-2 text-right text-emerald-600">{$n(cPag)}</td>
                     <td className="px-4 py-2 text-right"><SaldoBadge c={cCaus} p={cPag}/></td>
                   </tr>
                 );
               })}
+              {(()=>{const rows=personRows.filter(pr=>{const per=people.find(p=>p.id===pr.personId);return !per||!cats.some(c=>c.id===per.catId);});if(rows.length===0)return null;const cCaus=rows.reduce((s,r)=>s+r.caus,0);const cPag=rows.reduce((s,r)=>s+r.pag,0);return(
+                <tr className="border-t hover:bg-gray-50"><td className="px-4 py-2 text-gray-400 italic">(sin categoría)</td><td className="px-4 py-2 text-right text-gray-500">{rows.length}</td><td className="px-4 py-2 text-right">—</td><td className="px-4 py-2 text-right text-amber-600 font-medium">{$n(cCaus)}</td><td className="px-4 py-2 text-right text-emerald-600">{$n(cPag)}</td><td className="px-4 py-2 text-right"><SaldoBadge c={cCaus} p={cPag}/></td></tr>
+              );})()}
             </tbody>
             <tfoot className="border-t-2 bg-gray-50 font-bold text-xs"><tr>
               <td className="px-4 py-2">TOTAL</td>
-              <td className="px-4 py-2 text-right">{realParts.length}</td>
-              <td className="px-4 py-2 text-right">{realParts.reduce((s,p)=>s+p.pct,0).toFixed(2)}%</td>
+              <td className="px-4 py-2 text-right">{personRows.length}</td>
+              <td className="px-4 py-2 text-right">{personRows.reduce((s,r)=>s+(r.rp?(+r.rp.pct||0):0),0).toFixed(2)}%</td>
               <td className="px-4 py-2 text-right text-amber-700">{$n(totCausadas)}</td>
               <td className="px-4 py-2 text-right text-emerald-700">{$n(totPagadas)}</td>
               <td className="px-4 py-2 text-right"><SaldoBadge c={totCausadas} p={totPagadas}/></td>
@@ -8151,16 +8213,17 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
       )}
 
       {/* ── Vista: Por Persona con pagos individuales ── */}
-      {view==='detalle'&&realParts.length>0&&(
+      {view==='detalle'&&personRows.length>0&&(
         <div className="space-y-3">
-          {realParts.map(rp=>{
-            const person=people.find(p=>p.id===rp.personId);
+          {personRows.map(pr=>{
+            const rp=pr.rp;
+            const person=people.find(p=>p.id===pr.personId);
             const cat=person?cats.find(c=>c.id===person.catId):null;
-            const caus=causadasDe(rp);
-            const pagos=pagosDePersona(rp.personId);
+            const caus=pr.caus;
+            const pagos=pagosDePersona(pr.personId);
             const totPag=pagos.reduce((s,p)=>s+p.amount,0);
             return(
-              <div key={rp.id} className="bg-white rounded-xl border overflow-hidden">
+              <div key={pr.personId} className="bg-white rounded-xl border overflow-hidden">
                 {/* Persona header */}
                 <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -8169,8 +8232,8 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                       <div className="font-semibold text-sm">{person?person.name:'—'}</div>
                       <div className="text-xs text-gray-400">{cat?cat.name:'—'}</div>
                     </div>
-                    {/* Edit pct inline */}
-                    {editRpId===rp.id?(
+                    {/* Edit pct inline (solo % del proyecto) */}
+                    {rp?(editRpId===rp.id?(
                       <div className="flex items-center gap-1 ml-3">
                         <input type="number" value={editRpPct} onChange={e=>setEditRpPct(e.target.value)} className="border-2 border-amber-300 rounded px-2 py-0.5 text-xs w-16 text-right"/>
                         <span className="text-xs text-gray-400">%</span>
@@ -8181,13 +8244,15 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold ml-2 cursor-pointer" onClick={()=>{setEditRpId(rp.id);setEditRpPct(String(rp.pct));}}>
                         {rp.pct}% ✏️
                       </span>
+                    )):(
+                      <span className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs font-medium ml-2" title="Asignado solo por factura">por factura</span>
                     )}
                   </div>
                   <div className="flex items-center gap-4 text-xs">
                     <span className="text-amber-600 font-medium">Causado: <b>{$n(caus)}</b></span>
                     <span className="text-emerald-600 font-medium">Pagado: <b>{$n(totPag)}</b></span>
                     <SaldoBadge c={caus} p={totPag}/>
-                    <button onClick={()=>delPersona(rp.id)} className="text-red-400 text-xs ml-2">🗑</button>
+                    {rp&&<button onClick={()=>delPersona(rp.id)} className="text-red-400 text-xs ml-2">🗑</button>}
                   </div>
                 </div>
                 {/* Pagos individuales */}
@@ -8250,7 +8315,7 @@ function ProjRealPart({projId,data,save,readOnly,getLatestData}){
         </div>
       )}
 
-      {realParts.length===0&&<p className="text-gray-400 text-xs text-center py-4 bg-white rounded-xl border">Sin participaciones registradas. Asigna personas arriba.</p>}
+      {personRows.length===0&&<p className="text-gray-400 text-xs text-center py-4 bg-white rounded-xl border">Sin participaciones registradas. Asigna personas al proyecto, o por factura en la tabla de arriba.</p>}
     </div>
   );
 }
@@ -8405,18 +8470,20 @@ function ProjComparativo({projId,data}){
         const baseNetaReal=getTotBaseCalculo(projId,data);   // base real = factura − terceros − descuentos
         const budParts=(data.participations||[]).filter(p=>p.projectId===projId);
         const realParts=(data.realParticipations||[]).filter(p=>p.projectId===projId);
-        if(budParts.length===0&&realParts.length===0)return null;
+        const projCobros=(data.realCobros||[]).filter(c=>c.projectId===projId);
+        const factPids=new Set();projCobros.forEach(c=>{if(Array.isArray(c.participaciones))c.participaciones.forEach(pp=>pp&&pp.personId&&factPids.add(pp.personId));});
+        const realPersonIds=[...new Set([...realParts.map(r=>r.personId),...factPids])];
+        if(budParts.length===0&&realPersonIds.length===0)return null;
         const cats=data.partCats||DEFAULT_PART_CATS;
         const people=data.people||[];
-        // Build rows per category
+        // Build rows per category (real = causadas por factura con respaldo al % del proyecto)
         const catRows=cats.map(cat=>{
           const budPart=budParts.find(p=>p.catId===cat.id);
           const budAmt=budPart?(budPart.pct/100)*baseNetaEst:0;
-          const catPpl=people.filter(p=>p.catId===cat.id);
-          const catRPs=realParts.filter(rp=>catPpl.some(p=>p.id===rp.personId));
-          const realAmt=catRPs.reduce((s,p)=>s+(p.pct/100)*baseNetaReal,0);
+          const catPids=realPersonIds.filter(pid=>{const per=people.find(p=>p.id===pid);return per&&per.catId===cat.id;});
+          const realAmt=catPids.reduce((s,pid)=>s+getPersonaCausadasTot(pid,projId,data),0);
           if(budAmt===0&&realAmt===0)return null;
-          return{cat,budAmt,realAmt,catRPs};
+          return{cat,budAmt,realAmt,catPids};
         }).filter(Boolean);
         if(catRows.length===0)return null;
         return(
@@ -8432,7 +8499,7 @@ function ProjComparativo({projId,data}){
                 </tr>
               </thead>
               <tbody>
-                {catRows.map(({cat,budAmt,realAmt,catRPs})=>(
+                {catRows.map(({cat,budAmt,realAmt,catPids})=>(
                   <React.Fragment key={cat.id}>
                     <tr className="border-t bg-gray-50">
                       <td className="px-4 py-2 font-semibold text-gray-700">{cat.name}</td>
@@ -8442,17 +8509,15 @@ function ProjComparativo({projId,data}){
                         {budAmt>0?(realAmt-budAmt>=0?'+':'')+$n(realAmt-budAmt):'—'}
                       </td>
                     </tr>
-                    {catRPs.map(rp=>{
-                      const person=people.find(p=>p.id===rp.personId);
-                      const causa=(rp.pct/100)*baseNetaReal;
+                    {catPids.map(pid=>{
+                      const person=people.find(p=>p.id===pid);
+                      const causa=getPersonaCausadasTot(pid,projId,data);
                       return(
-                        <tr key={rp.id} className="border-t hover:bg-gray-50">
+                        <tr key={pid} className="border-t hover:bg-gray-50">
                           <td className="px-4 py-2 pl-8 text-gray-600">
                             <div className="flex items-center gap-2">
                               {person&&<div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{background:'rgb(0,186,179)'}}>{person.initials||autoInitials(person.name)}</div>}
                               <span>↳ {person?person.name:'—'}</span>
-                              <span className="text-gray-400">({rp.pct}%)</span>
-                              {rp.notes?<span className="text-gray-400 italic">({rp.notes})</span>:null}
                             </div>
                           </td>
                           <td className="px-4 py-2 text-right text-gray-400">—</td>
