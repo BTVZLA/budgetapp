@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-06e';
+const APP_VERSION='v2026-10-14a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5583,7 +5583,9 @@ function APartReport({data,currentUser}){
       projCodigo:proj.codigo||'',
       client:proj.client||'—',
       pct:rp?rp.pct:0,
-      periodo:proj.periodo||getPeriodoPago(pago.fecha),
+      // Período = el de la FECHA DE PAGO (base caja): si se pagó en el período, aparece ahí,
+      // aunque el proyecto sea de un período anterior. Sin fecha → respaldo al período del proyecto.
+      periodo:pago.fecha?getPeriodoPago(pago.fecha):(proj.periodo||'Sin fecha'),
     };
   });
 
@@ -5678,6 +5680,7 @@ function APartReport({data,currentUser}){
       </div>
 
       {subTab==='pagadas'&&<>
+      <div className="text-gray-400 text-[11px] mb-2">ℹ️ El período se determina por la <b>fecha de pago</b> de la participación. Un proyecto de un período anterior, pagado en este período, aparece aquí.</div>
       {/* Corte al cierre de mes + generar reporte */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap bg-white border rounded-xl px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
