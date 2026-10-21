@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21d';
+const APP_VERSION='v2026-10-21e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -967,7 +967,7 @@ const isOverdue=d=>d&&d<today;
 const initials=name=>name?.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase()||"?";
 
 const SVC_C=s=>({"Auditoría":"#60a5fa","Tax":"#a78bfa","Advisory":"#34d399","Oil & Gas":"#fb923c","Consultoría Financiera":"#fbbf24","Legal":"#f472b6"}[s]||"#6b7a9a");
-const SEC_C=s=>({"Seguros":"#818cf8","Banca / Finanzas":"#60a5fa","Telecomunicaciones":"#38bdf8","Manufactura":"#a78bfa","Ingeniería y Construcción":"#c084fc","Transporte":"#22d3ee","Medios y Entretenimiento":"#fb923c","Distribución":"#fbbf24","Salud":"#34d399","Oil & Gas":"#f97316","Químico / Farmacéutico":"#e879f9","Servicios":"#94a3b8","Publicidad / Medios":"#f472b6","Gobierno":"#84cc16","Otro":"#6b7a9a"}[s]||"#6b7a9a");
+const SEC_C=s=>({"Seguros":"#818cf8","Banca / Finanzas":"#60a5fa","Telecomunicaciones":"#38bdf8","Manufactura":"#a78bfa","Ingeniería y Construcción":"#c084fc","Transporte":"#22d3ee","Medios y Entretenimiento":"#fb923c","Distribución":"#fbbf24","Salud":"#34d399","Oil & Gas":"#f97316","Químico / Farmacéutico":"#e879f9","Servicios":"#94a3b8","Publicidad / Medios":"#f472b6","Gobierno":"#84cc16","ONG":"#14b8a6","Otro":"#6b7a9a"}[s]||"#6b7a9a");
 
 // ── Datos iniciales de cuentas y contactos (importados del Excel) ─────────────
 const INIT_ACCOUNTS=[
