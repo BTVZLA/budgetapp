@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21a';
+const APP_VERSION='v2026-10-21b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3197,8 +3197,10 @@ const CRONO_AREAS_SUST=[
   {n:'Beneficios a empleados a largo plazo',ref:'345.101'},
   {n:'Provisiones',ref:'350.101'},
   {n:'Cuentas por pagar y pasivos devengados',ref:'425.101'},
-  {n:'Partes relacionadas',ref:''},
-  {n:'Beneficios para empleados',ref:'1600.101'},
+  {n:'Partes relacionadas',ref:'435.101'},
+  {n:'Ingresos',ref:'1500.101'},
+  {n:'Costo de ventas',ref:'1600.101'},
+  {n:'Beneficios para empleados',ref:'1600.105'},
   {n:'Otros ingresos',ref:'1700.101'},
   {n:'Otros gastos',ref:'1800.101'},
   {n:'Impuesto sobre la renta',ref:'1900.101'},
@@ -3263,7 +3265,8 @@ const CRONO_SEM={
   sin:     {l:'Sin cronograma',cls:'bg-gray-100 text-gray-500',  dot:'bg-gray-300'},
 };
 const CRONO_META='__caseware';
-const cronoVis=arr=>(arr||[]).filter(r=>r.clave!==CRONO_META);
+const cronoVis=arr=>(arr||[]).filter(r=>!String(r.clave||'').startsWith('__'));
+const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const cronoAddDays=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+Math.round(n));return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -3377,12 +3380,127 @@ function CronoNota({h,onSave,disabled}){
     placeholder="Notas, pendientes del cliente, observaciones…" className="w-full border rounded-lg px-2 py-1.5 text-xs" rows={2}/>;
 }
 
+// ── Importación del estado de firmas desde CaseWare – Global Focus (texto copiado de la pantalla Documents) ──
+// Formato observado: línea "CÓDIGO Nombre del papel", seguida de una línea por firma (iniciales: preparador, luego revisor)
+// y opcionalmente un número (flags/issues). Las líneas que no son código, firma ni número son carpetas.
+// Después de la lista principal viene el navegador lateral ("Documents" / "Search..") con los mismos códigos sin firmas: se ignora.
+const CW_CODE_RE=/^([A-Z]{1,2}\d{3}[A-Z0-9-]*|\d+\.\d+)\s+(.+)$/;
+const CW_INI_RE=/^[A-ZÁÉÍÓÚÑ]{2,6}$/;
+const cwParse=text=>{
+  const lines=String(text||'').replace(/​/g,'').split(/\r?\n/).map(l=>l.trim());
+  const docs=new Map();let folder='';let cur=null;let entity='';
+  for(let i=0;i<lines.length;i++){
+    const l=lines[i];
+    if(l==='Search..'||l==='Search...')break;
+    if(!entity&&l&&!/^\d{4}$/.test(l)&&i<5)entity=l;
+    if(!l){cur=null;continue;}
+    const m=l.match(CW_CODE_RE);
+    if(m){
+      const code=m[1];
+      if(docs.has(code)){cur=null;continue;}
+      cur={code,name:m[2],folder,firmas:[]};docs.set(code,cur);continue;
+    }
+    if(cur&&CW_INI_RE.test(l)&&cur.firmas.length<2){cur.firmas.push(l);continue;}
+    if(/^\d+$/.test(l)){cur=null;continue;}
+    cur=null;
+    if(l!=='This folder is empty.'&&l!=='Documents'&&l!=='Recycle Bin')folder=l;
+  }
+  return {entity,docs};
+};
+// Papeles de CaseWare que respaldan un hito/área del cronograma
+const cwDocsFor=(h,docs)=>{
+  if(!h.ref)return [];
+  if(h.parentId){ // área: todos los papeles de la carpeta que contiene su papel principal
+    const d=docs.get(h.ref.trim());
+    if(!d)return [];
+    return [...docs.values()].filter(x=>x.folder===d.folder);
+  }
+  return h.ref.split(/[\/,]/).map(s=>s.trim()).filter(s=>s&&!s.includes('–')).map(c=>docs.get(c)).filter(Boolean);
+};
+const CW_RANK={pendiente:0,hecho:1,revisado:2};
+const cwPlan=(rows,docs)=>{
+  const cambios=[];
+  rows.forEach(h=>{
+    if(h.estado==='na')return;
+    if(rows.some(c=>c.parentId===h.id))return; // los hitos con áreas se derivan de sus áreas
+    if(h.parentId&&(rows.find(x=>x.id===h.parentId)||{}).estado==='na')return;
+    const ds=cwDocsFor(h,docs);
+    if(!ds.length)return;
+    const prep=ds.every(d=>d.firmas.length>=1),rev=ds.every(d=>d.firmas.length>=2);
+    const to=rev&&h.revisor?'revisado':(prep?'hecho':null);
+    if(!to||CW_RANK[to]<=CW_RANK[h.estado||'pendiente'])return;
+    const ini=k=>[...new Set(ds.map(d=>d.firmas[k]).filter(Boolean))].join(', ');
+    cambios.push({h,to,docs:ds,prep:ini(0),rev:ini(1)});
+  });
+  return cambios;
+};
+
+function CronoCWImport({proj,rows,onApply,onClose}){
+  const [txt,setTxt]=useState('');
+  const [res,setRes]=useState(null);
+  const analizar=()=>{
+    const p=cwParse(txt);
+    if(!p.docs.size){alert('No se encontraron papeles en el texto. En CaseWare abre Documents, pulsa Ctrl+A y Ctrl+C, y pégalo aquí.');return;}
+    const cambios=cwPlan(rows,p.docs);
+    const all=[...p.docs.values()];
+    const stats={docs:all.length,prep:all.filter(d=>d.firmas.length>=1).length,rev:all.filter(d=>d.firmas.length>=2).length};
+    const n=s=>cronoNorm(s).replace(/[^a-z0-9 ]/g,'');
+    const w=n(p.entity).split(' ').filter(x=>x.length>3);
+    const coincide=!w.length||w.some(x=>n(proj.client+' '+proj.name).includes(x));
+    setRes({...p,cambios,stats,coincide});
+  };
+  const LBL={hecho:'Hecho',revisado:'Revisado'};
+  return(
+    <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-full overflow-auto p-5" onClick={e=>e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-bold text-sm">⬆ Actualizar desde CaseWare – Global Focus</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
+        </div>
+        {!res?<>
+          <ol className="text-xs text-gray-600 list-decimal pl-5 mb-3 space-y-0.5">
+            <li>En CaseWare abre el encargo → <b>Documents</b>, con todas las secciones desplegadas.</li>
+            <li>Haz clic en un espacio en blanco de la lista y pulsa <b>Ctrl+A</b> y luego <b>Ctrl+C</b>.</li>
+            <li>Pega aquí con <b>Ctrl+V</b> y pulsa <b>Analizar</b>.</li>
+          </ol>
+          <textarea value={txt} onChange={e=>setTxt(e.target.value)} rows={10} placeholder="Pega aquí el contenido copiado de CaseWare…" className="w-full border rounded-lg p-2 text-xs font-mono"/>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={onClose} className="px-3 py-1.5 text-xs border rounded-lg">Cancelar</button>
+            <button onClick={analizar} disabled={!txt.trim()} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg disabled:opacity-40">Analizar</button>
+          </div>
+        </>:<>
+          {!res.coincide&&<div className="mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700">⚠️ El texto pegado parece ser del encargo <b>{res.entity}</b>, no de <b>{proj.client}</b>. Revisa que sea el cliente correcto antes de aplicar.</div>}
+          <div className="text-xs text-gray-600 mb-3">Encargo en CaseWare: <b>{res.entity||'—'}</b> · {res.stats.docs} papeles · <b>{res.stats.prep}</b> con firma de preparador · <b>{res.stats.rev}</b> con firma de revisor</div>
+          {res.cambios.length===0?<div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-4 text-center">No hay avances nuevos para registrar: el cronograma ya refleja las firmas de CaseWare.</div>:
+          <table className="w-full text-xs border rounded-lg">
+            <thead><tr className="bg-gray-50 text-[10px] uppercase text-gray-500 text-left"><th className="px-2 py-1.5">Hito / área</th><th className="px-2 py-1.5">Papeles CaseWare</th><th className="px-2 py-1.5">Firmas</th><th className="px-2 py-1.5">Pasa a</th></tr></thead>
+            <tbody>{res.cambios.map(c=>(
+              <tr key={c.h.id} className="border-t">
+                <td className="px-2 py-1.5">{c.h.nombre}</td>
+                <td className="px-2 py-1.5 font-mono text-[10px] text-gray-500">{c.docs.map(d=>d.code).join(', ')}</td>
+                <td className="px-2 py-1.5">{c.prep}{c.rev?' / '+c.rev:''}</td>
+                <td className="px-2 py-1.5"><span className={'px-2 py-0.5 rounded-full text-[10px] font-semibold '+(c.to==='revisado'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700')}>{LBL[c.to]}</span></td>
+              </tr>))}</tbody>
+          </table>}
+          <p className="text-[10px] text-gray-400 mt-2">Solo se avanzan estados (nunca se deshace lo marcado en BudgetApp). Como CaseWare no muestra la fecha de la firma en la lista, se registra la fecha de hoy si el hito no tenía fecha real.</p>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={()=>setRes(null)} className="px-3 py-1.5 text-xs border rounded-lg">← Volver</button>
+            <button onClick={()=>onApply(res)} className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg">{res.cambios.length?'Aplicar '+res.cambios.length+' cambios':'Registrar actualización'}</button>
+          </div>
+        </>}
+      </div>
+    </div>
+  );
+}
+
 function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   const hoy=cronoHoy();
   const lat=()=>(getLatestData&&getLatestData())||data;
   const all=cronoVis(data.cronograma);
   const rows=all.filter(r=>r.projectId===proj.id);
   const cwLink=cronoLink(data,proj.id);
+  const cwSync=cronoSync(data,proj.id);
+  const [showCW,setShowCW]=useState(false);
   const perm=cronoPerms(proj,data,currentUser);
   const userName=(currentUser&&currentUser.name)||'';
   const [setup,setSetup]=useState({tpl:'auditoria',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true});
@@ -3468,12 +3586,32 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       return [...a,{id:uid(),projectId:proj.id,parentId:'',clave:CRONO_META,orden:0,fase:'',nombre:'Enlace CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:url,hitoClave:false}];
     });
   };
+  const aplicarCW=res=>{
+    const hoy_=cronoHoy();
+    const byId=new Map(res.cambios.map(c=>[c.h.id,c]));
+    const meta={fecha:hoy_,docs:res.stats.docs,prep:res.stats.prep,rev:res.stats.rev,por:userName,entidad:res.entity};
+    saveRows(a=>{
+      let out=a.map(r=>{
+        const c=byId.get(r.id);if(!c)return r;
+        const n={...r,estado:c.to,fechaReal:r.fechaReal||hoy_,hechoPor:r.hechoPor||((c.prep||'CaseWare')+' · CaseWare')};
+        if(c.to==='revisado')Object.assign(n,{revisadoPor:(c.rev||'CaseWare')+' · CaseWare',fechaRevisado:hoy_});
+        return n;
+      });
+      const ex=out.find(r=>r.projectId===proj.id&&r.clave==='__cwsync');
+      if(ex)out=out.map(r=>r===ex?{...r,notas:JSON.stringify(meta)}:r);
+      else out=[...out,{id:uid(),projectId:proj.id,parentId:'',clave:'__cwsync',orden:0,fase:'',nombre:'Sincronización CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:JSON.stringify(meta),hitoClave:false}];
+      return out;
+    });
+    setShowCW(false);
+  };
   const linkBar=(cwLink||perm.gestion)?(
     <div className="mb-3 flex items-center gap-2 text-xs">
       <span className="text-gray-500">🔗 CaseWare – Global Focus:</span>
       {cwLink?<a href={cwLink} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-medium">Abrir encargo en CaseWare ↗</a>
         :<span className="text-gray-400">sin enlazar</span>}
       {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':'＋ Enlazar encargo'}</button>}
+      {perm.gestion&&rows.length>0&&<button onClick={()=>setShowCW(true)} className="ml-2 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">⬆ Actualizar desde CaseWare</button>}
+      {cwSync&&<span className="ml-2 text-gray-400" title={'Actualizado por '+(cwSync.por||'—')}>Última actualización: {cronoFmt(cwSync.fecha)} · {cwSync.prep}/{cwSync.docs} papeles preparados · {cwSync.rev} revisados</span>}
     </div>):null;
 
   // ── Sin cronograma: formulario de creación ──
@@ -3595,6 +3733,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   return(
     <div>
       {linkBar}
+      {showCW&&<CronoCWImport proj={proj} rows={rows} onApply={aplicarCW} onClose={()=>setShowCW(false)}/>}
       {res.campoSinInforme&&(
         <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center gap-2">
           <span className="text-base">⚠️</span>
