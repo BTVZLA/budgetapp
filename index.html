@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21b';
+const APP_VERSION='v2026-10-21c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3336,12 +3336,13 @@ const cronoEquipos=data=>{
   (data.cronograma||[]).forEach(r=>add(r.projectId,r.asignadoId));
   return m;
 };
-const cronoScope=(data,currentUser,incluirCerrados)=>{
+const cronoScope=(data,currentUser,incluirCerrados,periodo)=>{
+  const per=periodo||currentPeriodo; // por defecto solo el período en curso
   const role=(currentUser&&currentUser.role)||'user';
   const me=currentUser&&currentUser.id;
   const verTodo=role==='admin'||role==='administracion'||role==='socio';
   const eq=cronoEquipos(data);
-  return (data.projects||[]).filter(p=>!p.enPapelera&&p.validado!==false&&(incluirCerrados||!p.cerrado))
+  return (data.projects||[]).filter(p=>!p.enPapelera&&p.validado!==false&&(incluirCerrados||!p.cerrado)&&(per==='todos'||(p.periodo||currentPeriodo)===per))
     .filter(p=>verTodo||p.responsableId===me||(eq[p.id]&&eq[p.id].has(me)));
 };
 // Contador para el menú: encargos con hitos vencidos (gestión) o mis hitos vencidos (equipo)
@@ -3794,12 +3795,14 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const [soloAlertas,setSoloAlertas]=useState(false);
   const [incCerrados,setIncCerrados]=useState(false);
   const [busca,setBusca]=useState('');
+  const [fPer,setFPer]=useState(currentPeriodo);
   const [fResp,setFResp]=useState('');
   const hoy=cronoHoy();
   const role=(currentUser&&currentUser.role)||'user';
   const me=currentUser&&currentUser.id;
   const crono=cronoVis(data.cronograma);
-  const proyectos=cronoScope(data,currentUser,incCerrados);
+  const proyectos=cronoScope(data,currentUser,incCerrados,fPer);
+  const periodosCrono=[...new Set([currentPeriodo,...(data.projects||[]).map(p=>p.periodo).filter(Boolean)])].sort().reverse();
   const userById=id=>(data.users||[]).find(u=>u.id===id);
 
   const proj=sel&&(data.projects||[]).find(p=>p.id===sel);
@@ -3875,6 +3878,10 @@ function ACronograma({data,save,currentUser,getLatestData}){
             {responsables.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
           </select>}
           <label className="flex items-center gap-1"><input type="checkbox" checked={soloAlertas} onChange={e=>setSoloAlertas(e.target.checked)}/> Solo con alertas</label>
+          <select value={fPer} onChange={e=>setFPer(e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white" title="Período de los proyectos">
+            {periodosCrono.map(x=><option key={x} value={x}>Período {x}{x===currentPeriodo?' (actual)':''}</option>)}
+            <option value="todos">Todos los períodos</option>
+          </select>
           <label className="flex items-center gap-1"><input type="checkbox" checked={incCerrados} onChange={e=>setIncCerrados(e.target.checked)}/> Incluir cerrados</label>
         </div>
         <div className="bg-white border rounded-xl overflow-x-auto">
