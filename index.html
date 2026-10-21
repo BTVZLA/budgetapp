@@ -34,7 +34,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-14b';
+const APP_VERSION='v2026-10-20a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -213,6 +213,7 @@ const fromDB={
   solicitudes_liberacion:r=>({id:r.id,projectId:r.project_id||'',userId:r.user_id||'',weekStart:r.week_start,solicitanteId:r.solicitante_id||'',motivo:r.motivo||'',destinatarios:r.destinatarios||'',fecha:r.fecha||''}),
   presupuesto_proyectos:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',client:r.client||'',clientId:r.client_id||'',deptId:r.dept_id||'',responsableId:r.responsable_id||'',honorariosTotal:+(r.honorarios_total||0),pctParticipaciones:+(r.pct_participaciones||0),costoTerceros:+(r.costo_terceros||0),facturacion:(Array.isArray(r.facturacion)?r.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:r.origen||'nuevo',proyectoOrigenId:r.proyecto_origen_id||'',tipo:r.tipo||'Recurrente',notas:r.notas||''}),
   costos_hora:r=>({id:r.id,periodo:r.periodo||currentPeriodo,personId:r.person_id||'',costos:(Array.isArray(r.costos)?r.costos.map(x=>+x||0):Array(12).fill(0))}),
+  cronograma:r=>({id:r.id,projectId:r.project_id||'',parentId:r.parent_id||'',clave:r.clave||'',orden:+(r.orden||0),fase:r.fase||'',nombre:r.nombre||'',ref:r.ref||'',rol:r.rol||'',revisor:r.revisor||'',asignadoId:r.asignado_id||'',fechaPlan:r.fecha_plan||'',fechaReal:r.fecha_real||'',estado:r.estado||'pendiente',hechoPor:r.hecho_por||'',revisadoPor:r.revisado_por||'',fechaRevisado:r.fecha_revisado||'',notas:r.notas||'',hitoClave:r.hito_clave===true}),
   flujo_config:r=>({id:r.id,periodo:r.periodo||currentPeriodo,saldoInicial:+(r.saldo_inicial||0),nominaReal:(Array.isArray(r.nomina_real)&&r.nomina_real.length===12?r.nomina_real.map(x=>+x||0):Array(12).fill(0))}),
 };
 const toDB={
@@ -247,6 +248,7 @@ const toDB={
   solicitudes_liberacion:s=>({id:s.id,project_id:s.projectId||null,user_id:s.userId||null,week_start:s.weekStart,solicitante_id:s.solicitanteId||null,motivo:s.motivo||'',destinatarios:s.destinatarios||'',fecha:s.fecha||null}),
   presupuesto_proyectos:p=>({id:p.id,periodo:p.periodo||currentPeriodo,nombre:p.nombre||'',client:p.client||'',client_id:p.clientId||'',dept_id:p.deptId||'',responsable_id:p.responsableId||'',honorarios_total:p.honorariosTotal||0,pct_participaciones:p.pctParticipaciones||0,costo_terceros:p.costoTerceros||0,facturacion:(Array.isArray(p.facturacion)?p.facturacion.map(x=>+x||0):Array(12).fill(0)),origen:p.origen||'nuevo',proyecto_origen_id:p.proyectoOrigenId||'',tipo:p.tipo||'Recurrente',notas:p.notas||''}),
   costos_hora:c=>({id:c.id,periodo:c.periodo||currentPeriodo,person_id:c.personId||'',costos:(Array.isArray(c.costos)?c.costos.map(x=>+x||0):Array(12).fill(0))}),
+  cronograma:c=>({id:c.id,project_id:c.projectId||'',parent_id:c.parentId||'',clave:c.clave||'',orden:+c.orden||0,fase:c.fase||'',nombre:c.nombre||'',ref:c.ref||'',rol:c.rol||'',revisor:c.revisor||'',asignado_id:c.asignadoId||'',fecha_plan:c.fechaPlan||'',fecha_real:c.fechaReal||'',estado:c.estado||'pendiente',hecho_por:c.hechoPor||'',revisado_por:c.revisadoPor||'',fecha_revisado:c.fechaRevisado||'',notas:c.notas||'',hito_clave:c.hitoClave===true}),
   flujo_config:c=>({id:c.id,periodo:c.periodo||currentPeriodo,saldo_inicial:c.saldoInicial||0,nomina_real:(Array.isArray(c.nominaReal)&&c.nominaReal.length===12?c.nominaReal.map(x=>+x||0):Array(12).fill(0))}),
 };
 
@@ -273,7 +275,7 @@ async function loadAllData(cfg,tok){
     sbGet(cfg,tok,'external_costs'),sbGet(cfg,tok,'participations'),sbGet(cfg,tok,'expenses'),
   ]);
   // New tables loaded safely — return [] if table doesn't exist yet in Supabase
-  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan,solLib,presProy,costosHora,flujoConfig]=await Promise.all([
+  const [ppl,rIntC,rExtC,rParts,rCobros,rPagos,clients,fixedExp,laborCosts,otherLC,tSheets,evals,plan,solLib,presProy,costosHora,flujoConfig,crono]=await Promise.all([
     sbGetSafe(cfg,tok,'people',fromDB.people),
     sbGetSafe(cfg,tok,'real_internal_costs',fromDB.real_internal_costs),
     sbGetSafe(cfg,tok,'real_external_costs',fromDB.real_external_costs),
@@ -291,6 +293,7 @@ async function loadAllData(cfg,tok){
     sbGetSafe(cfg,tok,'presupuesto_proyectos',fromDB.presupuesto_proyectos),
     sbGetSafe(cfg,tok,'costos_hora',fromDB.costos_hora),
     sbGetSafe(cfg,tok,'flujo_config',fromDB.flujo_config),
+    sbGetSafe(cfg,tok,'cronograma',fromDB.cronograma),
   ]);
   const s=sets[0]||{rates:{},part_cats:[]};
   return{
@@ -327,6 +330,7 @@ async function loadAllData(cfg,tok){
     presupuestoProyectos:presProy,
     costosHora:costosHora,
     flujoConfig:flujoConfig,
+    cronograma:crono,
   };
 }
 
@@ -406,6 +410,7 @@ async function syncData(cfg,tok,old,nw){
     safe('presupuesto_proyectos',()=>syncArr('presupuesto_proyectos','presupuesto_proyectos',old.presupuestoProyectos||[],nw.presupuestoProyectos||[])),
     safe('costos_hora',()=>syncArr('costos_hora','costos_hora',old.costosHora||[],nw.costosHora||[])),
     safe('flujo_config',()=>syncArr('flujo_config','flujo_config',old.flujoConfig||[],nw.flujoConfig||[])),
+    safe('cronograma',()=>syncArr('cronograma','cronograma',old.cronograma||[],nw.cronograma||[])),
     sc?sbUpsert(cfg,tok,'settings',[{id:1,rates:nw.rates,part_cats:nw.partCats}]):Promise.resolve(),
   ]);
   if(blockedDeletes.length) errors.unshift('⚠ BORRADO MASIVO BLOQUEADO (datos protegidos, NO se perdieron): '+blockedDeletes.join(', ')+'. Recarga la página (Ctrl+Shift+R) antes de seguir editando.');
@@ -773,6 +778,7 @@ function App(){
     {id:'consolidado',l:'Consolidado',i:'📋'},
     {id:'rentabilidad',l:'Rentabilidad',i:'💹'},
     {id:'proyectos',l:'Proyectos',i:'📁'},
+    {id:'cronograma',l:'Cronograma de Encargos',i:'🗓️'},
     {id:'presupuesto',l:'Presupuesto Ingresos',i:'📈'},
     {id:'gastos-fijos',l:'Gastos Fijos',i:'🧾'},
     {id:'labor-costs',l:'Costos Laborales',i:'👷'},
@@ -783,13 +789,13 @@ function App(){
     {id:'config',l:'Configuración',i:'⚙️'},
   ];
   const navAllowed={
-    admin:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
-    administracion:['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
-    socio:        ['resumen','dashboard','proyectos','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
-    responsable:  ['proyectos','presupuesto','timesheet','planificacion'],
+    admin:        ['resumen','dashboard','proyectos','cronograma','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
+    administracion:['resumen','dashboard','proyectos','cronograma','presupuesto','flujocaja','gastos-fijos','labor-costs','config','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
+    socio:        ['resumen','dashboard','proyectos','cronograma','presupuesto','flujocaja','gastos-fijos','labor-costs','consolidado','rentabilidad','part-report','timesheet','planificacion','planvsreal'],
+    responsable:  ['proyectos','cronograma','presupuesto','timesheet','planificacion'],
     rrhh:         ['labor-costs','part-report','timesheet','planificacion','planvsreal'],
-    user:         ['dashboard','proyectos','gastos','timesheet'],
-    equipo:       ['timesheet'],
+    user:         ['dashboard','proyectos','cronograma','gastos','timesheet'],
+    equipo:       ['timesheet','cronograma'],
   };
   const allowed=navAllowed[role]||navAllowed.user;
   const navItems=ALL_NAV.filter(n=>allowed.includes(n.id));
@@ -822,6 +828,7 @@ function App(){
               onMouseEnter={e=>{if(tab!==n.id)e.currentTarget.style.background='rgba(0,186,179,0.2)';}}
               onMouseLeave={e=>{if(tab!==n.id)e.currentTarget.style.background='transparent';}}>
               <span className="flex-1">{n.i} {n.l}</span>
+              {n.id==='cronograma'&&(()=>{const c=cronoAlertCount(data,currentUser);return c>0?<span className="ml-1 bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5" title="Encargos / hitos vencidos">{c}</span>:null;})()}
               {n.id==='proyectos'&&(isAdminRole||isSocio)&&(()=>{const ps=(data.projects||[]).filter(p=>!p.enPapelera);const cCrea=isAdminRole?ps.filter(p=>p.validado===false).length:0;const cCierre=ps.filter(p=>p.cierreSolicitado===true&&!p.cerrado).length;const c=cCrea+cCierre;return c>0?<span className="bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 py-0.5 rounded-full" title={cCrea+' por validar · '+cCierre+' cierre(s) por aprobar'}>{c}</span>:null;})()}
             </button>
           ))}
@@ -891,10 +898,11 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
     return {...visibleData, projects:filtroPeriodo==='todos'?base:base.filter(p=>p.periodo===filtroPeriodo)};
   },[visibleData,filtroPeriodo]);
 
-  if(projId)return <ProjDetail projId={projId} data={visibleData} save={save} onBack={()=>setProjId(null)} getLatestData={getLatestData}/>;
+  if(projId)return <ProjDetail projId={projId} data={visibleData} save={save} onBack={()=>setProjId(null)} getLatestData={getLatestData} currentUser={currentUser}/>;
   if(tab==='resumen')return <AResumen data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='dashboard')return <ADash data={filteredData} PeriodoSelector={PeriodoSelector} selPeriodo={filtroPeriodo}/>;
   if(tab==='proyectos')return <AProjects data={visibleData} save={save} onProj={setProjId} currentUser={currentUser} getLatestData={getLatestData}/>;
+  if(tab==='cronograma')return <ACronograma data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='presupuesto')return <APresupuesto data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='flujocaja')return <AFlujoCaja data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='config')return isAdminRole?<AConfig data={data} save={save} cfg={cfg} setCfg={setCfg} session={session} currentUser={currentUser} getLatestData={getLatestData}/>:<div className="p-8 text-center text-gray-400">Sin acceso a Configuración.</div>;
@@ -907,6 +915,575 @@ function AdminArea({tab,data,save,cfg,setCfg,session,currentUser,getLatestData})
   if(tab==='planificacion')return <APlanificacion data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>;
   if(tab==='planvsreal')return (isAdminRole||isSocio||isRRHH)?<APlanVsReal data={data}/>:<div className="p-8 text-center text-gray-400">Sin acceso.</div>;
   return null;
+}
+
+/* ══════════════════════ CRONOGRAMA DE ENCARGOS ══════════════════════ */
+// Hitos por proyecto (tabla `cronograma`). Plantilla de auditoría basada en las fases del
+// Manual de Auditoría Global Focus v11. p = posición relativa entre la fecha de inicio (0) y la
+// fecha compromiso del informe final (1); post = días después de la fecha del informe.
+// rev = quién revisa/cierra el hito ('' = se completa al marcarlo hecho).
+const CRONO_AREAS_CONTROL=['Ingresos y cuentas por cobrar','Compras y cuentas por pagar','Nómina','Tesorería (caja y bancos)','Inventarios','Propiedades, planta y equipo','Cierre contable y reporte financiero','Controles generales de TI'];
+const CRONO_AREAS_SUST=['Efectivo y equivalentes','Inversiones','Cuentas por cobrar comerciales','Otras cuentas por cobrar y anticipos','Inventarios','Gastos pagados por anticipado','Propiedades, planta y equipo','Activos intangibles','Cuentas por pagar comerciales','Préstamos y obligaciones financieras','Acumulaciones y pasivos laborales','Impuestos (ISLR, IVA, diferido)','Patrimonio','Ingresos','Costo de ventas','Gastos operativos','Efectos de la inflación / reexpresión'];
+const CRONO_TPL_AUDITORIA=[
+  {k:'aceptacion',fase:'Actividades preliminares',n:'Aceptación / continuidad del cliente',ref:'A200',rol:'Responsable',rev:'socio',p:0},
+  {k:'independencia',fase:'Actividades preliminares',n:'Declaraciones de independencia del equipo',ref:'A200IND',rol:'Equipo',rev:'responsable',p:0.02},
+  {k:'carta_compromiso',fase:'Actividades preliminares',n:'Carta compromiso firmada por el cliente',ref:'A205',rol:'Responsable',rev:'socio',p:0.04},
+  {k:'entendimiento',fase:'Planificación y evaluación de riesgos',n:'Entendimiento de la entidad y del control interno',ref:'B200 / B300',rol:'Senior',rev:'responsable',p:0.12},
+  {k:'materialidad',fase:'Planificación y evaluación de riesgos',n:'Materialidad',ref:'A500',rol:'Senior',rev:'responsable',p:0.14},
+  {k:'reunion_plan',fase:'Planificación y evaluación de riesgos',n:'Reunión de planificación del equipo',ref:'A400',rol:'Responsable',rev:'',p:0.16},
+  {k:'riesgos',fase:'Planificación y evaluación de riesgos',n:'Evaluación de riesgos (RIM y fraude)',ref:'B400 / B405',rol:'Senior',rev:'responsable',p:0.18},
+  {k:'estrategia',fase:'Planificación y evaluación de riesgos',n:'Estrategia general de auditoría',ref:'A300',rol:'Responsable',rev:'socio',p:0.2},
+  {k:'rev_socio_plan',fase:'Planificación y evaluación de riesgos',n:'Revisión del socio – planificación',ref:'B460GF',rol:'Socio',rev:'',p:0.22,clave:true},
+  {k:'rce_plan',fase:'Planificación y evaluación de riesgos',n:'Revisión de calidad del encargo (RCE) – planificación',ref:'B465GF',rol:'Revisor RCE',rev:'socio',p:0.24,opc:'rce'},
+  {k:'requerimiento',fase:'Respuesta al riesgo (trabajo de campo)',n:'Requerimiento de información enviado al cliente',ref:'',rol:'Senior',rev:'responsable',p:0.22},
+  {k:'confirm_env',fase:'Respuesta al riesgo (trabajo de campo)',n:'Confirmaciones a terceros enviadas (bancos, clientes, proveedores, abogados)',ref:'NIA 505',rol:'Senior',rev:'responsable',p:0.28},
+  {k:'inventario',fase:'Respuesta al riesgo (trabajo de campo)',n:'Observación del inventario físico',ref:'NIA 501',rol:'Senior',rev:'responsable',p:0.3,opc:'inv'},
+  {k:'controles',fase:'Respuesta al riesgo (trabajo de campo)',n:'Pruebas de controles por área',ref:'C050–C090',rol:'Semi-Senior',rev:'senior',p:0.45,areas:CRONO_AREAS_CONTROL},
+  {k:'sustantivas',fase:'Respuesta al riesgo (trabajo de campo)',n:'Procedimientos sustantivos por área',ref:'C100 / C160',rol:'Semi-Senior',rev:'senior',p:0.6,areas:CRONO_AREAS_SUST},
+  {k:'confirm_rec',fase:'Respuesta al riesgo (trabajo de campo)',n:'Confirmaciones recibidas y conciliadas / procedimientos alternativos',ref:'NIA 505',rol:'Semi-Senior',rev:'senior',p:0.6},
+  {k:'otros_c',fase:'Respuesta al riesgo (trabajo de campo)',n:'Negocio en marcha, hechos posteriores y partes relacionadas',ref:'C115 / C135 / C140',rol:'Senior',rev:'responsable',p:0.62},
+  {k:'fin_campo',fase:'Respuesta al riesgo (trabajo de campo)',n:'Fin del trabajo de campo',ref:'',rol:'Senior',rev:'responsable',p:0.65,clave:true},
+  {k:'incorrecciones',fase:'Evaluar y concluir',n:'Resumen de incorrecciones (ajustes propuestos)',ref:'D100 / D200',rol:'Senior',rev:'responsable',p:0.7},
+  {k:'rev_responsable',fase:'Evaluar y concluir',n:'Revisión de papeles de trabajo del responsable',ref:'',rol:'Responsable',rev:'',p:0.75},
+  {k:'borrador',fase:'Informe',n:'Borrador de informe enviado al cliente',ref:'',rol:'Responsable',rev:'',p:0.8,clave:true},
+  {k:'carta_gerencia',fase:'Informe',n:'Carta de gerencia / comunicación con el gobierno corporativo',ref:'D500',rol:'Responsable',rev:'socio',p:0.85},
+  {k:'carta_repres',fase:'Informe',n:'Carta de representación recibida',ref:'',rol:'Responsable',rev:'',p:0.9},
+  {k:'rev_socio_fin',fase:'Informe',n:'Revisión del socio – finalización',ref:'D625GF',rol:'Socio',rev:'',p:0.93,clave:true},
+  {k:'rce_fin',fase:'Informe',n:'Revisión de calidad del encargo (RCE) – finalización',ref:'D305GF',rol:'Revisor RCE',rev:'socio',p:0.96,opc:'rce'},
+  {k:'informe_final',fase:'Informe',n:'Informe final firmado y entregado',ref:'D600 / D610',rol:'Socio',rev:'',p:1,clave:true},
+  {k:'archivo',fase:'Post-informe',n:'Archivo de auditoría compilado',ref:'NIA 230',rol:'Senior',rev:'responsable',post:60},
+];
+const CRONO_TPL_GENERICO=[
+  {k:'inicio',fase:'Inicio',n:'Reunión de inicio y requerimiento de información al cliente',ref:'',rol:'Responsable',rev:'',p:0.03},
+  {k:'info_recibida',fase:'Inicio',n:'Información del cliente recibida completa',ref:'',rol:'Senior',rev:'responsable',p:0.2},
+  {k:'ejecucion',fase:'Ejecución',n:'Ejecución del trabajo',ref:'',rol:'Senior',rev:'responsable',p:0.65},
+  {k:'fin_campo',fase:'Ejecución',n:'Fin de la ejecución',ref:'',rol:'Senior',rev:'responsable',p:0.7,clave:true},
+  {k:'borrador',fase:'Revisión',n:'Borrador / entregable enviado al cliente',ref:'',rol:'Responsable',rev:'',p:0.8,clave:true},
+  {k:'rev_socio_fin',fase:'Revisión',n:'Revisión del socio',ref:'',rol:'Socio',rev:'',p:0.9,clave:true},
+  {k:'informe_final',fase:'Entrega',n:'Entregable final entregado al cliente',ref:'',rol:'Socio',rev:'',p:1,clave:true},
+];
+const CRONO_ROLES=['Socio','Responsable','Senior','Semi-Senior','Asistente','Equipo','Revisor RCE'];
+const CRONO_REV_LBL={'':'—','senior':'Senior','responsable':'Responsable','socio':'Socio'};
+const CRONO_SEM={
+  rojo:    {l:'Vencido',     cls:'bg-red-100 text-red-700',      dot:'bg-red-500'},
+  amarillo:{l:'Por vencer',  cls:'bg-yellow-100 text-yellow-800',dot:'bg-yellow-400'},
+  verde:   {l:'En plazo',    cls:'bg-green-50 text-green-700',   dot:'bg-green-400'},
+  revision:{l:'Por revisar', cls:'bg-blue-100 text-blue-700',    dot:'bg-blue-500'},
+  ok:      {l:'Completado',  cls:'bg-green-100 text-green-700',  dot:'bg-green-600'},
+  na:      {l:'No aplica',   cls:'bg-gray-100 text-gray-400',    dot:'bg-gray-300'},
+  sinfecha:{l:'Sin fecha',   cls:'bg-gray-100 text-gray-500',    dot:'bg-gray-400'},
+  sin:     {l:'Sin cronograma',cls:'bg-gray-100 text-gray-500',  dot:'bg-gray-300'},
+};
+const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const cronoAddDays=(iso,n)=>{const d=new Date(iso+'T12:00:00');d.setDate(d.getDate()+Math.round(n));return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const cronoDiff=(a,b)=>Math.round((new Date(a+'T12:00:00')-new Date(b+'T12:00:00'))/86400000); // a - b en días
+const cronoFmt=iso=>iso?new Date(iso+'T12:00:00').toLocaleDateString('es-VE',{day:'2-digit',month:'short',year:'2-digit'}):'—';
+const cronoNorm=x=>(x||'').toLowerCase().trim().replace(/\s+/g,' ');
+// Cargo (categoría de participación) del usuario, vía su ficha en `people` (match por nombre)
+const cronoCargo=(u,data)=>{
+  if(!u)return '';
+  const pe=(data.people||[]).find(p=>cronoNorm([p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name)===cronoNorm(u.name)||cronoNorm(p.name)===cronoNorm(u.name));
+  if(!pe)return '';
+  const c=(data.partCats||[]).find(c=>c.id===pe.catId);
+  return c?c.name:'';
+};
+// Estado efectivo: un hito con áreas se deriva de sus áreas; sin revisor, "hecho" = completo
+const cronoEstado=(h,rows)=>{
+  if(h.estado==='na')return 'na';
+  const hijos=rows.filter(r=>r.parentId===h.id&&r.estado!=='na');
+  if(hijos.length){
+    const st=hijos.map(c=>cronoEstado(c,rows));
+    if(st.every(s=>s==='revisado'))return 'revisado';
+    if(st.every(s=>s==='revisado'||s==='hecho'))return 'hecho';
+    return 'pendiente';
+  }
+  if(h.estado==='hecho'&&!h.revisor)return 'revisado';
+  return h.estado||'pendiente';
+};
+const cronoSemaforo=(h,rows,hoy)=>{
+  const st=cronoEstado(h,rows);
+  if(st==='na')return 'na';
+  if(st==='revisado')return 'ok';
+  if(st==='hecho')return 'revision';
+  if(!h.fechaPlan)return 'sinfecha';
+  const d=cronoDiff(h.fechaPlan,hoy);
+  return d<0?'rojo':d<=5?'amarillo':'verde';
+};
+// Resumen de un proyecto para el panel de seguimiento
+const cronoResumen=(projId,crono,hoy)=>{
+  const hs=crono.filter(r=>r.projectId===projId);
+  if(!hs.length)return {sem:'sin',total:0,hechos:0,vencidos:[],porVencer:[],porRevisar:0,proximo:null,campoSinInforme:null};
+  const esPadre=r=>hs.some(c=>c.parentId===r.id);
+  const padreNA=r=>r.parentId&&(hs.find(x=>x.id===r.parentId)||{}).estado==='na';
+  const vivos=hs.filter(r=>!padreNA(r));
+  const items=vivos.map(h=>({h,s:cronoSemaforo(h,hs,hoy)}));
+  const hojas=vivos.filter(r=>!esPadre(r)&&cronoEstado(r,hs)!=='na');
+  const hechos=hojas.filter(r=>['hecho','revisado'].includes(cronoEstado(r,hs))).length;
+  const vencidos=items.filter(x=>x.s==='rojo').sort((a,b)=>a.h.fechaPlan.localeCompare(b.h.fechaPlan));
+  const porVencer=items.filter(x=>x.s==='amarillo');
+  const porRevisar=items.filter(x=>x.s==='revision'&&!esPadre(x.h)).length;
+  const pend=items.filter(x=>(x.s==='verde'||x.s==='amarillo')).sort((a,b)=>a.h.fechaPlan.localeCompare(b.h.fechaPlan));
+  const fc=hs.find(r=>r.clave==='fin_campo'&&!r.parentId);
+  const inf=hs.find(r=>r.clave==='informe_final'&&!r.parentId);
+  let campoSinInforme=null;
+  if(fc&&inf&&['hecho','revisado'].includes(cronoEstado(fc,hs))&&!['hecho','revisado','na'].includes(cronoEstado(inf,hs))){
+    const ref=fc.fechaReal||fc.fechaPlan;
+    campoSinInforme={dias:ref?cronoDiff(hoy,ref):null,informe:inf};
+  }
+  const todoListo=items.every(x=>x.s==='ok'||x.s==='na');
+  const sem=vencidos.length?'rojo':porVencer.length?'amarillo':todoListo?'ok':'verde';
+  return {sem,total:hojas.length,hechos,vencidos,porVencer,porRevisar,proximo:pend[0]||null,campoSinInforme};
+};
+// Proyectos del alcance del usuario para el cronograma
+const cronoEquipos=data=>{
+  const m={};
+  const add=(pid,uid_)=>{if(!pid||!uid_)return;(m[pid]=m[pid]||new Set()).add(uid_);};
+  (data.planificacion||[]).forEach(x=>add(x.projectId,x.userId));
+  (data.cronograma||[]).forEach(r=>add(r.projectId,r.asignadoId));
+  return m;
+};
+const cronoScope=(data,currentUser,incluirCerrados)=>{
+  const role=(currentUser&&currentUser.role)||'user';
+  const me=currentUser&&currentUser.id;
+  const verTodo=role==='admin'||role==='administracion'||role==='socio';
+  const eq=cronoEquipos(data);
+  return (data.projects||[]).filter(p=>!p.enPapelera&&p.validado!==false&&(incluirCerrados||!p.cerrado))
+    .filter(p=>verTodo||p.responsableId===me||(eq[p.id]&&eq[p.id].has(me)));
+};
+// Contador para el menú: encargos con hitos vencidos (gestión) o mis hitos vencidos (equipo)
+const cronoAlertCount=(data,currentUser)=>{
+  const role=(currentUser&&currentUser.role)||'user';
+  const me=currentUser&&currentUser.id;
+  const hoy=cronoHoy();
+  const crono=data.cronograma||[];
+  if(!crono.length)return 0;
+  const ps=cronoScope(data,currentUser,false);
+  if(role==='equipo'||role==='user'){
+    const ids=new Set(ps.map(p=>p.id));
+    return crono.filter(r=>ids.has(r.projectId)&&r.asignadoId===me&&cronoSemaforo(r,crono.filter(x=>x.projectId===r.projectId),hoy)==='rojo').length;
+  }
+  return ps.filter(p=>cronoResumen(p.id,crono,hoy).sem==='rojo').length;
+};
+const cronoPerms=(proj,data,currentUser)=>{
+  const role=(currentUser&&currentUser.role)||'user';
+  const me=currentUser&&currentUser.id;
+  const esSocio=role==='admin'||role==='administracion'||role==='socio';
+  const gestion=esSocio||(role==='responsable'&&proj.responsableId===me);
+  const cargo=cronoCargo(currentUser,data);
+  const esSeniorMas=/senior|supervisor|gerente|director/i.test(cargo)&&!/semi/i.test(cargo);
+  const abierto=!proj.cerrado;
+  return {
+    gestion:gestion&&abierto,
+    puedeMarcar:h=>abierto&&(gestion||(h.asignadoId&&h.asignadoId===me)),
+    puedeRevisar:h=>abierto&&(h.revisor==='socio'?esSocio:(gestion||(h.revisor==='senior'&&esSeniorMas))),
+  };
+};
+
+function CronoNota({h,onSave,disabled}){
+  const [v,setV]=useState(h.notas||'');
+  useEffect(()=>{setV(h.notas||'');},[h.id,h.notas]);
+  return <textarea value={v} disabled={disabled} onChange={e=>setV(e.target.value)} onBlur={()=>{if(v!==(h.notas||''))onSave(v);}}
+    placeholder="Notas, pendientes del cliente, observaciones…" className="w-full border rounded-lg px-2 py-1.5 text-xs" rows={2}/>;
+}
+
+function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
+  const hoy=cronoHoy();
+  const lat=()=>(getLatestData&&getLatestData())||data;
+  const all=data.cronograma||[];
+  const rows=all.filter(r=>r.projectId===proj.id);
+  const perm=cronoPerms(proj,data,currentUser);
+  const userName=(currentUser&&currentUser.name)||'';
+  const [setup,setSetup]=useState({tpl:'auditoria',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true});
+  const [areaFor,setAreaFor]=useState(null);const [areaNombre,setAreaNombre]=useState('');
+  const [hitoFase,setHitoFase]=useState(null);const [hitoNombre,setHitoNombre]=useState('');const [hitoFecha,setHitoFecha]=useState('');
+  const [notaOpen,setNotaOpen]=useState(null);
+  const [colapsados,setColapsados]=useState({});
+  const [correr,setCorrer]=useState('');
+  const saveRows=fn=>{const L=lat();save({...L,cronograma:fn(L.cronograma||[])});};
+  const upd=(id,patch)=>saveRows(a=>a.map(r=>r.id===id?{...r,...patch}:r));
+
+  const eq=cronoEquipos(data)[proj.id]||new Set();
+  if(proj.responsableId)eq.add(proj.responsableId);
+  const usuarios=(data.users||[]).filter(u=>u.role!=='rrhh').map(u=>({...u,cargo:cronoCargo(u,data),enEquipo:eq.has(u.id)}))
+    .sort((a,b)=>(b.enEquipo-a.enEquipo)||(a.name||'').localeCompare(b.name||''));
+  const userById=id=>(data.users||[]).find(u=>u.id===id);
+
+  const crear=()=>{
+    if(!setup.inicio||!setup.informe){alert('Indica la fecha de inicio y la fecha compromiso de entrega del informe.');return;}
+    const span=cronoDiff(setup.informe,setup.inicio);
+    if(span<=0){alert('La fecha del informe debe ser posterior a la fecha de inicio.');return;}
+    const tpl=setup.tpl==='auditoria'?CRONO_TPL_AUDITORIA:CRONO_TPL_GENERICO;
+    const nuevos=[];
+    tpl.forEach((t,ti)=>{
+      const fp=t.post!=null?cronoAddDays(setup.informe,t.post):cronoAddDays(setup.inicio,span*t.p);
+      const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!setup.inv);
+      const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(ti+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+        asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:na?'na':'pendiente',
+        hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave};
+      nuevos.push(h);
+      (t.areas||[]).forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a,ref:'',asignadoId:'',estado:'pendiente',hitoClave:false}));
+    });
+    saveRows(a=>[...a,...nuevos]);
+  };
+
+  const marcar=h=>{
+    if(!perm.puedeMarcar(h))return;
+    upd(h.id,{estado:'hecho',fechaReal:h.fechaReal||hoy,hechoPor:userName,revisadoPor:'',fechaRevisado:''});
+  };
+  const desmarcar=h=>{
+    if(!window.confirm('¿Volver este hito a pendiente?'))return;
+    upd(h.id,{estado:'pendiente',fechaReal:'',hechoPor:'',revisadoPor:'',fechaRevisado:''});
+  };
+  const revisar=h=>upd(h.id,{estado:'revisado',revisadoPor:userName,fechaRevisado:hoy});
+  const toggleNA=h=>upd(h.id,{estado:h.estado==='na'?'pendiente':'na'});
+  const eliminar=h=>{
+    const hijos=rows.filter(r=>r.parentId===h.id);
+    if(!window.confirm('¿Eliminar "'+h.nombre+'"'+(hijos.length?' y sus '+hijos.length+' áreas':'')+'?'))return;
+    const ids=new Set([h.id,...hijos.map(c=>c.id)]);
+    saveRows(a=>a.filter(r=>!ids.has(r.id)));
+  };
+  const renombrar=h=>{const n=window.prompt('Nombre del hito / área:',h.nombre);if(n&&n.trim()&&n.trim()!==h.nombre)upd(h.id,{nombre:n.trim()});};
+  const agregarArea=h=>{
+    const n=areaNombre.trim();if(!n)return;
+    const hijos=rows.filter(r=>r.parentId===h.id);
+    const ord=hijos.reduce((m,c)=>Math.max(m,+c.orden||0),0)+1;
+    saveRows(a=>[...a,{...h,id:uid(),parentId:h.id,clave:'',orden:ord,nombre:n,ref:'',asignadoId:'',fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}]);
+    setAreaNombre('');
+  };
+  const agregarHito=fase=>{
+    const n=hitoNombre.trim();if(!n)return;
+    const enFase=rows.filter(r=>!r.parentId&&r.fase===fase);
+    const ord=enFase.reduce((m,c)=>Math.max(m,+c.orden||0),0)+0.1;
+    saveRows(a=>[...a,{id:uid(),projectId:proj.id,parentId:'',clave:'',orden:ord,fase,nombre:n,ref:'',rol:'Senior',revisor:'responsable',asignadoId:'',fechaPlan:hitoFecha||'',fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}]);
+    setHitoNombre('');setHitoFecha('');setHitoFase(null);
+  };
+  const correrFechas=()=>{
+    const n=parseInt(correr,10);if(!n)return;
+    if(!window.confirm('¿Mover '+(n>0?n+' días hacia adelante':Math.abs(n)+' días hacia atrás')+' todas las fechas de hitos pendientes?'))return;
+    saveRows(a=>a.map(r=>r.projectId===proj.id&&r.estado==='pendiente'&&r.fechaPlan?{...r,fechaPlan:cronoAddDays(r.fechaPlan,n)}:r));
+    setCorrer('');
+  };
+
+  // ── Sin cronograma: formulario de creación ──
+  if(!rows.length){
+    if(!perm.gestion)return <div className="bg-white border rounded-xl p-6 text-center text-gray-400 text-xs">Este encargo aún no tiene cronograma. Lo crea el responsable del proyecto o un socio.</div>;
+    return(
+      <div className="bg-white border rounded-xl p-5 max-w-2xl">
+        <h3 className="font-bold text-sm mb-1">🗓️ Crear cronograma del encargo</h3>
+        <p className="text-xs text-gray-500 mb-4">Se carga la plantilla de hitos con fechas estimadas distribuidas entre el inicio y la fecha compromiso del informe. Luego puedes ajustar fechas, asignar personas, agregar áreas o hitos y marcar lo que no aplique.</p>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <label className="col-span-2">Plantilla
+            <select value={setup.tpl} onChange={e=>setSetup({...setup,tpl:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
+              <option value="auditoria">Auditoría de estados financieros (Global Focus · {CRONO_TPL_AUDITORIA.length} hitos)</option>
+              <option value="generico">Otros servicios (genérica · {CRONO_TPL_GENERICO.length} hitos)</option>
+            </select></label>
+          <label>Fecha de inicio
+            <input type="date" value={setup.inicio} onChange={e=>setSetup({...setup,inicio:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
+          <label>Fecha compromiso del informe final
+            <input type="date" value={setup.informe} onChange={e=>setSetup({...setup,informe:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
+          {setup.tpl==='auditoria'&&<>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={setup.inv} onChange={e=>setSetup({...setup,inv:e.target.checked})}/> Incluye observación de inventario físico</label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={setup.rce} onChange={e=>setSetup({...setup,rce:e.target.checked})}/> Requiere RCE (entidad de interés público)</label>
+          </>}
+        </div>
+        <button onClick={crear} className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg">Crear cronograma</button>
+      </div>
+    );
+  }
+
+  const res=cronoResumen(proj.id,all,hoy);
+  const top=rows.filter(r=>!r.parentId).sort((a,b)=>(+a.orden||0)-(+b.orden||0));
+  const fases=[];top.forEach(h=>{if(!fases.includes(h.fase))fases.push(h.fase);});
+  const pct=res.total?Math.round(res.hechos/res.total*100):0;
+
+  const fila=(h,esHijo)=>{
+    const hijos=rows.filter(r=>r.parentId===h.id).sort((a,b)=>(+a.orden||0)-(+b.orden||0));
+    const st=cronoEstado(h,rows);
+    const parentNA=esHijo&&(rows.find(x=>x.id===h.parentId)||{}).estado==='na';
+    const sem=parentNA?'na':cronoSemaforo(h,rows,hoy);
+    const S=CRONO_SEM[sem];
+    const asig=userById(h.asignadoId);
+    const dim=sem==='na';
+    const hijosVivos=hijos.filter(c=>c.estado!=='na');
+    const hijosOk=hijosVivos.filter(c=>['hecho','revisado'].includes(cronoEstado(c,rows))).length;
+    return(
+      <React.Fragment key={h.id}>
+        <tr className={'border-t '+(dim?'opacity-50 ':'')+(esHijo?'bg-gray-50':'')+(h.hitoClave&&!esHijo?' font-medium':'')}>
+          <td className="px-2 py-1.5 text-center w-10">
+            {hijos.length?(
+              <button onClick={()=>setColapsados({...colapsados,[h.id]:!colapsados[h.id]})} className="text-xs text-gray-500" title="Mostrar/ocultar áreas">{colapsados[h.id]?'▸':'▾'}</button>
+            ):st==='pendiente'?(
+              <button disabled={!perm.puedeMarcar(h)||dim} onClick={()=>marcar(h)} title={perm.puedeMarcar(h)?'Marcar como hecho':'Solo el asignado o el responsable'}
+                className={'w-5 h-5 rounded border-2 '+(perm.puedeMarcar(h)&&!dim?'border-indigo-400 hover:bg-indigo-50':'border-gray-200 cursor-not-allowed')}></button>
+            ):st==='na'?<span className="text-gray-300 text-xs">—</span>:(
+              <button disabled={!perm.puedeMarcar(h)} onClick={()=>desmarcar(h)} title="Volver a pendiente"
+                className={'w-5 h-5 rounded text-white text-xs font-bold '+(st==='revisado'?'bg-green-600':'bg-blue-500')}>✓</button>
+            )}
+          </td>
+          <td className={'px-2 py-1.5 '+(esHijo?'pl-8':'')}>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {h.hitoClave&&!esHijo&&<span title="Hito clave" className="text-yellow-500">★</span>}
+              <span className={st==='revisado'?'text-gray-500':''}>{h.nombre}</span>
+              {h.ref&&<span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded font-mono text-[10px]">{h.ref}</span>}
+              {hijos.length>0&&<span className="text-[10px] text-gray-500">({hijosOk}/{hijosVivos.length} áreas)</span>}
+              {h.notas&&<span title={h.notas} className="text-[10px]">💬</span>}
+            </div>
+            {(h.hechoPor||h.revisadoPor)&&!hijos.length&&<div className="text-[10px] text-gray-400 mt-0.5">
+              {h.hechoPor&&<>Hecho por {h.hechoPor}</>}{h.revisadoPor&&<> · Revisado por {h.revisadoPor} ({cronoFmt(h.fechaRevisado)})</>}
+            </div>}
+          </td>
+          <td className="px-2 py-1.5 text-xs">
+            <div className="text-[10px] text-gray-400">{h.rol}</div>
+            {perm.gestion&&!dim?(
+              <select value={h.asignadoId||''} onChange={e=>upd(h.id,{asignadoId:e.target.value})} className="border rounded px-1 py-0.5 text-xs max-w-[150px]">
+                <option value="">— Sin asignar —</option>
+                {usuarios.map(u=><option key={u.id} value={u.id}>{u.enEquipo?'★ ':''}{u.name}{u.cargo?' ('+u.cargo+')':''}</option>)}
+              </select>
+            ):<span>{asig?asig.name:'—'}</span>}
+          </td>
+          <td className="px-2 py-1.5 text-xs">
+            {perm.gestion&&!dim?<input type="date" value={h.fechaPlan||''} onChange={e=>upd(h.id,{fechaPlan:e.target.value})} className="border rounded px-1 py-0.5 text-xs"/>:cronoFmt(h.fechaPlan)}
+          </td>
+          <td className="px-2 py-1.5 text-xs">
+            {['hecho','revisado'].includes(h.estado)&&!hijos.length&&perm.puedeMarcar(h)
+              ?<input type="date" value={h.fechaReal||''} onChange={e=>upd(h.id,{fechaReal:e.target.value})} className="border rounded px-1 py-0.5 text-xs"/>
+              :<span className="text-gray-500">{hijos.length?'':cronoFmt(h.fechaReal)}</span>}
+          </td>
+          <td className="px-2 py-1.5 text-xs">
+            {hijos.length||!h.revisor?<span className="text-gray-300">{hijos.length?'':'—'}</span>
+             :h.estado==='hecho'?(perm.puedeRevisar(h)
+                ?<button onClick={()=>revisar(h)} className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px]">Revisar ✓</button>
+                :<span className="text-blue-600 text-[11px]">Pend. {CRONO_REV_LBL[h.revisor]}</span>)
+             :h.estado==='revisado'?<span className="text-green-700 text-[11px]">✓ {CRONO_REV_LBL[h.revisor]}</span>
+             :<span className="text-gray-400 text-[11px]">{CRONO_REV_LBL[h.revisor]}</span>}
+          </td>
+          <td className="px-2 py-1.5"><span className={'px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap '+S.cls}>{S.l}{sem==='rojo'&&h.fechaPlan?' '+cronoDiff(hoy,h.fechaPlan)+'d':''}</span></td>
+          <td className="px-2 py-1.5 text-right whitespace-nowrap">
+            <button onClick={()=>setNotaOpen(notaOpen===h.id?null:h.id)} title="Notas" className="text-xs px-1 text-gray-400 hover:text-gray-700">💬</button>
+            {perm.gestion&&<>
+              {!esHijo&&<button onClick={()=>{setAreaFor(areaFor===h.id?null:h.id);setAreaNombre('');}} title="Agregar área / sub-tarea" className="text-xs px-1 text-gray-400 hover:text-indigo-600">＋</button>}
+              <button onClick={()=>renombrar(h)} title="Renombrar" className="text-xs px-1 text-gray-400 hover:text-gray-700">✏️</button>
+              <button onClick={()=>toggleNA(h)} title={h.estado==='na'?'Vuelve a aplicar':'Marcar como No aplica'} className="text-xs px-1 text-gray-400 hover:text-gray-700">⊘</button>
+              {(esHijo||!h.clave)&&<button onClick={()=>eliminar(h)} title="Eliminar" className="text-xs px-1 text-gray-400 hover:text-red-600">🗑</button>}
+            </>}
+          </td>
+        </tr>
+        {notaOpen===h.id&&<tr className="bg-yellow-50"><td></td><td colSpan={7} className="px-2 py-2"><CronoNota h={h} disabled={!perm.puedeMarcar(h)} onSave={v=>upd(h.id,{notas:v})}/></td></tr>}
+        {areaFor===h.id&&<tr className="bg-indigo-50"><td></td><td colSpan={7} className="px-2 py-2 pl-8">
+          <div className="flex gap-2 items-center">
+            <input autoFocus value={areaNombre} onChange={e=>setAreaNombre(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')agregarArea(h);}} placeholder="Nombre del área o sub-tarea (ej. Cuentas por cobrar – confirmaciones)" className="border rounded-lg px-2 py-1 text-xs flex-1"/>
+            <button onClick={()=>agregarArea(h)} className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-lg">Agregar</button>
+            <button onClick={()=>setAreaFor(null)} className="text-xs text-gray-500">Cerrar</button>
+          </div></td></tr>}
+        {!colapsados[h.id]&&hijos.map(c=>fila(c,true))}
+      </React.Fragment>
+    );
+  };
+
+  return(
+    <div>
+      {res.campoSinInforme&&(
+        <div className="mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700 flex items-center gap-2">
+          <span className="text-base">⚠️</span>
+          <span><b>Trabajo de campo terminado{res.campoSinInforme.dias!=null?' hace '+res.campoSinInforme.dias+' días':''}</b> y el informe final sigue pendiente (compromiso: {cronoFmt(res.campoSinInforme.informe.fechaPlan)}).</span>
+        </div>
+      )}
+      <div className="bg-white border rounded-xl p-4 mb-3 flex items-center gap-6 flex-wrap">
+        <div className="flex-1 min-w-[220px]">
+          <div className="flex justify-between text-xs mb-1"><span className="font-semibold text-gray-600">Avance del encargo</span><span className="font-bold">{pct}% · {res.hechos}/{res.total}</span></div>
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width:pct+'%'}}/></div>
+        </div>
+        <div className="flex gap-2 text-xs">
+          <span className="px-2.5 py-1 rounded-lg bg-red-50 text-red-700"><b>{res.vencidos.length}</b> vencidos</span>
+          <span className="px-2.5 py-1 rounded-lg bg-yellow-50 text-yellow-800"><b>{res.porVencer.length}</b> por vencer (≤5 días)</span>
+          <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700"><b>{res.porRevisar}</b> por revisar</span>
+        </div>
+        {perm.gestion&&<div className="flex items-center gap-1 text-xs">
+          <span className="text-gray-500">Correr fechas pendientes</span>
+          <input type="number" value={correr} onChange={e=>setCorrer(e.target.value)} placeholder="± días" className="border rounded px-1.5 py-0.5 w-16 text-xs"/>
+          <button onClick={correrFechas} className="px-2 py-0.5 border rounded text-gray-600 hover:bg-gray-50">Aplicar</button>
+        </div>}
+      </div>
+      {proj.cerrado&&<div className="mb-3 text-xs text-gray-500 bg-gray-50 border rounded-lg px-3 py-2">🔒 Proyecto cerrado: cronograma en solo lectura.</div>}
+      <div className="bg-white border rounded-xl overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="bg-gray-50 text-[10px] uppercase text-gray-500 text-left">
+            <th className="px-2 py-2"></th><th className="px-2 py-2">Hito</th><th className="px-2 py-2">Ejecuta</th><th className="px-2 py-2">Fecha plan</th><th className="px-2 py-2">Fecha real</th><th className="px-2 py-2">Revisión</th><th className="px-2 py-2">Estado</th><th className="px-2 py-2"></th>
+          </tr></thead>
+          <tbody>
+            {fases.map(f=>(
+              <React.Fragment key={f}>
+                <tr className="bg-indigo-50 border-t"><td colSpan={8} className="px-3 py-1.5 text-xs font-bold text-indigo-700 uppercase tracking-wide">
+                  <div className="flex justify-between items-center">
+                    <span>{f}</span>
+                    {perm.gestion&&<button onClick={()=>{setHitoFase(hitoFase===f?null:f);setHitoNombre('');setHitoFecha('');}} className="normal-case font-medium text-indigo-600 hover:underline">＋ Agregar hito</button>}
+                  </div>
+                </td></tr>
+                {hitoFase===f&&<tr className="bg-indigo-50"><td></td><td colSpan={7} className="px-2 py-2">
+                  <div className="flex gap-2 items-center">
+                    <input autoFocus value={hitoNombre} onChange={e=>setHitoNombre(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')agregarHito(f);}} placeholder="Nombre del hito" className="border rounded-lg px-2 py-1 text-xs flex-1"/>
+                    <input type="date" value={hitoFecha} onChange={e=>setHitoFecha(e.target.value)} className="border rounded-lg px-2 py-1 text-xs"/>
+                    <button onClick={()=>agregarHito(f)} className="bg-indigo-600 text-white text-xs px-3 py-1 rounded-lg">Agregar</button>
+                  </div></td></tr>}
+                {top.filter(h=>h.fase===f).map(h=>fila(h,false))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-gray-400 mt-2">★ hito clave · Las referencias (A200, B460GF, D625GF…) son los formularios de Global Focus. ⊘ marca un hito o área como "No aplica". Los hitos con revisor quedan "Por revisar" hasta que el revisor los aprueba.</p>
+    </div>
+  );
+}
+
+function ACronograma({data,save,currentUser,getLatestData}){
+  const [sel,setSel]=useState(null);
+  const [vista,setVista]=useState('seguimiento');
+  const [soloAlertas,setSoloAlertas]=useState(false);
+  const [incCerrados,setIncCerrados]=useState(false);
+  const [busca,setBusca]=useState('');
+  const [fResp,setFResp]=useState('');
+  const hoy=cronoHoy();
+  const role=(currentUser&&currentUser.role)||'user';
+  const me=currentUser&&currentUser.id;
+  const crono=data.cronograma||[];
+  const proyectos=cronoScope(data,currentUser,incCerrados);
+  const userById=id=>(data.users||[]).find(u=>u.id===id);
+
+  const proj=sel&&(data.projects||[]).find(p=>p.id===sel);
+  if(proj)return(
+    <div className="p-6">
+      <button onClick={()=>setSel(null)} className="text-indigo-600 mb-3 block text-xs">← Volver al seguimiento</button>
+      <div className="mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="font-bold text-base">{proj.name}</h2>
+          {proj.codigo&&<span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded font-mono text-xs font-bold">{proj.codigo}</span>}
+          {proj.preCierre&&<span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-bold">Pre-cierre</span>}
+        </div>
+        <p className="text-gray-400 text-xs">{proj.client} · Responsable: {(userById(proj.responsableId)||{}).name||'—'}</p>
+      </div>
+      <CronogramaProyecto proj={proj} data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>
+    </div>
+  );
+
+  const orden={rojo:0,amarillo:1,verde:2,sin:3,ok:4};
+  let filas=proyectos.map(p=>({p,r:cronoResumen(p.id,crono,hoy)}));
+  if(fResp)filas=filas.filter(x=>x.p.responsableId===fResp);
+  if(busca.trim()){const b=cronoNorm(busca);filas=filas.filter(x=>cronoNorm(x.p.name+' '+x.p.client+' '+(x.p.codigo||'')).includes(b));}
+  if(soloAlertas)filas=filas.filter(x=>x.r.sem==='rojo'||x.r.sem==='amarillo'||x.r.campoSinInforme);
+  filas.sort((a,b)=>{
+    const ca=a.r.campoSinInforme?-1:orden[a.r.sem],cb=b.r.campoSinInforme?-1:orden[b.r.sem];
+    if(ca!==cb)return ca-cb;
+    const da=a.r.vencidos[0]?a.r.vencidos[0].h.fechaPlan:'9',db=b.r.vencidos[0]?b.r.vencidos[0].h.fechaPlan:'9';
+    return da.localeCompare(db)||(a.p.name||'').localeCompare(b.p.name||'');
+  });
+  const todos=proyectos.map(p=>cronoResumen(p.id,crono,hoy));
+  const kpi={atraso:todos.filter(r=>r.sem==='rojo').length,porVencer:todos.filter(r=>r.sem==='amarillo').length,revisar:todos.reduce((s,r)=>s+r.porRevisar,0),sin:todos.filter(r=>r.sem==='sin').length,campo:todos.filter(r=>r.campoSinInforme).length};
+  const responsables=[...new Set(proyectos.map(p=>p.responsableId).filter(Boolean))].map(id=>userById(id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+
+  // Mis tareas: hitos asignados a mí pendientes + hitos que me toca revisar
+  const ids=new Set(proyectos.map(p=>p.id));
+  const projById=id=>(data.projects||[]).find(p=>p.id===id)||{};
+  const misTareas=crono.filter(r=>ids.has(r.projectId)&&r.asignadoId===me&&r.estado==='pendiente'&&!crono.some(c=>c.parentId===r.id))
+    .filter(r=>!r.parentId||(crono.find(x=>x.id===r.parentId)||{}).estado!=='na')
+    .sort((a,b)=>(a.fechaPlan||'9').localeCompare(b.fechaPlan||'9'));
+  const porRevisarMi=crono.filter(r=>ids.has(r.projectId)&&r.estado==='hecho'&&r.revisor&&cronoPerms(projById(r.projectId),data,currentUser).puedeRevisar(r))
+    .sort((a,b)=>(a.fechaReal||'').localeCompare(b.fechaReal||''));
+  const marcarHecho=r=>{const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).map(x=>x.id===r.id?{...x,estado:'hecho',fechaReal:x.fechaReal||hoy,hechoPor:(currentUser&&currentUser.name)||''}:x)});};
+  const revisarHito=r=>{const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).map(x=>x.id===r.id?{...x,estado:'revisado',revisadoPor:(currentUser&&currentUser.name)||'',fechaRevisado:hoy}:x)});};
+  const nombreHito=r=>{const pa=r.parentId&&crono.find(x=>x.id===r.parentId);return (pa?pa.nombre+' › ':'')+r.nombre;};
+
+  return(
+    <div className="p-6">
+      <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+        <div>
+          <h2 className="font-bold text-base">🗓️ Cronograma de Encargos</h2>
+          <p className="text-gray-400 text-xs">Hitos de cada encargo con semáforo de plazos. Rojo = fecha comprometida vencida sin completar.</p>
+        </div>
+        <div className="flex gap-1">
+          {[['seguimiento','📋 Seguimiento'],['mis','✅ Mis tareas ('+(misTareas.length+porRevisarMi.length)+')']].map(([v,l])=>(
+            <button key={v} onClick={()=>setVista(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(vista===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {vista==='seguimiento'&&<>
+        <div className="grid grid-cols-5 gap-3 mb-4">
+          {[['Informe pendiente tras campo',kpi.campo,'red'],['Encargos con atraso',kpi.atraso,'red'],['Por vencer (≤5 días)',kpi.porVencer,'yellow'],['Hitos por revisar',kpi.revisar,'blue'],['Sin cronograma',kpi.sin,'gray']].map(([l,v,c])=>(
+            <div key={l} className={'bg-white border rounded-xl p-3 border-l-4 border-'+c+'-400'}>
+              <div className="text-[10px] uppercase text-gray-500 font-semibold">{l}</div>
+              <div className={'text-xl font-bold text-'+c+'-600'}>{v}</div>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 mb-3 text-xs flex-wrap">
+          <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar proyecto, cliente o código…" className="border rounded-lg px-2 py-1.5 w-64"/>
+          {responsables.length>1&&<select value={fResp} onChange={e=>setFResp(e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white">
+            <option value="">Todos los responsables</option>
+            {responsables.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>}
+          <label className="flex items-center gap-1"><input type="checkbox" checked={soloAlertas} onChange={e=>setSoloAlertas(e.target.checked)}/> Solo con alertas</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={incCerrados} onChange={e=>setIncCerrados(e.target.checked)}/> Incluir cerrados</label>
+        </div>
+        <div className="bg-white border rounded-xl overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="bg-gray-50 text-[10px] uppercase text-gray-500 text-left">
+              <th className="px-3 py-2"></th><th className="px-3 py-2">Encargo</th><th className="px-3 py-2">Responsable</th><th className="px-3 py-2 w-40">Avance</th><th className="px-3 py-2">Alerta / próximo hito</th><th className="px-3 py-2"></th>
+            </tr></thead>
+            <tbody>
+              {filas.length===0&&<tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">No hay encargos para mostrar.</td></tr>}
+              {filas.map(({p,r})=>{
+                const S=CRONO_SEM[r.sem];const pct=r.total?Math.round(r.hechos/r.total*100):0;
+                const v=r.vencidos[0];
+                return(
+                  <tr key={p.id} className="border-t hover:bg-gray-50 cursor-pointer" onClick={()=>setSel(p.id)}>
+                    <td className="px-3 py-2"><span className={'inline-block w-3 h-3 rounded-full '+S.dot} title={S.l}/></td>
+                    <td className="px-3 py-2"><div className="font-medium text-gray-800">{p.name}</div><div className="text-gray-400">{p.client}{p.codigo?' · '+p.codigo:''}{p.preCierre?' · Pre-cierre':''}{p.cerrado?' · Cerrado':''}</div></td>
+                    <td className="px-3 py-2 text-gray-600">{(userById(p.responsableId)||{}).name||'—'}</td>
+                    <td className="px-3 py-2">{r.sem==='sin'?<span className="text-gray-400">—</span>:<>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width:pct+'%'}}/></div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{pct}% · {r.hechos}/{r.total}</div></>}
+                    </td>
+                    <td className="px-3 py-2">
+                      {r.campoSinInforme&&<div className="text-red-700 font-semibold">⚠️ Campo terminado{r.campoSinInforme.dias!=null?' hace '+r.campoSinInforme.dias+' d':''} · informe pendiente</div>}
+                      {v&&<div className="text-red-600">🔴 {v.h.nombre} — vencido hace {cronoDiff(hoy,v.h.fechaPlan)} d{r.vencidos.length>1?' (+'+(r.vencidos.length-1)+' más)':''}</div>}
+                      {!v&&r.proximo&&<div className={r.proximo.s==='amarillo'?'text-yellow-800':'text-gray-600'}>{r.proximo.s==='amarillo'?'🟡':'⏭️'} {r.proximo.h.nombre} — {cronoFmt(r.proximo.h.fechaPlan)}</div>}
+                      {r.porRevisar>0&&<div className="text-blue-600">🔵 {r.porRevisar} por revisar</div>}
+                      {r.sem==='sin'&&<span className="text-gray-400">Sin cronograma</span>}
+                      {r.sem==='ok'&&<span className="text-green-700">✓ Todos los hitos completados</span>}
+                    </td>
+                    <td className="px-3 py-2 text-right"><span className="text-indigo-600 whitespace-nowrap">{r.sem==='sin'?'Crear →':'Abrir →'}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </>}
+
+      {vista==='mis'&&<div className="space-y-4">
+        {[['Hitos asignados a mí',misTareas,'hacer'],['Pendientes de mi revisión',porRevisarMi,'revisar']].map(([tit,lista,modo])=>(
+          <div key={modo} className="bg-white border rounded-xl overflow-hidden">
+            <div className="px-4 py-2 bg-gray-50 text-xs font-bold text-gray-600">{tit} ({lista.length})</div>
+            {lista.length===0?<div className="px-4 py-6 text-center text-gray-400 text-xs">Nada pendiente 🎉</div>:
+            <table className="w-full text-xs"><tbody>
+              {lista.map(r=>{const p=projById(r.projectId);const sem=modo==='hacer'?cronoSemaforo(r,crono.filter(x=>x.projectId===r.projectId),hoy):'revision';const S=CRONO_SEM[sem];return(
+                <tr key={r.id} className="border-t">
+                  <td className="px-3 py-2"><div className="font-medium">{nombreHito(r)}</div><div className="text-gray-400">{p.name} · {p.client}</div></td>
+                  <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{modo==='hacer'?'Plan: '+cronoFmt(r.fechaPlan):'Hecho por '+(r.hechoPor||'—')+' · '+cronoFmt(r.fechaReal)}</td>
+                  <td className="px-3 py-2"><span className={'px-2 py-0.5 rounded-full text-[10px] font-semibold '+S.cls}>{S.l}</span></td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {modo==='hacer'&&!p.cerrado&&<button onClick={()=>marcarHecho(r)} className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] mr-1">Marcar hecho</button>}
+                    {modo==='revisar'&&<button onClick={()=>revisarHito(r)} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[11px] mr-1">Revisar ✓</button>}
+                    <button onClick={()=>setSel(r.projectId)} className="px-2 py-1 border rounded text-[11px] text-gray-600 hover:bg-gray-50">Abrir</button>
+                  </td>
+                </tr>);})}
+            </tbody></table>}
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
 }
 
 /* ══════════════════════ PLANIFICACIÓN DE PERSONAL ══════════════════════ */
@@ -2064,6 +2641,9 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
   };
   const togglePreCierre=id=>{
     if(!puedePreCierre)return;
+    {const pr=(data.projects||[]).find(p=>p.id===id);const cr=(data.cronograma||[]).filter(r=>r.projectId===id);
+     const inf=cr.find(r=>r.clave==='informe_final'&&!r.parentId);
+     if(pr&&!pr.preCierre&&inf&&!['hecho','revisado','na'].includes(cronoEstado(inf,cr))&&!window.confirm('El cronograma indica que el informe final de este encargo aún no se ha entregado. ¿Pasar a pre-cierre de todas formas?'))return;}
     const today=new Date().toISOString().split('T')[0];
     const lat=getLatestData?getLatestData():data;
     save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,preCierre:!p.preCierre,fechaPreCierre:!p.preCierre?today:''}:p)});
@@ -6639,7 +7219,8 @@ function ARent({data,PeriodoSelector}){
 /* ══════════════════════════════ USER AREA ══════════════════════════════ */
 function UserArea({tab,data,save,user,currentUser}){
   const [projId,setProjId]=useState(null);
-  if(projId)return <ProjDetail projId={projId} data={data} save={save} onBack={()=>setProjId(null)} getLatestData={getLatestData}/>;
+  if(projId)return <ProjDetail projId={projId} data={data} save={save} onBack={()=>setProjId(null)} currentUser={currentUser||user}/>;
+  if(tab==='cronograma')return <ACronograma data={data} save={save} currentUser={currentUser||user}/>;
   if(tab==='dashboard')return <UDash data={data} user={user} onProj={setProjId}/>;
   if(tab==='proyectos')return <UProjects data={data} save={save} user={user} onProj={setProjId}/>;
   if(tab==='gastos')return <UExpenses data={data} save={save} user={user}/>;
@@ -6996,7 +7577,7 @@ function ProjHoras({projId,data,save,readOnly,getLatestData}){
   );
 }
 
-function ProjDetail({projId,data,save,onBack,getLatestData}){
+function ProjDetail({projId,data,save,onBack,getLatestData,currentUser}){
   const [tab,setTab]=useState('ingresos');
   const [mo,setMo]=useState(0);
   const proj=data.projects.find(p=>p.id===projId);
@@ -7100,6 +7681,8 @@ function ProjDetail({projId,data,save,onBack,getLatestData}){
       <div className="flex gap-2 mb-4 flex-wrap">
         <span className="text-sm font-bold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg self-center">⏱️ HORAS</span>
         <button onClick={()=>setTab('horas')} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab==='horas'?'bg-blue-600 text-white':'bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100')}>⏱️ Estimadas vs Reales</button>
+        <span className="text-sm font-bold text-purple-700 bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg self-center ml-3">🗓️ SEGUIMIENTO</span>
+        <button onClick={()=>setTab('cronograma')} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab==='cronograma'?'bg-purple-600 text-white':'bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100')}>🗓️ Cronograma</button>
       </div>
       {tab==='ingresos'&&<ProjRev projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='internos'&&<ProjInt projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
@@ -7112,6 +7695,7 @@ function ProjDetail({projId,data,save,onBack,getLatestData}){
       {tab==='real-part'&&<ProjRealPart projId={projId} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='comparativo'&&<ProjComparativo projId={projId} data={data}/>}
       {tab==='horas'&&<ProjHoras projId={projId} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
+      {tab==='cronograma'&&<CronogramaProyecto proj={proj} data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>}
     </div>
   );
 }
