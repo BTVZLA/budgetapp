@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21c';
+const APP_VERSION='v2026-10-21d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3243,6 +3243,28 @@ const CRONO_TPL_AUDITORIA=[
   {k:'informe_final',fase:'Documentos de cierre',n:'Informe de auditoría firmado y entregado',ref:'D620 / D410',rol:'Socio',rev:'',p:1,clave:true},
   {k:'archivo',fase:'Archivo',n:'Cierre de auditoría y archivo compilado',ref:'D600',rol:'Senior',rev:'responsable',post:60},
 ];
+// Encargos fuera de CaseWare: auditorías/revisiones de estados con fines específicos (NIA 800) o de un solo estado/elemento (NIA 805).
+// El hito 'procedimientos' recibe como áreas los elementos que se indiquen al crear el cronograma.
+const CRONO_TPL_NIA800=[
+  {k:'aceptacion',fase:'Planificación',n:'Aceptación del encargo y evaluación del marco de información con fines específicos',ref:'NIA 210 / 800',rol:'Responsable',rev:'socio',p:0},
+  {k:'independencia',fase:'Planificación',n:'Declaraciones de independencia del equipo',ref:'',rol:'Equipo',rev:'responsable',p:0.02},
+  {k:'carta_compromiso',fase:'Planificación',n:'Carta de encargo firmada por el cliente',ref:'NIA 210',rol:'Responsable',rev:'socio',p:0.04},
+  {k:'entendimiento',fase:'Planificación',n:'Entendimiento del propósito, los usuarios previstos y el marco aplicable',ref:'NIA 800 / 805',rol:'Senior',rev:'responsable',p:0.08},
+  {k:'materialidad',fase:'Planificación',n:'Materialidad del estado o elemento',ref:'NIA 320 / 805',rol:'Senior',rev:'responsable',p:0.1},
+  {k:'plan',fase:'Planificación',n:'Plan y programa de trabajo',ref:'NIA 300',rol:'Responsable',rev:'socio',p:0.12},
+  {k:'requerimiento',fase:'Ejecución',n:'Requerimiento de información enviado al cliente',ref:'',rol:'Senior',rev:'responsable',p:0.14},
+  {k:'info_recibida',fase:'Ejecución',n:'Información del cliente recibida completa',ref:'',rol:'Senior',rev:'responsable',p:0.25},
+  {k:'confirm_env',fase:'Ejecución',n:'Confirmaciones a terceros enviadas',ref:'NIA 505',rol:'Senior',rev:'responsable',p:0.25,opc:'conf'},
+  {k:'procedimientos',fase:'Ejecución',n:'Procedimientos sobre los elementos / cuentas',ref:'NIA 805',rol:'Semi-Senior',rev:'senior',p:0.6,areasSetup:true},
+  {k:'confirm_rec',fase:'Ejecución',n:'Confirmaciones recibidas y conciliadas / procedimientos alternativos',ref:'NIA 505',rol:'Semi-Senior',rev:'senior',p:0.6,opc:'conf'},
+  {k:'fin_campo',fase:'Ejecución',n:'Fin del trabajo de campo',ref:'',rol:'Senior',rev:'responsable',p:0.65,clave:true},
+  {k:'rev_responsable',fase:'Informe',n:'Revisión de papeles de trabajo del responsable',ref:'',rol:'Responsable',rev:'',p:0.72},
+  {k:'borrador',fase:'Informe',n:'Borrador de informe enviado al cliente (base contable y restricción de uso/distribución)',ref:'NIA 800 / 805 / 706',rol:'Responsable',rev:'',p:0.8,clave:true},
+  {k:'carta_repres',fase:'Informe',n:'Carta de representación recibida',ref:'NIA 580',rol:'Responsable',rev:'',p:0.88},
+  {k:'rev_socio_fin',fase:'Informe',n:'Revisión del socio',ref:'',rol:'Socio',rev:'',p:0.93,clave:true},
+  {k:'informe_final',fase:'Informe',n:'Informe final firmado y entregado',ref:'NIA 700 / 800 / 805',rol:'Socio',rev:'',p:1,clave:true},
+  {k:'archivo',fase:'Archivo',n:'Archivo de papeles de trabajo compilado',ref:'NIA 230',rol:'Senior',rev:'responsable',post:60},
+];
 const CRONO_TPL_GENERICO=[
   {k:'inicio',fase:'Inicio',n:'Reunión de inicio y requerimiento de información al cliente',ref:'',rol:'Responsable',rev:'',p:0.03},
   {k:'info_recibida',fase:'Inicio',n:'Información del cliente recibida completa',ref:'',rol:'Senior',rev:'responsable',p:0.2},
@@ -3252,6 +3274,7 @@ const CRONO_TPL_GENERICO=[
   {k:'rev_socio_fin',fase:'Revisión',n:'Revisión del socio',ref:'',rol:'Socio',rev:'',p:0.9,clave:true},
   {k:'informe_final',fase:'Entrega',n:'Entregable final entregado al cliente',ref:'',rol:'Socio',rev:'',p:1,clave:true},
 ];
+const CRONO_TPLS={auditoria:CRONO_TPL_AUDITORIA,nia800:CRONO_TPL_NIA800,generico:CRONO_TPL_GENERICO};
 const CRONO_ROLES=['Socio','Responsable','Senior','Semi-Senior','Asistente','Equipo','Revisor RCE'];
 const CRONO_REV_LBL={'':'—','senior':'Senior','responsable':'Responsable','socio':'Socio'};
 const CRONO_SEM={
@@ -3266,6 +3289,7 @@ const CRONO_SEM={
 };
 const CRONO_META='__caseware';
 const cronoVis=arr=>(arr||[]).filter(r=>!String(r.clave||'').startsWith('__'));
+const cronoTpl=(data,pid)=>((data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__tpl')||{}).notas||'';
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -3504,7 +3528,9 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   const [showCW,setShowCW]=useState(false);
   const perm=cronoPerms(proj,data,currentUser);
   const userName=(currentUser&&currentUser.name)||'';
-  const [setup,setSetup]=useState({tpl:'auditoria',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true});
+  const [setup,setSetup]=useState({tpl:'auditoria',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,elementos:''});
+  const tplProj=rows.length?(cronoTpl(data,proj.id)||'auditoria'):setup.tpl;
+  const usaCW=tplProj==='auditoria';
   const [areaFor,setAreaFor]=useState(null);const [areaNombre,setAreaNombre]=useState('');
   const [hitoFase,setHitoFase]=useState(null);const [hitoNombre,setHitoNombre]=useState('');const [hitoFecha,setHitoFecha]=useState('');
   const [notaOpen,setNotaOpen]=useState(null);
@@ -3523,17 +3549,19 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     if(!setup.inicio||!setup.informe){alert('Indica la fecha de inicio y la fecha compromiso de entrega del informe.');return;}
     const span=cronoDiff(setup.informe,setup.inicio);
     if(span<=0){alert('La fecha del informe debe ser posterior a la fecha de inicio.');return;}
-    const tpl=setup.tpl==='auditoria'?CRONO_TPL_AUDITORIA:CRONO_TPL_GENERICO;
+    const tpl=CRONO_TPLS[setup.tpl]||CRONO_TPL_GENERICO;
+    const elems=setup.elementos.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
     const nuevos=[];
     tpl.forEach((t,ti)=>{
       const fp=t.post!=null?cronoAddDays(setup.informe,t.post):cronoAddDays(setup.inicio,span*t.p);
-      const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!setup.inv);
+      const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!setup.inv)||(t.opc==='conf'&&!setup.conf);
       const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(ti+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:na?'na':'pendiente',
         hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave};
       nuevos.push(h);
-      (t.areas||[]).forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a.n||a,ref:a.ref||'',asignadoId:'',estado:'pendiente',hitoClave:false}));
+      (t.areas||(t.areasSetup?elems:[])).forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a.n||a,ref:a.ref||'',asignadoId:'',estado:'pendiente',hitoClave:false}));
     });
+    nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
     saveRows(a=>[...a,...nuevos]);
   };
 
@@ -3576,7 +3604,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   };
 
   const editarLink=()=>{
-    const v=window.prompt('Pega el enlace del encargo en CaseWare Cloud (déjalo vacío para quitarlo):',cwLink);
+    const v=window.prompt(usaCW?'Pega el enlace del encargo en CaseWare Cloud (déjalo vacío para quitarlo):':'Pega el enlace de la carpeta de papeles de trabajo (SharePoint, OneDrive, etc.). Déjalo vacío para quitarlo:',cwLink);
     if(v===null)return;
     const url=v.trim();
     if(url&&!/^https:\/\//i.test(url)){alert('El enlace debe empezar por https://');return;}
@@ -3607,11 +3635,11 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   };
   const linkBar=(cwLink||perm.gestion)?(
     <div className="mb-3 flex items-center gap-2 text-xs">
-      <span className="text-gray-500">🔗 CaseWare – Global Focus:</span>
-      {cwLink?<a href={cwLink} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-medium">Abrir encargo en CaseWare ↗</a>
+      <span className="text-gray-500">{usaCW?'🔗 CaseWare – Global Focus:':'📁 Papeles de trabajo (fuera de CaseWare):'}</span>
+      {cwLink?<a href={cwLink} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-medium">{usaCW?'Abrir encargo en CaseWare ↗':'Abrir carpeta ↗'}</a>
         :<span className="text-gray-400">sin enlazar</span>}
-      {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':'＋ Enlazar encargo'}</button>}
-      {perm.gestion&&rows.length>0&&<button onClick={()=>setShowCW(true)} className="ml-2 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">⬆ Actualizar desde CaseWare</button>}
+      {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':(usaCW?'＋ Enlazar encargo':'＋ Enlazar carpeta')}</button>}
+      {perm.gestion&&usaCW&&rows.length>0&&<button onClick={()=>setShowCW(true)} className="ml-2 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">⬆ Actualizar desde CaseWare</button>}
       {cwSync&&<span className="ml-2 text-gray-400" title={'Actualizado por '+(cwSync.por||'—')}>Última actualización: {cronoFmt(cwSync.fecha)} · {cwSync.prep}/{cwSync.docs} papeles preparados · {cwSync.rev} revisados</span>}
     </div>):null;
 
@@ -3626,12 +3654,18 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
           <label className="col-span-2">Plantilla
             <select value={setup.tpl} onChange={e=>setSetup({...setup,tpl:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
               <option value="auditoria">Auditoría de estados financieros (Global Focus · {CRONO_TPL_AUDITORIA.length} hitos)</option>
+              <option value="nia800">Revisión / auditoría NIA 800 / 805 – fuera de CaseWare ({CRONO_TPL_NIA800.length} hitos)</option>
               <option value="generico">Otros servicios (genérica · {CRONO_TPL_GENERICO.length} hitos)</option>
             </select></label>
           <label>Fecha de inicio
             <input type="date" value={setup.inicio} onChange={e=>setSetup({...setup,inicio:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
           <label>Fecha compromiso del informe final
             <input type="date" value={setup.informe} onChange={e=>setSetup({...setup,informe:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
+          {setup.tpl==='nia800'&&<>
+            <label className="col-span-2">Elementos, cuentas o estados a revisar <span className="text-gray-400">(uno por línea; cada uno será un área a completar)</span>
+              <textarea value={setup.elementos} onChange={e=>setSetup({...setup,elementos:e.target.value})} rows={4} placeholder={'Ej.:\nCuentas por cobrar\nIngresos\nInventarios'} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
+            <label className="flex items-center gap-2"><input type="checkbox" checked={setup.conf} onChange={e=>setSetup({...setup,conf:e.target.checked})}/> Incluye confirmaciones a terceros</label>
+          </>}
           {setup.tpl==='auditoria'&&<>
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.inv} onChange={e=>setSetup({...setup,inv:e.target.checked})}/> Incluye observación de inventario físico</label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.rce} onChange={e=>setSetup({...setup,rce:e.target.checked})}/> Requiere RCE (entidad de interés público)</label>
