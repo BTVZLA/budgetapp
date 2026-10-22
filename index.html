@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21e';
+const APP_VERSION='v2026-10-21f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -803,7 +803,7 @@ function App(){
   };
   const allowed=navAllowed[role]||navAllowed.user;
   const navItems=[...ALL_NAV.filter(n=>allowed.includes(n.id)),...(crmOn?[{id:'crm',l:'CRM Comercial',i:'🤝'}]:[])];
-  if(tab==='crm'&&crmOn)return <CRMApp cfg={cfg} tok={session.tok} onExit={()=>setTab(navItems[0]?navItems[0].id:'proyectos')}/>;
+  if(tab==='crm'&&crmOn)return <CRMApp cfg={cfg} tok={session.tok} clients={data.clients||[]} onExit={()=>setTab(navItems[0]?navItems[0].id:'proyectos')}/>;
 
   return(
     <div className="flex h-screen bg-slate-50 text-gray-800 text-sm">
@@ -1316,7 +1316,7 @@ const NAV=[
   ]},
 ];
 
-function Sidebar({view,setView,counts,pipeTotal,onOpenServicios,onOpenSectores,saveStatus,onExport,onExit}){
+function Sidebar({view,setView,counts,pipeTotal,onOpenServicios,onOpenSectores,onOpenRif,saveStatus,onExport,onExit}){
   return(
     <div style={{width:188,background:"#1e293b",borderRight:"1px solid #334155",display:"flex",flexDirection:"column",flexShrink:0,height:"100%",overflow:"hidden"}}>
       <div style={{padding:"16px 16px 12px",borderBottom:"1px solid #334155"}}>
@@ -1351,6 +1351,9 @@ function Sidebar({view,setView,counts,pipeTotal,onOpenServicios,onOpenSectores,s
         </button>
         <button onClick={onOpenSectores} style={{width:"100%",padding:"5px 0",borderRadius:7,border:"1px solid #334155",background:"none",color:"#94a3b8",fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginBottom:4}}>
           ⚙ Sectores
+        </button>
+        <button onClick={onOpenRif} style={{width:"100%",padding:"5px 0",borderRadius:7,border:"1px solid #334155",background:"none",color:"#94a3b8",fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginBottom:4}}>
+          🔗 RIF desde BudgetApp
         </button>
         <button onClick={onExport} style={{width:"100%",padding:"5px 0",borderRadius:7,border:"1px solid #334155",background:"none",color:"#94a3b8",fontSize:10,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
           ⬇ Exportar respaldo
@@ -2810,13 +2813,14 @@ function loadSectors(){
   return INIT_SECTORS;
 }
 
-function App({initial,cfg,tok,onExit}){
+function App({initial,cfg,tok,onExit,clients}){
   const [view,setView]=useState("dashboard");
   const [db,setDb]=useState(initial.db);
   const [services,setServices]=useState(initial.services);
   const [sectors,setSectors]=useState(initial.sectors);
   const [showServicios,setShowServicios]=useState(false);
   const [showSectores,setShowSectores]=useState(false);
+  const [showRif,setShowRif]=useState(false);
   const [modal,setModal]=useState(null);
   const [saveStatus,setSaveStatus]=useState("");
 
@@ -3034,7 +3038,7 @@ function App({initial,cfg,tok,onExit}){
 
   return(
     <div style={{display:"flex",height:"100vh",overflow:"hidden"}}>
-      <Sidebar view={view} setView={v=>{setView(v);}} counts={counts} pipeTotal={pipeTotal} onOpenServicios={()=>setShowServicios(true)} onOpenSectores={()=>setShowSectores(true)} saveStatus={saveStatus} onExport={()=>crmExport(db,services,sectors)} onExit={onExit} />
+      <Sidebar view={view} setView={v=>{setView(v);}} counts={counts} pipeTotal={pipeTotal} onOpenServicios={()=>setShowServicios(true)} onOpenSectores={()=>setShowSectores(true)} onOpenRif={()=>setShowRif(true)} saveStatus={saveStatus} onExport={()=>crmExport(db,services,sectors)} onExit={onExit} />
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {view==="dashboard"     &&<Dashboard db={db} onNavigate={setView} />}
         {view==="leads"         &&<Leads data={db.leads} onNew={()=>setModal({type:"lead"})} onConvert={handleConvertLead} onEdit={handleEditLead} onMoveToContact={handleMoveToContact} />}
@@ -3072,6 +3076,7 @@ function App({initial,cfg,tok,onExit}){
         </ModalWrap>;
       })()}
       {showServicios&&<ServiciosModal services={services} onSave={s=>{setServices(s);setShowServicios(false);}} onClose={()=>setShowServicios(false)} />}
+      {showRif&&<RifMatchModal accounts={db.accounts} clients={clients||[]} onClose={()=>setShowRif(false)} onApply={m=>{setDb(prev=>({...prev,accounts:prev.accounts.map(a=>m[a.id]?{...a,...m[a.id]}:a)}));setShowRif(false);}}/>}
       {showSectores&&<SectoresModal sectors={sectors} onSave={s=>{setSectors(s);setShowSectores(false);}} onClose={()=>setShowSectores(false)} />}
     </div>
   );
@@ -3125,7 +3130,65 @@ const crmParseImport=obj=>{
   return {db,services:Array.isArray(obj.services)?obj.services:INIT_SERVICES,sectors:Array.isArray(obj.sectors)?obj.sectors:INIT_SECTORS,n};
 };
 
-function CRMShell({cfg,tok,onExit}){
+// ── Completar RIF de las cuentas con los clientes de BudgetApp (match por nombre / nombre corto) ──
+const RIF_STOP=new Set(['ca','sa','c','a','s','de','del','la','el','los','las','y','compania','anonima','venezuela','srl','rl','sc','corp','inc','grupo','the','asoc','asociacion','civil']);
+const rifTok=x=>String(x||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\b([a-z])\.(?=[a-z]\b)/g,'$1').replace(/&/g,' ').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).map(t=>t.length>3&&t.endsWith('s')?t.slice(0,-1):t).filter(t=>t&&!RIF_STOP.has(t));
+const rifSeq=(a,b)=>{ // similitud de caracteres (Dice sobre bigramas)
+  const bg=x=>{const r=[];for(let i=0;i<x.length-1;i++)r.push(x.slice(i,i+2));return r;};
+  const A=bg(a),B=bg(b);if(!A.length||!B.length)return 0;
+  const m=new Map();B.forEach(g=>m.set(g,(m.get(g)||0)+1));let k=0;
+  A.forEach(g=>{const c=m.get(g);if(c){k++;m.set(g,c-1);}});return 2*k/(A.length+B.length);
+};
+const rifScore=(name,cl)=>{
+  let best=0;
+  [cl.name,cl.shortName].forEach(cn=>{
+    const ta=rifTok(name),tc=rifTok(cn);if(!ta.length||!tc.length)return;
+    const sa=new Set(ta),sc=new Set(tc);const inter=[...sa].filter(t=>sc.has(t)).length;
+    const jac=inter/new Set([...sa,...sc]).size;
+    const cont=inter?0.6*(0.9*inter/Math.min(sa.size,sc.size))+0.4*jac:0;
+    best=Math.max(best,jac,cont,rifSeq(ta.join(' '),tc.join(' ')));
+  });
+  return best;
+};
+function RifMatchModal({accounts,clients,onApply,onClose}){
+  const conRif=clients.filter(c=>(c.code||'').trim());
+  const filas=accounts.filter(a=>!(a.rif||'').trim()).map(a=>{
+    const rk=conRif.map(c=>({c,s:rifScore(a.name,c)})).sort((x,y)=>y.s-x.s);
+    const top=rk[0],sec=rk[1];
+    const claro=top&&top.s>=0.7&&(!sec||top.s-sec.s>=0.05||sec.c.code===top.c.code);
+    return {a,cands:rk.slice(0,6).filter(x=>x.s>=0.35),sel:claro?top.c.id:''};
+  });
+  const [sel,setSel]=useState(()=>Object.fromEntries(filas.map(f=>[f.a.id,f.sel])));
+  const elegidos=filas.filter(f=>sel[f.a.id]);
+  const IS2={background:"#f8fafc",border:"1px solid #cbd5e1",borderRadius:6,padding:"4px 6px",color:"#1e293b",fontSize:11,fontFamily:"inherit",maxWidth:330};
+  return(
+    <ModalWrap title="RIF desde clientes de BudgetApp" onClose={onClose} wide>
+      <div style={{color:"#475569",fontSize:12,marginBottom:12}}>Cuentas sin RIF: <b>{filas.length}</b>. Se propone el cliente de BudgetApp con nombre más parecido; en los casos dudosos queda en blanco para que elijas. Solo se completan cuentas que no tienen RIF.</div>
+      {filas.length===0?<div style={{color:"#64748b",fontSize:12,padding:20,textAlign:"center"}}>Todas las cuentas ya tienen RIF.</div>:
+      <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",color:"#1e293b"}}>
+        <thead><tr style={{color:"#64748b",fontSize:10,textTransform:"uppercase",textAlign:"left"}}><th style={{padding:"6px 4px"}}>Cuenta CRM</th><th style={{padding:"6px 4px"}}>Cliente BudgetApp</th><th style={{padding:"6px 4px"}}>RIF</th></tr></thead>
+        <tbody>{filas.map(f=>{const c=clients.find(x=>x.id===sel[f.a.id]);return(
+          <tr key={f.a.id} style={{borderTop:"1px solid #e2e8f0",background:sel[f.a.id]?"#f0fdf4":"transparent"}}>
+            <td style={{padding:"6px 4px"}}>{f.a.name}{sel[f.a.id]&&((f.cands.find(x=>x.c.id===sel[f.a.id])||{}).s||0)<0.95&&<span style={{marginLeft:6,fontSize:10,color:"#b45309",fontWeight:600}}>⚠ revisar</span>}</td>
+            <td style={{padding:"6px 4px"}}>
+              <select value={sel[f.a.id]} onChange={e=>setSel({...sel,[f.a.id]:e.target.value})} style={IS2}>
+                <option value="">— No asignar —</option>
+                {f.cands.map(x=><option key={x.c.id} value={x.c.id}>{x.c.name} ({Math.round(x.s*100)}%)</option>)}
+                <optgroup label="Todos los clientes">{conRif.slice().sort((x,y)=>x.name.localeCompare(y.name)).map(x=><option key={'t'+x.id} value={x.id}>{x.name}</option>)}</optgroup>
+              </select>
+            </td>
+            <td style={{padding:"6px 4px",fontFamily:"monospace",color:"#0f766e"}}>{c?c.code:''}</td>
+          </tr>);})}</tbody>
+      </table>}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}>
+        <Btn onClick={onClose}>Cancelar</Btn>
+        <Btn gold disabled={!elegidos.length} onClick={()=>onApply(Object.fromEntries(elegidos.map(f=>{const c=clients.find(x=>x.id===sel[f.a.id]);return [f.a.id,{rif:c.code.trim(),budgetClientId:c.id}];})))}>Completar {elegidos.length} RIF</Btn>
+      </div>
+    </ModalWrap>
+  );
+}
+
+function CRMShell({cfg,tok,onExit,clients}){
   const [st,setSt]=useState({loading:true});
   const fileRef=useRef(null);
   const cargar=async()=>{
@@ -3168,7 +3231,7 @@ function CRMShell({cfg,tok,onExit}){
     <button style={{...btn,border:"none",background:"none",color:"#64748b"}} onClick={onExit}>← Volver a BudgetApp</button>
     <input ref={fileRef} type="file" accept=".json,application/json" style={{display:"none"}} onChange={onFile}/>
   </div>);
-  return <div style={{height:"100vh",background:"#f1f5f9",fontFamily:"'DM Sans',sans-serif",color:"#dde2ec",overflow:"hidden"}}><App initial={st.init} cfg={cfg} tok={tok} onExit={onExit}/></div>;
+  return <div style={{height:"100vh",background:"#f1f5f9",fontFamily:"'DM Sans',sans-serif",color:"#dde2ec",overflow:"hidden"}}><App initial={st.init} cfg={cfg} tok={tok} onExit={onExit} clients={clients||[]}/></div>;
 }
 return CRMShell;
 })();
