@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-03a';
+const APP_VERSION='v2026-11-03b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4760,8 +4760,6 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
           <input type="number" value={editForm.honorariosTotal||''} onChange={e=>setEditForm(f=>({...f,honorariosTotal:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="text-gray-500 text-xs mb-1 block">Honorarios OS</label>
           <input type="number" value={editForm.honorariosOS||''} onChange={e=>setEditForm(f=>({...f,honorariosOS:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
-        <div><label className="text-gray-500 text-xs mb-1 block">Otros costos en cobranza</label>
-          <input type="number" value={editForm.otrosCobranza||''} onChange={e=>setEditForm(f=>({...f,otrosCobranza:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="text-gray-500 text-xs mb-1 block">Estatus</label>
           <select value={editForm.status||'Por Enviar'} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm">
             {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
@@ -5537,7 +5535,6 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
             </div>
             <div><label className="text-gray-400 text-xs mb-1 block">Honorarios Propuestos (USD)</label><input type="number" value={form.honorariosTotal} onChange={e=>setForm({...form,honorariosTotal:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="text-gray-400 text-xs mb-1 block">Honorarios OS (USD)</label><input type="number" value={form.honorariosOS} onChange={e=>setForm({...form,honorariosOS:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
-            <div><label className="text-gray-400 text-xs mb-1 block">Otros costos en cobranza (USD)</label><input type="number" value={form.otrosCobranza} onChange={e=>setForm({...form,otrosCobranza:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="text-gray-400 text-xs mb-1 block">Estatus</label>
               <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
                 {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
@@ -10427,7 +10424,7 @@ function ProjDetail({projId,data,save,onBack,getLatestData,currentUser}){
       )}
       <div className="flex gap-2 mb-2 flex-wrap">
         <span className="text-sm font-bold text-indigo-700 bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-lg self-center">📋 PRESUPUESTO</span>
-        {[['ingresos','💰 Ingresos y Cobro'],['internos','👥 Prof. Internos'],['externos','🤝 Prof. Externos'],['participaciones','🏆 Participaciones'],['gastos','💸 Gastos Depto.']].map(([v,l])=>(
+        {[['ingresos','💰 Ingresos y Cobro'],['internos','👥 Prof. Internos'],['externos','🤝 Prof. Externos'],['otroscob','💸 Otros Cobranza'],['participaciones','🏆 Participaciones'],['gastos','💸 Gastos Depto.']].map(([v,l])=>(
           <button key={v} onClick={()=>setTab(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(tab===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
         ))}
       </div>
@@ -10446,6 +10443,7 @@ function ProjDetail({projId,data,save,onBack,getLatestData,currentUser}){
       {tab==='ingresos'&&<ProjRev projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='internos'&&<ProjInt projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='externos'&&<ProjExt projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
+      {tab==='otroscob'&&<ProjOtrosCobranza projId={projId} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='participaciones'&&<ProjPart projId={projId} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
       {tab==='gastos'&&<ProjExpenses projId={projId} deptId={proj.deptId} mo={mo} data={data} save={save} readOnly={readOnly}/>}
       {tab==='real-int'&&<ProjRealInt projId={projId} mo={mo} data={data} save={save} readOnly={readOnly} getLatestData={getLatestData}/>}
@@ -10668,6 +10666,31 @@ function ProjExt({projId,mo,data,save,readOnly,getLatestData}){
           <tfoot className="border-t bg-gray-50 font-bold text-xs"><tr><td colSpan={3} className="px-3 py-2">Total</td><td className="px-3 py-2 text-right text-red-500">{$n(tot)}</td><td></td></tr></tfoot>
         </table>
       ):<p className="text-gray-400 text-xs text-center py-4">Sin externos en {MO[mo]}.</p>}
+    </div>
+  );
+}
+
+/* ── OTROS COSTOS EN COBRANZA (estimado del proyecto) ── */
+function ProjOtrosCobranza({projId,data,save,readOnly,getLatestData}){
+  const proj=(data.projects||[]).find(p=>p.id===projId)||{};
+  const [val,setVal]=useState(String(proj.otrosCobranza||''));
+  useEffect(()=>{setVal(String(proj.otrosCobranza||''));},[projId]);
+  const real=getTotOtrosCostosCobranza(projId,data);
+  if(readOnly)return(<div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-400 text-xs">🔒 Proyecto cerrado — solo lectura. Reábrelo para editar.</div>);
+  const guardar=()=>{const lat=getLatestData?getLatestData():data;save({...lat,projects:(lat.projects||[]).map(p=>p.id===projId?{...p,otrosCobranza:parseFloat(val)||0}:p)});};
+  return(
+    <div className="bg-white rounded-xl border p-5 max-w-xl space-y-3">
+      <div className="font-semibold text-sm">💸 Otros Costos en Cobranza <span className="text-gray-400 font-normal">— estimado (presupuesto)</span></div>
+      <p className="text-xs text-gray-400">Monto estimado de otros costos asociados a la cobranza (comisiones bancarias, gestión de cobro, etc.). Se lleva como costo en el presupuesto y suma en el Resumen. El real se registra por factura en la pestaña <b>💰 Cobros Reales</b>.</p>
+      <div className="flex items-end gap-3">
+        <div><label className="text-gray-400 text-xs mb-1 block">Estimado (USD)</label>
+          <input type="number" value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>e.key==='Enter'&&guardar()} placeholder="0" className="w-40 border rounded-lg px-3 py-2 text-sm"/></div>
+        <SaveBtn onClick={guardar} label="💾 Guardar"/>
+      </div>
+      <div className="flex gap-6 text-xs pt-2 border-t">
+        <span className="text-gray-500">Estimado: <b className="text-pink-600">{$n(parseFloat(val)||0)}</b></span>
+        <span className="text-gray-500">Real (facturas): <b className="text-pink-600">{$n(real)}</b></span>
+      </div>
     </div>
   );
 }
