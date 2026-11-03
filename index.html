@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-10-21i';
+const APP_VERSION='v2026-11-03a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -214,7 +214,7 @@ const parseSupabaseError=r=>{
 const fromDB={
   departments:r=>({id:r.id,name:r.name}),
   app_users:r=>({id:r.id,name:r.name,initials:r.initials||autoInitials(r.name),deptId:r.dept_id,role:r.role,authId:r.auth_id}),
-  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||'',preCierre:r.pre_cierre===true,fechaPreCierre:r.fecha_pre_cierre||'',cierreSolicitado:r.cierre_solicitado===true,cierreSolicitadoPor:r.cierre_solicitado_por||'',fechaSolicitudCierre:r.fecha_solicitud_cierre||'',fechaAprobacion:r.fecha_aprobacion||'',fechaInicio:r.fecha_inicio||''}),
+  projects:r=>({id:r.id,name:r.name,client:r.client,clientId:r.client_id||'',deptId:r.dept_id,status:r.status||'Por Enviar',tipo:r.tipo||'Recurrente',honorariosTotal:+(r.honorarios_total||0),honorariosOS:+(r.honorarios_os||0),recurrente:r.recurrente!==false,cerrado:r.cerrado===true,fechaCierre:r.fecha_cierre||'',periodo:r.periodo||currentPeriodo,enPapelera:r.en_papelera===true,fechaPapelera:r.fecha_papelera||'',codigo:r.codigo||'',clientId:r.client_id||'',responsableId:r.responsable_id||'',horasEst:(Array.isArray(r.horas_est)?r.horas_est:[]),validado:r.validado!==false,creadoPor:r.creado_por||'',fechaCreacion:r.fecha_creacion||'',preCierre:r.pre_cierre===true,fechaPreCierre:r.fecha_pre_cierre||'',cierreSolicitado:r.cierre_solicitado===true,cierreSolicitadoPor:r.cierre_solicitado_por||'',fechaSolicitudCierre:r.fecha_solicitud_cierre||'',fechaAprobacion:r.fecha_aprobacion||'',fechaInicio:r.fecha_inicio||'',otrosCobranza:+(r.otros_cobranza||0)}),
   revenues:r=>({id:r.id,projectId:r.project_id,month:r.month,est:+r.est,act:+r.act,cobro:+(r.cobro||0)}),
   internal_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,level:r.level,hours:+r.hours}),
   external_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,name:r.name,type:r.type,rate:+r.rate,hours:+r.hours,amount:+r.amount}),
@@ -249,7 +249,7 @@ const fromDB={
 const toDB={
   departments:d=>({id:d.id,name:d.name}),
   app_users:u=>({id:u.id,name:u.name,initials:u.initials||autoInitials(u.name),dept_id:u.deptId,role:u.role,auth_id:u.authId||null}),
-  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||'',pre_cierre:p.preCierre===true,fecha_pre_cierre:p.fechaPreCierre||null,cierre_solicitado:p.cierreSolicitado===true,cierre_solicitado_por:p.cierreSolicitadoPor||'',fecha_solicitud_cierre:p.fechaSolicitudCierre||null,fecha_aprobacion:p.fechaAprobacion||null,fecha_inicio:p.fechaInicio||null}),
+  projects:p=>({id:p.id,name:p.name,client:p.client,client_id:p.clientId||'',dept_id:p.deptId,status:p.status||'Por Enviar',tipo:p.tipo||'Recurrente',honorarios_total:p.honorariosTotal||0,honorarios_os:p.honorariosOS||0,recurrente:p.recurrente!==false,cerrado:p.cerrado===true,fecha_cierre:p.fechaCierre||null,periodo:p.periodo||currentPeriodo,en_papelera:p.enPapelera===true,fecha_papelera:p.fechaPapelera||null,codigo:p.codigo||'',responsable_id:p.responsableId||'',horas_est:p.horasEst||[],validado:p.validado!==false,creado_por:p.creadoPor||'',fecha_creacion:p.fechaCreacion||'',pre_cierre:p.preCierre===true,fecha_pre_cierre:p.fechaPreCierre||null,cierre_solicitado:p.cierreSolicitado===true,cierre_solicitado_por:p.cierreSolicitadoPor||'',fecha_solicitud_cierre:p.fechaSolicitudCierre||null,fecha_aprobacion:p.fechaAprobacion||null,fecha_inicio:p.fechaInicio||null,otros_cobranza:p.otrosCobranza||0}),
   revenues:r=>({id:r.id,project_id:r.projectId,month:r.month,est:r.est,act:r.act,cobro:r.cobro||0}),
   internal_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,level:c.level,hours:c.hours}),
   external_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,name:c.name,type:c.type,rate:c.rate,hours:c.hours,amount:c.amount}),
@@ -455,7 +455,7 @@ const getTotRev=(pid,d,t)=>MO.reduce((s,_,m)=>s+getRev(pid,m,d,t||'est'),0);
 const getIntCost=(pid,m,d)=>d.internalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+c.hours*(d.rates[c.level]||0),0);
 const getExtCost=(pid,m,d)=>d.externalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+(c.type==='fixed'?c.amount:c.rate*c.hours),0);
 const getPartCost=(pid,d,t)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};const rev=Math.max(0,getTotRev(pid,d,t||'est')-(+proj.honorariosOS||0));return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*rev,0);};
-const getTotDir=(pid,d)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};return MO.reduce((s,_,m)=>s+getIntCost(pid,m,d)+getExtCost(pid,m,d),0)+getPartCostEst(pid,d)+(+proj.honorariosOS||0);};
+const getTotDir=(pid,d)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};return MO.reduce((s,_,m)=>s+getIntCost(pid,m,d)+getExtCost(pid,m,d),0)+getPartCostEst(pid,d)+(+proj.honorariosOS||0)+(+proj.otrosCobranza||0);};
 const getMargin=(pid,d)=>{const r=getTotRev(pid,d),c=getTotDir(pid,d);return r>0?(r-c)/r*100:0;};
 const getDeptRev=(did,m,d,t)=>d.projects.filter(p=>p.deptId===did&&!p.enPapelera).reduce((s,p)=>{
   const rv=getRev(p.id,m,d,t||'est');
@@ -545,10 +545,11 @@ const getPL=(pid,d)=>{
   const intC=MO.reduce((s,_,m)=>s+getIntCost(pid,m,d),0);
   const extC=MO.reduce((s,_,m)=>s+getExtCost(pid,m,d),0);
   const tercE=+proj.honorariosOS||0;           // Costo de terceros estimado (Honorarios OS/Terceros)
+  const otrosCCE=+proj.otrosCobranza||0;       // Otros costos en cobranza estimado (costo)
   const partE=getPartCostEst(pid,d);           // Presupuesto: pct% × ingreso estimado
   const partA=getTotRealPartCausadas(pid,d);   // Real: pct% × cobros reales
-  const totC=intC+extC+tercE+partE,res=revE-totC,mg=revE>0?(res/revE)*100:0;
-  return{revE,revA,intC,extC,tercE,partE,partA,totC,res,mg};
+  const totC=intC+extC+tercE+otrosCCE+partE,res=revE-totC,mg=revE>0?(res/revE)*100:0;
+  return{revE,revA,intC,extC,tercE,otrosCCE,partE,partA,totC,res,mg};
 };
 
 function StatusBadge({status}){
@@ -4759,6 +4760,8 @@ function ProjEditForm({editForm,setEditForm,saveEdit,cancelEdit,data}){
           <input type="number" value={editForm.honorariosTotal||''} onChange={e=>setEditForm(f=>({...f,honorariosTotal:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="text-gray-500 text-xs mb-1 block">Honorarios OS</label>
           <input type="number" value={editForm.honorariosOS||''} onChange={e=>setEditForm(f=>({...f,honorariosOS:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+        <div><label className="text-gray-500 text-xs mb-1 block">Otros costos en cobranza</label>
+          <input type="number" value={editForm.otrosCobranza||''} onChange={e=>setEditForm(f=>({...f,otrosCobranza:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         <div><label className="text-gray-500 text-xs mb-1 block">Estatus</label>
           <select value={editForm.status||'Por Enviar'} onChange={e=>setEditForm(f=>({...f,status:e.target.value}))} className="w-full border rounded-lg px-3 py-2 text-sm">
             {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
@@ -5273,7 +5276,7 @@ function APresupuesto({data,save,currentUser,getLatestData}){
 }
 
 function AProjects({data,save,onProj,currentUser,getLatestData}){
-  const emptyForm={name:'',client:'',clientId:'',deptId:(data.departments[0]||{}).id||'',status:'Por Enviar',tipo:'Recurrente',periodo:currentPeriodo,honorariosTotal:'',honorariosOS:'',serviceCode:'AE',codigo:'',responsableId:'',horasEst:{},fechaAprobacion:'',fechaInicio:''};
+  const emptyForm={name:'',client:'',clientId:'',deptId:(data.departments[0]||{}).id||'',status:'Por Enviar',tipo:'Recurrente',periodo:currentPeriodo,honorariosTotal:'',honorariosOS:'',otrosCobranza:'',serviceCode:'AE',codigo:'',responsableId:'',horasEst:{},fechaAprobacion:'',fechaInicio:''};
   const catsProp=(data.partCats&&data.partCats.length?data.partCats:DEFAULT_PART_CATS);
   const [vistaTab,setVistaTab]=useState('activos');
   const [selDept,setSelDept]=useState('todos');
@@ -5306,7 +5309,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     const horasEst=Object.entries(form.horasEst||{}).map(([catId,v])=>({catId,horas:parseFloat(v)||0})).filter(e=>e.horas>0);
     const autoValida=isAdmin; // admin/administración publican directo; socio/responsable quedan "por validar"
     const today=new Date().toISOString().split('T')[0];
-    const np={id:uid(),name:form.name.trim(),client:form.client.trim(),clientId:form.clientId||'',deptId:form.deptId,status:form.status,tipo:form.tipo,periodo:form.periodo||currentPeriodo,honorariosTotal:parseFloat(form.honorariosTotal)||0,honorariosOS:parseFloat(form.honorariosOS)||0,recurrente:form.tipo==='Recurrente',cerrado:false,fechaCierre:'',enPapelera:false,fechaPapelera:'',codigo:codigoFinal,responsableId:form.responsableId||'',horasEst,validado:autoValida,creadoPor:(currentUser&&currentUser.id)||'',fechaCreacion:today,fechaAprobacion:form.fechaAprobacion||'',fechaInicio:form.fechaInicio||''};
+    const np={id:uid(),name:form.name.trim(),client:form.client.trim(),clientId:form.clientId||'',deptId:form.deptId,status:form.status,tipo:form.tipo,periodo:form.periodo||currentPeriodo,honorariosTotal:parseFloat(form.honorariosTotal)||0,honorariosOS:parseFloat(form.honorariosOS)||0,otrosCobranza:parseFloat(form.otrosCobranza)||0,recurrente:form.tipo==='Recurrente',cerrado:false,fechaCierre:'',enPapelera:false,fechaPapelera:'',codigo:codigoFinal,responsableId:form.responsableId||'',horasEst,validado:autoValida,creadoPor:(currentUser&&currentUser.id)||'',fechaCreacion:today,fechaAprobacion:form.fechaAprobacion||'',fechaInicio:form.fechaInicio||''};
     save({...(getLatestData?getLatestData():data),projects:[...(getLatestData?getLatestData():data).projects,np]});
     setForm(emptyForm);setShow(false);
     if(!autoValida){setVistaTab('porvalidar');notificarValidacion(np);}
@@ -5344,7 +5347,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     setEditId(p.id);
     setEditForm({name:p.name,client:p.client,clientId:p.clientId||'',deptId:p.deptId,
       status:p.status,tipo:p.tipo||'Recurrente',periodo:p.periodo||currentPeriodo,
-      honorariosTotal:String(p.honorariosTotal||''),honorariosOS:String(p.honorariosOS||''),
+      honorariosTotal:String(p.honorariosTotal||''),honorariosOS:String(p.honorariosOS||''),otrosCobranza:String(p.otrosCobranza||''),
       codigo:p.codigo||'',responsableId:p.responsableId||'',
       fechaAprobacion:p.fechaAprobacion||'',fechaInicio:p.fechaInicio||''});
   };
@@ -5357,6 +5360,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
       periodo:editForm.periodo||currentPeriodo,
       honorariosTotal:parseFloat(editForm.honorariosTotal)||0,
       honorariosOS:parseFloat(editForm.honorariosOS)||0,
+      otrosCobranza:parseFloat(editForm.otrosCobranza)||0,
       recurrente:editForm.tipo==='Recurrente',
       codigo:editForm.codigo||p.codigo||'',
       responsableId:editForm.responsableId||'',
@@ -5533,6 +5537,7 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
             </div>
             <div><label className="text-gray-400 text-xs mb-1 block">Honorarios Propuestos (USD)</label><input type="number" value={form.honorariosTotal} onChange={e=>setForm({...form,honorariosTotal:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="text-gray-400 text-xs mb-1 block">Honorarios OS (USD)</label><input type="number" value={form.honorariosOS} onChange={e=>setForm({...form,honorariosOS:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+            <div><label className="text-gray-400 text-xs mb-1 block">Otros costos en cobranza (USD)</label><input type="number" value={form.otrosCobranza} onChange={e=>setForm({...form,otrosCobranza:e.target.value})} placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
             <div><label className="text-gray-400 text-xs mb-1 block">Estatus</label>
               <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
                 {STATUS_OPTS.map(s=><option key={s} value={s}>{s}</option>)}
@@ -5831,8 +5836,9 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
   const tEC=data.projects.reduce((s,p)=>s+MO.reduce((ss,_,m)=>ss+getExtCost(p.id,m,data),0),0);
   const tPC=data.projects.reduce((s,p)=>s+getPartCostEst(p.id,data),0);
   const tTercE=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+(+p.honorariosOS||0),0); // Costo de terceros estimado (Honorarios OS)
+  const tOtrosCCE=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+(+p.otrosCobranza||0),0); // Otros costos en cobranza estimado
   const tPA=data.projects.filter(p=>!p.enPapelera).reduce((s,p)=>s+getTotRealPartCausadas(p.id,data),0);
-  const tDC=tIC+tEC+tTercE+tPC;
+  const tDC=tIC+tEC+tTercE+tOtrosCCE+tPC;
   const tEE=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'est'),0);
   const tEA=data.departments.reduce((s,d)=>s+getTotDeptExp(d.id,data,'act'),0);
   // Gastos Fijos del período actual
@@ -5893,7 +5899,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
     {l:'  Costos Internos',e:-tIC,a:-tIC_r,bold:false,color:'text-orange-600'},
     {l:'  Costos Externos',e:-tEC,a:-tEC_r,bold:false,color:'text-red-500'},
     {l:'  Pagos a Terceros',e:-tTercE,a:-tTerc_r,bold:false,color:'text-red-400'},
-    {l:'  Otros Costos en Cobranza',e:0,a:-tOtrosCC_r,bold:false,color:'text-pink-600'},
+    {l:'  Otros Costos en Cobranza',e:-tOtrosCCE,a:-tOtrosCC_r,bold:false,color:'text-pink-600'},
     {l:'  Participaciones',e:-tPC,a:-tPA,bold:false,color:'text-teal-600'},
     {l:'Total Costos Directos',e:-tDC,a:-tDC_r,bold:true,color:'text-orange-700',sep:true},
     {l:'Margen Bruto',e:bE,a:tRA-tDC_r,bold:true,color:bE>=0?'text-blue-700':'text-red-600',sep:true},
@@ -11699,7 +11705,7 @@ function ProjComparativo({projId,data}){
     {l:'Costos Internos',e:pl.intC,r:rl.intC,invertDiff:true,bold:false,color:'text-orange-600'},
     {l:'Costos Externos',e:pl.extC,r:rl.extC,invertDiff:true,bold:false,color:'text-red-500'},
     {l:'Costo de Terceros',e:pl.tercE||0,r:rl.tercC||0,invertDiff:true,bold:false,color:'text-red-400'},
-    {l:'Otros Costos en Cobranza',e:0,r:rl.otrosCC||0,invertDiff:true,bold:false,color:'text-pink-600'},
+    {l:'Otros Costos en Cobranza',e:pl.otrosCCE||0,r:rl.otrosCC||0,invertDiff:true,bold:false,color:'text-pink-600'},
     {l:'Participaciones',e:pl.partE,r:rl.partC,invertDiff:true,bold:false,color:'text-teal-600'},
     {l:'Total Costos',e:pl.totC,r:rl.totC,invertDiff:true,bold:true,color:'text-orange-700',sep:true},
     {l:'Resultado / Margen',e:pl.res,r:rl.res,invertDiff:false,bold:true,color:pl.res>=0?'text-blue-700':'text-red-600',sep:true},
