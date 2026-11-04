@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-03b';
+const APP_VERSION='v2026-11-04a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3444,6 +3444,73 @@ const CRONO_AREAS_SUST=[
   {n:'Otros gastos',ref:'1800.101'},
   {n:'Impuesto sobre la renta',ref:'1900.101'},
 ];
+// Áreas sustantivas — SEGUROS (plan de cuentas de la SUDEASEG, visto en Hispana de Seguros)
+const CRONO_AREAS_SUST_SEGUROS=[
+  {n:'Bienes aptos para la representación de las reservas técnicas',ref:'201'},
+  {n:'Garantía a la Nación',ref:'202'},
+  {n:'Bienes no aptos para la representación de las reservas técnicas',ref:'203'},
+  {n:'Cuentas de reaseguro',ref:'204'},
+  {n:'Reservas a cargo de reaseguradores y retrocesionarios',ref:'205'},
+  {n:'Activos depreciables y amortizables',ref:'206'},
+  {n:'Cuentas diversas (activo)',ref:'207'},
+  {n:'Cargos diferidos',ref:'208'},
+  {n:'Otros activos',ref:'209'},
+  {n:'Cuentas de orden (activo)',ref:'212'},
+  {n:'Reservas técnicas',ref:'401'},
+  {n:'Obligaciones a pagar',ref:'402'},
+  {n:'Cuentas diversas (pasivo)',ref:'403'},
+  {n:'Cuentas de reaseguros',ref:'404'},
+  {n:'Pasivos transitorios',ref:'406'},
+  {n:'Reserva de previsión',ref:'407'},
+  {n:'Reservas de depreciación y amortización',ref:'408'},
+  {n:'Capital',ref:'409'},
+  {n:'Superávit no realizado',ref:'410'},
+  {n:'Cuentas de orden (pasivo)',ref:'412'},
+  {n:'Gestión general de la empresa (egreso)',ref:'381'},
+  {n:'Operaciones de seguros de personas (ingresos)',ref:'501'},
+  {n:'Operaciones de seguros generales (ingresos)',ref:'521'},
+  {n:'Gestión general de la empresa (ingresos)',ref:'581'},
+];
+// Áreas sustantivas — BANCOS (plan de cuentas SUDEBAN, visto en Banco Digital de los Trabajadores)
+const CRONO_AREAS_SUST_BANCOS=[
+  {n:'Disponibilidades',ref:'110'},
+  {n:'Inversiones en títulos valores',ref:'120'},
+  {n:'Cartera de créditos',ref:'130'},
+  {n:'Inversiones en empresas filiales, afiliadas y sucursales',ref:'150'},
+  {n:'Bienes realizables',ref:'160'},
+  {n:'Bienes de uso',ref:'170'},
+  {n:'Otros activos',ref:'180'},
+  {n:'Captaciones al público',ref:'210'},
+  {n:'Otros financiamientos obtenidos',ref:'240'},
+  {n:'Acumulaciones y otros pasivos',ref:'270'},
+  {n:'Patrimonio',ref:'300'},
+  {n:'Gastos generales y administrativos',ref:'440'},
+  {n:'Gastos extraordinarios',ref:'450'},
+  {n:'Cuentas contingentes',ref:'600'},
+  {n:'Cuentas de orden',ref:'800'},
+  {n:'Fideicomisos y encargos de confianza',ref:'700'},
+];
+// Pruebas de controles por ciclo — BANCOS (del encargo BDT: C050/C055/C080/C085/C090)
+const CRONO_AREAS_CONTROL_BANCOS=[
+  {n:'Ingresos, cuentas por cobrar, entradas',ref:'C050'},
+  {n:'Compras, cuentas por pagar, pagos',ref:'C055'},
+  {n:'Tesorería',ref:'C080'},
+  {n:'Activos fijos',ref:'C085'},
+  {n:'Controles a nivel de entidad',ref:'C090'},
+];
+// Hitos propios de banca (no están en la plantilla NIIF estándar)
+const CRONO_HITOS_BANCOS=[
+  {k:'uair',fase:'Respuesta al riesgo',n:'Revisión de la Unidad de Administración Integral de Riesgos (UAIR)',ref:'',rol:'Senior',rev:'responsable',p:0.5},
+  {k:'aml',fase:'Respuesta al riesgo',n:'Cumplimiento de prevención LC/FT/FPADM (AML) y deberes formales',ref:'',rol:'Senior',rev:'responsable',p:0.5},
+];
+// Sectores de auditoría externa: cada uno define sus áreas sustantivas/controles, si aplica inventario, e hitos extra.
+const CRONO_SECTORES={
+  niif_inv:   {l:'NIIF con inventario', sust:CRONO_AREAS_SUST, ctrl:CRONO_AREAS_CONTROL, inv:true,  hitos:null},
+  niif_sininv:{l:'NIIF sin inventario', sust:CRONO_AREAS_SUST.filter(a=>a.ref!=='110.101'), ctrl:CRONO_AREAS_CONTROL.filter(a=>a.ref!=='C075'), inv:false, hitos:null},
+  seguros:    {l:'Seguros', sust:CRONO_AREAS_SUST_SEGUROS, ctrl:null, inv:false, hitos:null},
+  bancos:     {l:'Bancos',  sust:CRONO_AREAS_SUST_BANCOS,  ctrl:CRONO_AREAS_CONTROL_BANCOS, inv:false, hitos:CRONO_HITOS_BANCOS},
+};
+const CRONO_SECTOR_ORDEN=['niif_inv','niif_sininv','seguros','bancos'];
 const CRONO_TPL_AUDITORIA=[
   {k:'aceptacion',fase:'Planificación',n:'Actividades preliminares / aceptación y continuidad del cliente',ref:'A200',rol:'Responsable',rev:'socio',p:0},
   {k:'independencia',fase:'Planificación',n:'Declaraciones de independencia – planificación',ref:'A200IND',rol:'Equipo',rev:'responsable',p:0.02},
@@ -3767,7 +3834,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   const [showCW,setShowCW]=useState(false);
   const perm=cronoPerms(proj,data,currentUser);
   const userName=(currentUser&&currentUser.name)||'';
-  const [setup,setSetup]=useState({tpl:'auditoria',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,elementos:''});
+  const [setup,setSetup]=useState({tpl:'auditoria',sector:'niif_inv',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,elementos:''});
   const tplProj=rows.length?(cronoTpl(data,proj.id)||'auditoria'):setup.tpl;
   const usaCW=tplProj==='auditoria';
   const [areaFor,setAreaFor]=useState(null);const [areaNombre,setAreaNombre]=useState('');
@@ -3790,17 +3857,30 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     if(span<=0){alert('La fecha del informe debe ser posterior a la fecha de inicio.');return;}
     const tpl=CRONO_TPLS[setup.tpl]||CRONO_TPL_GENERICO;
     const elems=setup.elementos.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    // Sector (solo auditoría): define áreas sustantivas/controles, si aplica inventario e hitos extra
+    const sec=setup.tpl==='auditoria'?(CRONO_SECTORES[setup.sector]||CRONO_SECTORES.niif_inv):null;
+    const invAplica=sec?sec.inv:setup.inv;
     const nuevos=[];
     tpl.forEach((t,ti)=>{
       const fp=t.post!=null?cronoAddDays(setup.informe,t.post):cronoAddDays(setup.inicio,span*t.p);
-      const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!setup.inv)||(t.opc==='conf'&&!setup.conf);
+      const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!invAplica)||(t.opc==='conf'&&!setup.conf);
+      // Áreas: por sector para controles/sustantivas en auditoría; si no, las de la plantilla
+      let areasT=t.areas||(t.areasSetup?elems:[]);
+      if(sec){ if(t.k==='controles') areasT=sec.ctrl||[]; else if(t.k==='sustantivas') areasT=sec.sust||[]; }
       const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(ti+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:na?'na':'pendiente',
         hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave};
       nuevos.push(h);
-      (t.areas||(t.areasSetup?elems:[])).forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a.n||a,ref:a.ref||'',asignadoId:'',estado:'pendiente',hitoClave:false}));
+      areasT.forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a.n||a,ref:a.ref||'',asignadoId:'',estado:'pendiente',hitoClave:false}));
+    });
+    // Hitos propios del sector (ej. banca: UAIR, AML)
+    if(sec&&sec.hitos)sec.hitos.forEach((t,xi)=>{
+      const fp=cronoAddDays(setup.inicio,span*t.p);
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(tpl.length+xi+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+        asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
+    if(sec)nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
     saveRows(a=>[...a,...nuevos]);
   };
 
@@ -3906,8 +3986,13 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.conf} onChange={e=>setSetup({...setup,conf:e.target.checked})}/> Incluye confirmaciones a terceros</label>
           </>}
           {setup.tpl==='auditoria'&&<>
-            <label className="flex items-center gap-2"><input type="checkbox" checked={setup.inv} onChange={e=>setSetup({...setup,inv:e.target.checked})}/> Incluye observación de inventario físico</label>
+            <label className="col-span-2">Sector / tipo de empresa
+              <select value={setup.sector} onChange={e=>setSetup({...setup,sector:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
+                {CRONO_SECTOR_ORDEN.map(k=><option key={k} value={k}>{CRONO_SECTORES[k].l} ({CRONO_SECTORES[k].sust.length} áreas sustantivas)</option>)}
+              </select></label>
+            {setup.sector==='niif_inv'&&<label className="flex items-center gap-2"><input type="checkbox" checked={setup.inv} onChange={e=>setSetup({...setup,inv:e.target.checked})}/> Incluye observación de inventario físico</label>}
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.rce} onChange={e=>setSetup({...setup,rce:e.target.checked})}/> Requiere RCE (entidad de interés público)</label>
+            <p className="col-span-2 text-[11px] text-gray-400">{setup.sector==='seguros'?'Seguros: áreas sustantivas del plan SUDEASEG; sin observación de inventario; pruebas de control sin desglose por ciclo.':setup.sector==='bancos'?'Bancos: áreas del plan SUDEBAN; agrega hitos de UAIR y Cumplimiento AML; controles por ciclo (incluye activos fijos).':setup.sector==='niif_sininv'?'NIIF sin inventario: igual que NIIF pero sin el área de Inventarios ni la observación física.':'NIIF con inventario: áreas estándar, incluye Inventarios y observación física.'}</p>
           </>}
         </div>
         <button onClick={crear} className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg">Crear cronograma</button>
