@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04f';
+const APP_VERSION='v2026-11-04g';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3616,14 +3616,28 @@ const cronoColocar=(hitoRows,g)=>{
 // Solo los que NO están ya en la plantilla de auditoría. Fases = exactas de CRONO_TPL_AUDITORIA.
 const CRONO_GLOBAL_ADMIN=[
   {nombre:'Reunión preliminar / inicio de auditoría con el cliente',fase:'Planificación',pos:'inicio',rol:'Responsable',rev:'responsable'},
-  {nombre:'Entrega del Balance de Comprobación por el cliente',fase:'Planificación',pos:'fin',rol:'Senior',rev:'responsable'},
+  {nombre:'Entrega del Balance de Comprobación por el cliente',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'},
   {nombre:'Consignación de auxiliares contables y recaudos por el cliente',fase:'Planificación',pos:'fin',rol:'Senior',rev:'responsable'},
   {nombre:'Inicio del trabajo de campo',fase:'Respuesta al riesgo',pos:'inicio',rol:'Senior',rev:'responsable'},
+  {nombre:'Facturación — emisión de factura / anticipo',fase:'Planificación',pos:'inicio',rol:'Responsable',rev:''},
   {nombre:'Presentación de resultados a la gerencia',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
   {nombre:'Comunicación de la fecha de Asamblea de Accionistas / Junta (aprobación de EEFF)',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
   {nombre:'Autorización del cliente para impresión de informes definitivos',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'responsable'},
+  {nombre:'Facturación — factura final / cobro contra entrega del informe',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:''},
   {nombre:'Envío a Junta Directiva / Asamblea para aprobación de EEFF',fase:'Documentos de cierre',pos:'fin',rol:'Socio',rev:'socio'},
   {nombre:'Aprobación de EEFF por la Junta Directiva / Asamblea',fase:'Archivo',pos:'inicio',rol:'Socio',rev:'socio'},
+];
+// Bloque de AUDITORÍA INTERINA (corte intermedio). Se genera para regulados (seguros/bancos) siempre,
+// y para el resto solo si se marca "Incluye visita interina". Aparece como sección propia al inicio.
+const CRONO_HITOS_INTERINA=[
+  {k:'int_reunion',n:'Reunión preliminar / inicio de auditoría interina',rol:'Responsable',rev:'responsable',p:0.02},
+  {k:'int_requerim',n:'Carta de requerimientos interina enviada al cliente',rol:'Senior',rev:'responsable',p:0.04},
+  {k:'int_balance',n:'Entrega del balance de comprobación al corte interino',rol:'Senior',rev:'responsable',p:0.05},
+  {k:'int_recaudos',n:'Consignación de auxiliares contables y recaudos (interina)',rol:'Senior',rev:'responsable',p:0.07},
+  {k:'int_campo_ini',n:'Inicio del trabajo de campo interino',rol:'Senior',rev:'responsable',p:0.08},
+  {k:'int_campo_fin',n:'Culminación del trabajo de campo interino',rol:'Senior',rev:'responsable',p:0.16,clave:true},
+  {k:'int_recom',n:'Discusión de recomendaciones del corte interino',rol:'Responsable',rev:'socio',p:0.18},
+  {k:'int_present',n:'Presentación de resultados a la gerencia (interina)',rol:'Responsable',rev:'socio',p:0.2,clave:true},
 ];
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
@@ -3863,7 +3877,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   const [showCW,setShowCW]=useState(false);
   const perm=cronoPerms(proj,data,currentUser);
   const userName=(currentUser&&currentUser.name)||'';
-  const [setup,setSetup]=useState({tpl:'auditoria',sector:'niif_inv',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,elementos:''});
+  const [setup,setSetup]=useState({tpl:'auditoria',sector:'niif_inv',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,interina:false,elementos:''});
   const tplProj=rows.length?(cronoTpl(data,proj.id)||'auditoria'):setup.tpl;
   const usaCW=tplProj==='auditoria';
   const [areaFor,setAreaFor]=useState(null);const [areaNombre,setAreaNombre]=useState('');
@@ -3889,7 +3903,15 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     // Sector (solo auditoría): define áreas sustantivas/controles, si aplica inventario e hitos extra
     const sec=setup.tpl==='auditoria'?(CRONO_SECTORES[setup.sector]||CRONO_SECTORES.niif_inv):null;
     const invAplica=sec?sec.inv:setup.inv;
+    const regulado=setup.tpl==='auditoria'&&(setup.sector==='seguros'||setup.sector==='bancos');
+    const haceInterina=setup.tpl==='auditoria'&&(regulado||setup.interina);
     const nuevos=[];
+    // Bloque de Auditoría Interina (sección propia al inicio; orden bajo para que salga primero)
+    if(haceInterina)CRONO_HITOS_INTERINA.forEach((t,ii)=>{
+      const fp=cronoAddDays(setup.inicio,span*t.p);
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ii+1,fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
+        asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
+    });
     tpl.forEach((t,ti)=>{
       const fp=t.post!=null?cronoAddDays(setup.informe,t.post):cronoAddDays(setup.inicio,span*t.p);
       const na=(t.opc==='rce'&&!setup.rce)||(t.opc==='inv'&&!invAplica)||(t.opc==='conf'&&!setup.conf);
@@ -4027,6 +4049,9 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
               </select></label>
             {setup.sector==='niif_inv'&&<label className="flex items-center gap-2"><input type="checkbox" checked={setup.inv} onChange={e=>setSetup({...setup,inv:e.target.checked})}/> Incluye observación de inventario físico</label>}
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.rce} onChange={e=>setSetup({...setup,rce:e.target.checked})}/> Requiere RCE (entidad de interés público)</label>
+            {(setup.sector==='seguros'||setup.sector==='bancos')
+              ? <label className="flex items-center gap-2 text-gray-500"><input type="checkbox" checked readOnly disabled/> Incluye auditoría interina (obligatoria en regulados)</label>
+              : <label className="flex items-center gap-2"><input type="checkbox" checked={setup.interina} onChange={e=>setSetup({...setup,interina:e.target.checked})}/> Incluye visita interina (corte intermedio)</label>}
             <p className="col-span-2 text-[11px] text-gray-400">{setup.sector==='seguros'?'Seguros: áreas sustantivas del plan SUDEASEG; sin observación de inventario; pruebas de control sin desglose por ciclo.':setup.sector==='bancos'?'Bancos: áreas del plan SUDEBAN; agrega hitos de UAIR y Cumplimiento AML; controles por ciclo (incluye activos fijos).':setup.sector==='niif_sininv'?'NIIF sin inventario: igual que NIIF pero sin el área de Inventarios ni la observación física.':'NIIF con inventario: áreas estándar, incluye Inventarios y observación física.'}</p>
           </>}
         </div>
@@ -4336,7 +4361,7 @@ function ACronograma({data,save,currentUser,getLatestData}){
               <div className="mt-2 bg-white border rounded-xl p-3 text-xs">
                 <p className="text-gray-400 mb-2">Estos hitos se agregan automáticamente a <b>cada cronograma nuevo</b> (cualquier plantilla/sector). Con "Aplicar a existentes" también los sumas a los cronogramas ya creados. Elige la <b>fase</b> y si va <b>al inicio o al final</b> de esa fase: así, p.ej. "Crear la Base en CaseWare" → fase <i>Planificación</i> + <i>al inicio</i> queda de primero. No tienen código de CaseWare, por lo que <b>"Actualizar desde CaseWare" no los modifica</b>.</p>
                 <div className="mb-3 p-2 bg-indigo-50 rounded border border-indigo-100 flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-gray-600 text-[11px]">📋 <b>Paquete administrativo</b> (capa cliente: reunión preliminar, balance de comprobación, consignación de recaudos, inicio de campo, presentación a gerencia, Asamblea/Junta, impresión y aprobación de EEFF). Carga de una vez los que falten.</span>
+                  <span className="text-gray-600 text-[11px]">📋 <b>Paquete administrativo</b> (capa cliente: reunión preliminar, balance de comprobación, consignación de recaudos, inicio de campo, facturación, presentación a gerencia, Asamblea/Junta, impresión y aprobación de EEFF). Carga de una vez los que falten.</span>
                   <button onClick={cargarPaqueteAdmin} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap">＋ Cargar paquete administrativo</button>
                 </div>
                 {globales.length>0&&(
