@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04g';
+const APP_VERSION='v2026-11-04h';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3619,11 +3619,9 @@ const CRONO_GLOBAL_ADMIN=[
   {nombre:'Entrega del Balance de Comprobación por el cliente',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'},
   {nombre:'Consignación de auxiliares contables y recaudos por el cliente',fase:'Planificación',pos:'fin',rol:'Senior',rev:'responsable'},
   {nombre:'Inicio del trabajo de campo',fase:'Respuesta al riesgo',pos:'inicio',rol:'Senior',rev:'responsable'},
-  {nombre:'Facturación — emisión de factura / anticipo',fase:'Planificación',pos:'inicio',rol:'Responsable',rev:''},
   {nombre:'Presentación de resultados a la gerencia',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
   {nombre:'Comunicación de la fecha de Asamblea de Accionistas / Junta (aprobación de EEFF)',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
   {nombre:'Autorización del cliente para impresión de informes definitivos',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'responsable'},
-  {nombre:'Facturación — factura final / cobro contra entrega del informe',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:''},
   {nombre:'Envío a Junta Directiva / Asamblea para aprobación de EEFF',fase:'Documentos de cierre',pos:'fin',rol:'Socio',rev:'socio'},
   {nombre:'Aprobación de EEFF por la Junta Directiva / Asamblea',fase:'Archivo',pos:'inicio',rol:'Socio',rev:'socio'},
 ];
@@ -3935,6 +3933,14 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       const {orden,fp}=cronoColocar(nuevos,g);
       nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
         asignadoId:'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+    });
+    // Facturación: 3 cuotas si hay interina (inicial, al inicio de la etapa final, tras el informe); 2 si no.
+    const facturas=haceInterina
+      ? [{n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{n:'Facturación al inicio de la etapa final',fase:'Respuesta al riesgo',pos:'inicio'},{n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}]
+      : [{n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}];
+    facturas.forEach((f,fi)=>{
+      const {orden,fp}=cronoColocar(nuevos,{fase:f.fase,notas:f.pos});
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'fact'+(fi+1),orden,fase:f.fase,nombre:f.n,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
     if(sec)nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
@@ -4361,7 +4367,7 @@ function ACronograma({data,save,currentUser,getLatestData}){
               <div className="mt-2 bg-white border rounded-xl p-3 text-xs">
                 <p className="text-gray-400 mb-2">Estos hitos se agregan automáticamente a <b>cada cronograma nuevo</b> (cualquier plantilla/sector). Con "Aplicar a existentes" también los sumas a los cronogramas ya creados. Elige la <b>fase</b> y si va <b>al inicio o al final</b> de esa fase: así, p.ej. "Crear la Base en CaseWare" → fase <i>Planificación</i> + <i>al inicio</i> queda de primero. No tienen código de CaseWare, por lo que <b>"Actualizar desde CaseWare" no los modifica</b>.</p>
                 <div className="mb-3 p-2 bg-indigo-50 rounded border border-indigo-100 flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-gray-600 text-[11px]">📋 <b>Paquete administrativo</b> (capa cliente: reunión preliminar, balance de comprobación, consignación de recaudos, inicio de campo, facturación, presentación a gerencia, Asamblea/Junta, impresión y aprobación de EEFF). Carga de una vez los que falten.</span>
+                  <span className="text-gray-600 text-[11px]">📋 <b>Paquete administrativo</b> (capa cliente: reunión preliminar, balance de comprobación, consignación de recaudos, inicio de campo, presentación a gerencia, Asamblea/Junta, impresión y aprobación de EEFF). Carga de una vez los que falten. La facturación se genera automáticamente al crear el cronograma (3 cuotas si hay interina, 2 si no).</span>
                   <button onClick={cargarPaqueteAdmin} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap">＋ Cargar paquete administrativo</button>
                 </div>
                 {globales.length>0&&(
