@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04e';
+const APP_VERSION='v2026-11-04f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3612,6 +3612,19 @@ const cronoColocar=(hitoRows,g)=>{
   const fp=fechas.length?(pos==='fin'?fechas[fechas.length-1]:fechas[0]):'';
   return {orden,fp};
 };
+// Paquete administrativo (capa cliente que complementa a CaseWare). Destilado del cronograma que se comparte con el cliente.
+// Solo los que NO están ya en la plantilla de auditoría. Fases = exactas de CRONO_TPL_AUDITORIA.
+const CRONO_GLOBAL_ADMIN=[
+  {nombre:'Reunión preliminar / inicio de auditoría con el cliente',fase:'Planificación',pos:'inicio',rol:'Responsable',rev:'responsable'},
+  {nombre:'Entrega del Balance de Comprobación por el cliente',fase:'Planificación',pos:'fin',rol:'Senior',rev:'responsable'},
+  {nombre:'Consignación de auxiliares contables y recaudos por el cliente',fase:'Planificación',pos:'fin',rol:'Senior',rev:'responsable'},
+  {nombre:'Inicio del trabajo de campo',fase:'Respuesta al riesgo',pos:'inicio',rol:'Senior',rev:'responsable'},
+  {nombre:'Presentación de resultados a la gerencia',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
+  {nombre:'Comunicación de la fecha de Asamblea de Accionistas / Junta (aprobación de EEFF)',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'socio'},
+  {nombre:'Autorización del cliente para impresión de informes definitivos',fase:'Documentos de cierre',pos:'fin',rol:'Responsable',rev:'responsable'},
+  {nombre:'Envío a Junta Directiva / Asamblea para aprobación de EEFF',fase:'Documentos de cierre',pos:'fin',rol:'Socio',rev:'socio'},
+  {nombre:'Aprobación de EEFF por la Junta Directiva / Asamblea',fase:'Archivo',pos:'inicio',rol:'Socio',rev:'socio'},
+];
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -4245,6 +4258,15 @@ function ACronograma({data,save,currentUser,getLatestData}){
     setGForm({nombre:'',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'});
   };
   const delGlobal=id=>{if(!window.confirm('¿Quitar este hito global? Dejará de agregarse a los nuevos cronogramas (los existentes que ya lo tienen no se tocan).'))return;const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).filter(r=>r.id!==id)});};
+  const cargarPaqueteAdmin=()=>{
+    const L=(getLatestData&&getLatestData())||data;
+    const exist=cronoGlobales(L).map(g=>(g.nombre||'').trim().toLowerCase());
+    const add=CRONO_GLOBAL_ADMIN.filter(a=>!exist.includes(a.nombre.trim().toLowerCase()));
+    if(!add.length){alert('El paquete administrativo ya está cargado (todos sus hitos ya existen como globales).');return;}
+    if(!window.confirm('Se agregarán '+add.length+' hito(s) administrativo(s) como globales (se suman a todos los cronogramas NUEVOS). Luego puedes quitar los que no apliquen con ✕, o pasarlos a los existentes con "Aplicar a existentes". ¿Continuar?'))return;
+    const rows=add.map(a=>({id:uid(),projectId:'__global',parentId:'',clave:'__ghito',orden:0,fase:a.fase,nombre:a.nombre,ref:'',rol:a.rol||'Senior',revisor:a.rev||'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:a.pos||'inicio',hitoClave:false}));
+    save({...L,cronograma:[...(L.cronograma||[]),...rows]});
+  };
   const aplicarExistentes=g=>{
     const L=(getLatestData&&getLatestData())||data;const all=L.cronograma||[];
     const pids=[...new Set(all.filter(r=>r.projectId!=='__global'&&!String(r.clave||'').startsWith('__')).map(r=>r.projectId))];
@@ -4313,6 +4335,10 @@ function ACronograma({data,save,currentUser,getLatestData}){
             {showGlobales&&(
               <div className="mt-2 bg-white border rounded-xl p-3 text-xs">
                 <p className="text-gray-400 mb-2">Estos hitos se agregan automáticamente a <b>cada cronograma nuevo</b> (cualquier plantilla/sector). Con "Aplicar a existentes" también los sumas a los cronogramas ya creados. Elige la <b>fase</b> y si va <b>al inicio o al final</b> de esa fase: así, p.ej. "Crear la Base en CaseWare" → fase <i>Planificación</i> + <i>al inicio</i> queda de primero. No tienen código de CaseWare, por lo que <b>"Actualizar desde CaseWare" no los modifica</b>.</p>
+                <div className="mb-3 p-2 bg-indigo-50 rounded border border-indigo-100 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-gray-600 text-[11px]">📋 <b>Paquete administrativo</b> (capa cliente: reunión preliminar, balance de comprobación, consignación de recaudos, inicio de campo, presentación a gerencia, Asamblea/Junta, impresión y aprobación de EEFF). Carga de una vez los que falten.</span>
+                  <button onClick={cargarPaqueteAdmin} className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap">＋ Cargar paquete administrativo</button>
+                </div>
                 {globales.length>0&&(
                   <table className="w-full mb-3">
                     <thead className="text-gray-400"><tr><th className="text-left py-1">Hito</th><th className="text-left py-1">Fase</th><th className="text-left py-1">Ubicación</th><th className="text-left py-1">Rol / Revisa</th><th></th></tr></thead>
