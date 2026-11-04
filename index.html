@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04d';
+const APP_VERSION='v2026-11-04e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4095,7 +4095,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
               {!esHijo&&<button onClick={()=>{setAreaFor(areaFor===h.id?null:h.id);setAreaNombre('');}} title="Agregar área / sub-tarea" className="text-xs px-1 text-gray-400 hover:text-indigo-600">＋</button>}
               <button onClick={()=>renombrar(h)} title="Renombrar" className="text-xs px-1 text-gray-400 hover:text-gray-700">✏️</button>
               <button onClick={()=>toggleNA(h)} title={h.estado==='na'?'Vuelve a aplicar':'Marcar como No aplica'} className="text-xs px-1 text-gray-400 hover:text-gray-700">⊘</button>
-              {(esHijo||!h.clave)&&<button onClick={()=>eliminar(h)} title="Eliminar" className="text-xs px-1 text-gray-400 hover:text-red-600">🗑</button>}
+              {(esHijo||!h.clave||String(h.clave||'').startsWith('gl_'))&&<button onClick={()=>eliminar(h)} title="Eliminar" className="text-xs px-1 text-gray-400 hover:text-red-600">🗑</button>}
             </>}
           </td>
         </tr>
