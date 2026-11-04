@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04c';
+const APP_VERSION='v2026-11-04d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3599,6 +3599,19 @@ const cronoTpl=(data,pid)=>((data.cronograma||[]).find(x=>x.projectId===pid&&x.c
 // Hitos GLOBALES: aplican a todo encargo. Se guardan como filas con projectId='__global' y clave='__ghito'.
 // orden = posición temporal p (0=inicio..1=cierre). cronoVis/cronoScope no los muestran (projectId no es un proyecto).
 const cronoGlobales=data=>(data.cronograma||[]).filter(r=>r.projectId==='__global'&&r.clave==='__ghito').sort((a,b)=>(+a.orden||0)-(+b.orden||0));
+// Ubica un hito global dentro de un cronograma: lo mete en su fase, al inicio o al final de ella.
+// g.notas = 'inicio' | 'fin' (posición dentro de la fase). Devuelve {orden, fp} para la fila a crear.
+const cronoColocar=(hitoRows,g)=>{
+  const pos=g.notas||(((+g.orden||0.5)<0.5)?'inicio':'fin');
+  const tops=(hitoRows||[]).filter(h=>!h.parentId);
+  const mism=tops.filter(h=>(h.fase||'')===(g.fase||''));
+  const base=mism.length?mism:tops;
+  const ords=base.map(h=>+h.orden||0);
+  const orden=base.length?(pos==='fin'?Math.max(...ords)+1:Math.min(...ords)-1):(pos==='fin'?99990:-1);
+  const fechas=base.map(h=>h.fechaPlan).filter(Boolean).sort();
+  const fp=fechas.length?(pos==='fin'?fechas[fechas.length-1]:fechas[0]):'';
+  return {orden,fp};
+};
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -3883,10 +3896,10 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     // Hitos GLOBALES (aplican a todos los encargos)
-    cronoGlobales(data).forEach((g,gi)=>{
-      const fp=cronoAddDays(setup.inicio,span*(+g.orden||0.5));
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden:(tpl.length+50+gi)*10,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
-        asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+    cronoGlobales(data).forEach(g=>{
+      const {orden,fp}=cronoColocar(nuevos,g);
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
+        asignadoId:'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
     if(sec)nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
@@ -4160,7 +4173,7 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const [sel,setSel]=useState(null);
   const [crearSel,setCrearSel]=useState('');
   const [showGlobales,setShowGlobales]=useState(false);
-  const [gForm,setGForm]=useState({nombre:'',fase:'Respuesta al riesgo',p:'0.5',rol:'Senior',rev:'responsable'});
+  const [gForm,setGForm]=useState({nombre:'',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'});
   const [vista,setVista]=useState('seguimiento');
   const [soloAlertas,setSoloAlertas]=useState(false);
   const [incCerrados,setIncCerrados]=useState(false);
@@ -4227,9 +4240,9 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const addGlobal=()=>{
     if(!gForm.nombre.trim())return;
     const L=(getLatestData&&getLatestData())||data;
-    const row={id:uid(),projectId:'__global',parentId:'',clave:'__ghito',orden:parseFloat(gForm.p)||0.5,fase:gForm.fase||'',nombre:gForm.nombre.trim(),ref:'',rol:gForm.rol||'Senior',revisor:gForm.rev||'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false};
+    const row={id:uid(),projectId:'__global',parentId:'',clave:'__ghito',orden:0,fase:gForm.fase||'',nombre:gForm.nombre.trim(),ref:'',rol:gForm.rol||'Senior',revisor:gForm.rev||'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:gForm.pos||'inicio',hitoClave:false};
     save({...L,cronograma:[...(L.cronograma||[]),row]});
-    setGForm({nombre:'',fase:'Respuesta al riesgo',p:'0.5',rol:'Senior',rev:'responsable'});
+    setGForm({nombre:'',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'});
   };
   const delGlobal=id=>{if(!window.confirm('¿Quitar este hito global? Dejará de agregarse a los nuevos cronogramas (los existentes que ya lo tienen no se tocan).'))return;const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).filter(r=>r.id!==id)});};
   const aplicarExistentes=g=>{
@@ -4238,10 +4251,9 @@ function ACronograma({data,save,currentUser,getLatestData}){
     const nuevos=[];
     pids.forEach(pid=>{
       if(all.some(r=>r.projectId===pid&&r.clave==='gl_'+g.id))return;
-      const fechas=all.filter(r=>r.projectId===pid&&!r.parentId&&r.fechaPlan).map(r=>r.fechaPlan).filter(Boolean).sort();
-      let fp='';const ini=fechas[0]||'',fin=fechas[fechas.length-1]||'';
-      if(ini&&fin){const span=cronoDiff(fin,ini);fp=span>0?cronoAddDays(ini,span*(+g.orden||0.5)):ini;}
-      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:'gl_'+g.id,orden:9990,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+      const projRows=all.filter(r=>r.projectId===pid&&!r.parentId);
+      const {orden,fp}=cronoColocar(projRows,g);
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:'gl_'+g.id,orden,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     if(!nuevos.length){alert('Todos los cronogramas existentes ya tienen este hito.');return;}
     if(!window.confirm('Se agregará "'+g.nombre+'" a '+nuevos.length+' cronograma(s) existente(s). ¿Continuar?'))return;
@@ -4300,16 +4312,16 @@ function ACronograma({data,save,currentUser,getLatestData}){
             <button onClick={()=>setShowGlobales(!showGlobales)} className="text-xs text-indigo-600 hover:underline">⚙️ Hitos para todos los encargos ({globales.length}) {showGlobales?'▲':'▼'}</button>
             {showGlobales&&(
               <div className="mt-2 bg-white border rounded-xl p-3 text-xs">
-                <p className="text-gray-400 mb-2">Estos hitos se agregan automáticamente a <b>cada cronograma nuevo</b> (cualquier plantilla/sector). Con "Aplicar a existentes" también los sumas a los cronogramas ya creados.</p>
+                <p className="text-gray-400 mb-2">Estos hitos se agregan automáticamente a <b>cada cronograma nuevo</b> (cualquier plantilla/sector). Con "Aplicar a existentes" también los sumas a los cronogramas ya creados. Elige la <b>fase</b> y si va <b>al inicio o al final</b> de esa fase: así, p.ej. "Crear la Base en CaseWare" → fase <i>Planificación</i> + <i>al inicio</i> queda de primero. No tienen código de CaseWare, por lo que <b>"Actualizar desde CaseWare" no los modifica</b>.</p>
                 {globales.length>0&&(
                   <table className="w-full mb-3">
-                    <thead className="text-gray-400"><tr><th className="text-left py-1">Hito</th><th className="text-left py-1">Fase</th><th className="text-left py-1">Posición</th><th className="text-left py-1">Rol / Revisa</th><th></th></tr></thead>
+                    <thead className="text-gray-400"><tr><th className="text-left py-1">Hito</th><th className="text-left py-1">Fase</th><th className="text-left py-1">Ubicación</th><th className="text-left py-1">Rol / Revisa</th><th></th></tr></thead>
                     <tbody>
                       {globales.map(g=>(
                         <tr key={g.id} className="border-t">
                           <td className="py-1 text-gray-700 font-medium">{g.nombre}</td>
                           <td className="py-1 text-gray-500">{g.fase||'—'}</td>
-                          <td className="py-1 text-gray-500">{Math.round((+g.orden||0)*100)}%</td>
+                          <td className="py-1 text-gray-500">{(g.notas||(((+g.orden||0.5)<0.5)?'inicio':'fin'))==='fin'?'Al final de la fase':'Al inicio de la fase'}</td>
                           <td className="py-1 text-gray-500">{g.rol||'—'}{g.revisor?' · rev: '+(CRONO_REV_LBL[g.revisor]||g.revisor):''}</td>
                           <td className="py-1 text-right whitespace-nowrap">
                             <button onClick={()=>aplicarExistentes(g)} className="text-indigo-600 hover:underline mr-2">Aplicar a existentes</button>
@@ -4326,9 +4338,9 @@ function ACronograma({data,save,currentUser,getLatestData}){
                     <select value={gForm.fase} onChange={e=>setGForm({...gForm,fase:e.target.value})} className="border rounded px-2 py-1">
                       {['Planificación','Evaluación de riesgo','Respuesta al riesgo','Planes y procedimientos de auditoría','Documentos de cierre','Archivo','Ejecución','Informe','Entrega'].map(f=><option key={f} value={f}>{f}</option>)}
                     </select></div>
-                  <div><label className="text-gray-400 block mb-0.5">Posición</label>
-                    <select value={gForm.p} onChange={e=>setGForm({...gForm,p:e.target.value})} className="border rounded px-2 py-1">
-                      <option value="0.05">Inicio</option><option value="0.25">Temprano</option><option value="0.5">Medio</option><option value="0.8">Tardío</option><option value="0.95">Cierre</option>
+                  <div><label className="text-gray-400 block mb-0.5">Ubicación</label>
+                    <select value={gForm.pos} onChange={e=>setGForm({...gForm,pos:e.target.value})} className="border rounded px-2 py-1">
+                      <option value="inicio">Al inicio de la fase</option><option value="fin">Al final de la fase</option>
                     </select></div>
                   <div><label className="text-gray-400 block mb-0.5">Rol</label>
                     <select value={gForm.rol} onChange={e=>setGForm({...gForm,rol:e.target.value})} className="border rounded px-2 py-1">{CRONO_ROLES.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
