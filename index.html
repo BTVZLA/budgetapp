@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04h';
+const APP_VERSION='v2026-11-04i';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3947,6 +3947,30 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     saveRows(a=>[...a,...nuevos]);
   };
 
+  const tieneInterina=rows.some(r=>r.fase==='Auditoría interina');
+  const agregarInterina=()=>{
+    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===proj.id);
+    if(cur.some(r=>r.fase==='Auditoría interina')){alert('Este cronograma ya tiene la visita interina.');return;}
+    const fechas=cur.filter(r=>!r.parentId&&r.fechaPlan).map(r=>r.fechaPlan).filter(Boolean).sort();
+    const ini=fechas[0]||proj.fechaInicio||hoy,fin=fechas[fechas.length-1]||'';
+    const span=fin?cronoDiff(fin,ini):0;
+    if(!window.confirm('Se agregará la sección "Auditoría interina" (8 hitos) y la cuota de facturación intermedia a este cronograma. ¿Continuar?'))return;
+    const nuevos=[];
+    CRONO_HITOS_INTERINA.forEach((t,ii)=>{
+      const fp=span>0?cronoAddDays(ini,span*t.p):ini;
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ii+1,fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
+    });
+    // Facturación 3 cuotas (agrega solo las que falten por clave)
+    const todos=[...cur,...nuevos];
+    const factExist=new Set(cur.filter(r=>/^fact\d/.test(r.clave||'')).map(r=>r.clave));
+    [{c:'fact1',n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{c:'fact2',n:'Facturación al inicio de la etapa final',fase:'Respuesta al riesgo',pos:'inicio'},{c:'fact3',n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}].forEach(f=>{
+      if(factExist.has(f.c))return;
+      const {orden,fp}=cronoColocar(todos,{fase:f.fase,notas:f.pos});
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:f.c,orden,fase:f.fase,nombre:f.n,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:fp||ini,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+    });
+    saveRows(a=>[...a,...nuevos]);
+  };
+
   const marcar=h=>{
     if(!perm.puedeMarcar(h))return;
     upd(h.id,{estado:'hecho',fechaReal:h.fechaReal||hoy,hechoPor:userName,revisadoPor:'',fechaRevisado:''});
@@ -4022,6 +4046,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         :<span className="text-gray-400">sin enlazar</span>}
       {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':(usaCW?'＋ Enlazar encargo':'＋ Enlazar carpeta')}</button>}
       {perm.gestion&&usaCW&&rows.length>0&&<button onClick={()=>setShowCW(true)} className="ml-2 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">⬆ Actualizar desde CaseWare</button>}
+      {perm.gestion&&usaCW&&rows.length>0&&!tieneInterina&&<button onClick={agregarInterina} className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-medium">＋ Agregar visita interina</button>}
       {cwSync&&<span className="ml-2 text-gray-400" title={'Actualizado por '+(cwSync.por||'—')}>Última actualización: {cronoFmt(cwSync.fecha)} · {cwSync.prep}/{cwSync.docs} papeles preparados · {cwSync.rev} revisados</span>}
     </div>):null;
 
