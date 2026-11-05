@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04k';
+const APP_VERSION='v2026-11-04l';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3680,7 +3680,7 @@ const CRONO_ADM_KEY={
 // Fase correcta (para la agrupación de pantalla) de cada hito administrativo/global del orden maestro
 const CRONO_ADM_FASE={_adm_reunion:'Planificación',_adm_balance:'Planificación',_adm_consig:'Planificación',_adm_campo:'Respuesta al riesgo',_adm_present:'Documentos de cierre',_adm_asamblea:'Documentos de cierre',_adm_autoriz:'Documentos de cierre',_adm_juntaenvio:'Documentos de cierre',_adm_aprob:'Archivo',gl_crearbase:'Planificación'};
 // Devuelve la clave de orden de un hito global (admin o "Crear la base"); null si no es del paquete.
-const cronoAdmKey=nombre=>{const nn=_cnorm(nombre);if(CRONO_ADM_KEY[nn])return CRONO_ADM_KEY[nn];if(/crear la base/.test(nn))return 'gl_crearbase';return null;};
+const cronoAdmKey=nombre=>{const nn=_cnorm(nombre);if(CRONO_ADM_KEY[nn])return CRONO_ADM_KEY[nn];if(/crear\s+(la\s+)?base/.test(nn))return 'gl_crearbase';return null;};
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
