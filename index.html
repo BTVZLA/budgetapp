@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05m';
+const APP_VERSION='v2026-11-05n';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5369,14 +5369,14 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const cobroRepGap=cobroRep.reduce((s,x)=>s+x.gap,0);
   const cobroSobre=projsScope.filter(p=>{const hon=+p.honorariosTotal||0;const cp=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);return hon>0&&cp-hon>0.5;}).length;
   const exportarCobro=()=>{
-    const header=['Proyecto','Responsable','Honorarios','Cobro planificado','% cubierto','Falta por planificar'];
-    const rows=cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{const u=(data.users||[]).find(x=>x.id===p.responsableId);return [p.nombre||p.codigo||p.id,u?u.name:'—',hon,cobroPlan,Math.round(pct)+'%',gap];});
-    rows.push(['TOTAL POR PLANIFICAR','','','','',cobroRepGap]);
+    const header=['Proyecto','Código','Cliente','Responsable','Honorarios','Cobro planificado','% cubierto','Falta por planificar'];
+    const rows=cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{const u=(data.users||[]).find(x=>x.id===p.responsableId);return [p.name||p.codigo||p.id,p.codigo||'',p.client||'',u?u.name:'—',hon,cobroPlan,Math.round(pct)+'%',gap];});
+    rows.push(['TOTAL POR PLANIFICAR','','','','','','',cobroRepGap]);
     const resp=showOverhead?'Total firma':(((data.users||[]).find(u=>u.id===respF)||{}).name||respF);
     exportarExcelBT('Cobertura_cobro_'+per+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{
       sheet:'Cobertura de cobro',title:'Cobertura del plan de cobro — '+per,
       meta:['Proyectos cuyo plan de cobro no llega al 100% de los honorarios · '+resp,'Generado '+new Date().toLocaleDateString('es-VE')],
-      header,rows,money:[2,3,5],boldRows:[rows.length-1]});
+      header,rows,money:[4,5,7],boldRows:[rows.length-1]});
   };
 
   return(
@@ -5421,6 +5421,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                 <thead className="text-gray-500 border-b">
                   <tr>
                     <th className="text-left py-1.5">Proyecto</th>
+                    <th className="text-left py-1.5">Cliente</th>
                     <th className="text-left py-1.5">Responsable</th>
                     <th className="text-right py-1.5">Honorarios</th>
                     <th className="text-right py-1.5">Cobro planificado</th>
@@ -5433,7 +5434,8 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                     const u=(data.users||[]).find(x=>x.id===p.responsableId);
                     return(
                       <tr key={p.id} className="border-b border-amber-100">
-                        <td className="py-1.5 text-gray-700 font-medium">{p.nombre||p.codigo||p.id}</td>
+                        <td className="py-1.5 text-gray-700 font-medium">{p.name||p.codigo||p.id}{p.codigo&&<span className="text-[10px] text-gray-400 font-normal ml-1">{p.codigo}</span>}</td>
+                        <td className="py-1.5 text-gray-500">{p.client||'—'}</td>
                         <td className="py-1.5 text-gray-500">{u?u.name:'—'}</td>
                         <td className="py-1.5 text-right text-gray-600">{$n(hon)}</td>
                         <td className="py-1.5 text-right text-gray-600">{cobroPlan>0?$n(cobroPlan):<span className="text-red-500 font-medium">sin plan</span>}</td>
@@ -5445,7 +5447,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                 </tbody>
                 <tfoot className="font-bold text-gray-700 border-t">
                   <tr>
-                    <td className="py-1.5" colSpan={5}>Total por planificar</td>
+                    <td className="py-1.5" colSpan={6}>Total por planificar</td>
                     <td className="py-1.5 text-right text-red-600">{$n(cobroRepGap)}</td>
                   </tr>
                 </tfoot>
