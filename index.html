@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04m';
+const APP_VERSION='v2026-11-04n';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -221,7 +221,7 @@ const fromDB={
   participations:r=>({id:r.id,projectId:r.project_id,catId:r.cat_id,pct:+r.pct}),
   expenses:r=>({id:r.id,deptId:r.dept_id,category:r.category,month:r.month,est:+r.est,act:+r.act}),
   fixed_expenses:r=>({id:r.id,cuenta:r.cuenta||'',concepto:r.concepto||'',periodo:r.periodo||currentPeriodo,montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
-  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos.map(x=>+x||0):null)}),
+  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos:null)}),
   other_labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,categoria:r.categoria||'',concepto:r.concepto||'',montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
   people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||''}),
   clients:r=>({id:r.id,code:r.code||'',name:r.name,shortName:r.short_name||''}),
@@ -256,7 +256,7 @@ const toDB={
   participations:p=>({id:p.id,project_id:p.projectId,cat_id:p.catId,pct:p.pct}),
   expenses:e=>({id:e.id,dept_id:e.deptId,category:e.category,month:e.month,est:e.est,act:e.act}),
   fixed_expenses:e=>({id:e.id,cuenta:e.cuenta||'',concepto:e.concepto||'',periodo:e.periodo||currentPeriodo,montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
-  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos.map(x=>+x||0):null)}),
+  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos:null)}),
   other_labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,categoria:e.categoria||'',concepto:e.concepto||'',montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
   people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null}),
   clients:c=>({id:c.id,code:c.code||'',name:c.name,short_name:c.shortName||''}),
@@ -7931,12 +7931,17 @@ const LC_COLS=[
   {key:'movilidad',  label:'Movilidad $',      color:'text-cyan-600'},
   {key:'participaciones',label:'Participaciones $',color:'text-amber-600'},
 ];
-// Nómina mensual: base (suma de columnas) y monto efectivo por mes (montos[] override; si no, base×mesesPago).
-const LC_BASE=i=>LC_COLS.reduce((s,c)=>s+(parseFloat(i[c.key])||0),0);
+// Nómina por mes: `montos` = arreglo de 12 posiciones; cada una es un OBJETO con el desglose de conceptos de ese mes,
+// o null = "igual que el mes anterior" (arrastre). Si no hay ningún override previo, usa la base (campos del empleado).
+const LC_KEYS=LC_COLS.map(c=>c.key);
+const LC_BASE=i=>LC_KEYS.reduce((s,k)=>s+(parseFloat(i[k])||0),0);
 const LC_MP=i=>(Array.isArray(i.mesesPago)&&i.mesesPago.length===12)?i.mesesPago:Array(12).fill(true);
-const LC_MES=(i,m)=>{const mo=i.montos;if(Array.isArray(mo)&&mo.length===12&&mo[m]!=null&&mo[m]!==''&&!isNaN(+mo[m]))return +mo[m];return LC_MP(i)[m]!==false?LC_BASE(i):0;};
+const LC_BASEOBJ=i=>Object.fromEntries(LC_KEYS.map(k=>[k,parseFloat(i[k])||0]));
+const LC_DET=(i,m)=>{const mo=i.montos;if(Array.isArray(mo)){for(let k=Math.min(m,mo.length-1);k>=0;k--){const o=mo[k];if(o&&typeof o==='object')return o;}}return LC_BASEOBJ(i);};
+const LC_DETVAL=(i,m,key)=>parseFloat(LC_DET(i,m)[key])||0;
+const LC_OVR=(i,m)=>{const mo=i.montos;return Array.isArray(mo)&&mo[m]&&typeof mo[m]==='object';};
+const LC_MES=(i,m)=>{if(LC_MP(i)[m]===false)return 0;const d=LC_DET(i,m);return LC_KEYS.reduce((s,k)=>s+(parseFloat(d[k])||0),0);};
 const LC_ANUAL=i=>{let s=0;for(let m=0;m<12;m++)s+=LC_MES(i,m);return s;};
-const LC_MONTOS=i=>Array.isArray(i.montos)&&i.montos.length===12?i.montos.map(x=>+x||0):Array.from({length:12},(_,m)=>LC_MES(i,m));
 
 /* ══════════════════════ COSTOS LABORALES ═══════════════════════════════ */
 
@@ -8027,9 +8032,8 @@ function ACostosLaborales({data,save,getLatestData}){
   const add=()=>{
     if(!form.nombre.trim())return;
     const comp=Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(form[c.key])||0]));
-    const base=LC_COLS.reduce((s,c)=>s+comp[c.key],0);
     const mp=(form.mesesPago||Array(12).fill(true)).map(x=>x!==false);
-    const ni={id:uid(),periodo,...comp,nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:mp,montos:mp.map(on=>on?base:0)};
+    const ni={id:uid(),periodo,...comp,nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:mp,montos:Array(12).fill(null)};
     const latLC=getLatestData?getLatestData():data;
     save({...latLC,laborCosts:[...(latLC.laborCosts||[]),ni]});
     setForm(emptyForm);setShowForm(false);
@@ -8042,30 +8046,36 @@ function ACostosLaborales({data,save,getLatestData}){
       ...Object.fromEntries(LC_COLS.map(c=>[c.key,String(item[c.key]||0)]))});
   };
   const applyEdit=()=>{
-    const oldItem=items.find(i=>i.id===editId)||{};
     const comp=Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(editForm[c.key])||0]));
-    const base=LC_COLS.reduce((s,c)=>s+comp[c.key],0);
     const mp=(editForm.mesesPago||Array(12).fill(true)).map(x=>x!==false);
-    const compChanged=LC_COLS.some(c=>(parseFloat(oldItem[c.key])||0)!==comp[c.key]);
-    const mpChanged=JSON.stringify(LC_MP(oldItem).map(x=>x!==false))!==JSON.stringify(mp);
-    // Si cambió el sueldo base o los meses de pago, se re-uniforma el detalle por mes; si no, se conserva lo cargado por mes.
-    const montos=(compChanged||mpChanged||!Array.isArray(oldItem.montos)||oldItem.montos.length!==12)?mp.map(on=>on?base:0):oldItem.montos;
+    // La base se actualiza; el detalle por mes (overrides en montos[]) se conserva.
     save({...(getLatestData?getLatestData():data),laborCosts:items.map(i=>i.id===editId?{...i,
-      nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,mesesPago:mp,montos,...comp}:i)});
+      nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,mesesPago:mp,...comp}:i)});
     setEditId(null);
   };
-  // Edición de un mes puntual en la grilla por-mes
+  // Vista "Por mes": editar el desglose de conceptos de un mes puntual (override). null = hereda el mes anterior.
   const [verMes,setVerMes]=useState(false);
-  const [nomCell,setNomCell]=useState(null);
+  const [gridMes,setGridMes]=useState(0);
+  const [nomCell,setNomCell]=useState(null); // "id|key"
   const [nomCellVal,setNomCellVal]=useState('');
-  const setMesNom=(id,m,val)=>{
+  const setDetNom=(id,m,key,val)=>{
     const lat=getLatestData?getLatestData():data;
-    const arr=(lat.laborCosts||[]).map(i=>{if(i.id!==id)return i;const mo=LC_MONTOS(i);mo[m]=parseFloat(val)||0;return {...i,montos:mo};});
+    const arr=(lat.laborCosts||[]).map(i=>{
+      if(i.id!==id)return i;
+      const mo=Array.isArray(i.montos)?[...i.montos]:Array(12).fill(null);while(mo.length<12)mo.push(null);
+      const cur=(mo[m]&&typeof mo[m]==='object')?{...mo[m]}:{...LC_DET(i,m)};
+      cur[key]=parseFloat(val)||0;mo[m]=cur;return {...i,montos:mo};
+    });
     save({...lat,laborCosts:arr});
   };
-  const copiarMesAntNom=m=>{
-    if(m<=0)return;const lat=getLatestData?getLatestData():data;
-    const arr=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false)return i;const mo=LC_MONTOS(i);mo[m]=mo[m-1];return {...i,montos:mo};});
+  const copiarBaseMes=m=>{ // fija en el mes el desglose heredado (lo vuelve override explícito de cada persona)
+    const lat=getLatestData?getLatestData():data;
+    const arr=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false)return i;const mo=Array.isArray(i.montos)?[...i.montos]:Array(12).fill(null);while(mo.length<12)mo.push(null);mo[m]={...LC_DET(i,m)};return {...i,montos:mo};});
+    save({...lat,laborCosts:arr});
+  };
+  const limpiarMes=m=>{ // quita los overrides del mes (vuelve a heredar del anterior/base)
+    const lat=getLatestData?getLatestData():data;
+    const arr=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false||!Array.isArray(i.montos))return i;const mo=[...i.montos];mo[m]=null;return {...i,montos:mo};});
     save({...lat,laborCosts:arr});
   };
   const nomTotByMonth=MESES_GF.map((_,m)=>filtItems.reduce((s,i)=>s+LC_MES(i,m),0));
@@ -8310,55 +8320,70 @@ function ACostosLaborales({data,save,getLatestData}){
             </table>
           </div>}
           {verMes&&(
-            <div className="bg-white rounded-xl border overflow-hidden overflow-x-auto">
-              <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50">
-                <div className="text-xs text-gray-500">Clic en una celda para editar la nómina de ese mes. El valor por defecto es el sueldo base; aquí cargas las variaciones (ajustes, bonos, etc.).</div>
+            <div className="space-y-3">
+              <div className="bg-white rounded-xl border p-3">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs text-gray-500 mr-1">Mes:</span>
+                  {MESES_GF.map((m,i)=>{
+                    const hayOvr=filtItems.some(it=>LC_OVR(it,i));
+                    return <button key={i} onClick={()=>setGridMes(i)} className={'text-xs px-2.5 py-1 rounded '+(gridMes===i?'bg-indigo-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200')}>{m}{hayOvr?' •':''}</button>;
+                  })}
+                  <span className="text-[10px] text-gray-400 ml-2">• = mes con cambios cargados</span>
+                </div>
+                <div className="flex items-center gap-2 mt-2 text-[11px]">
+                  <span className="text-gray-400">Edita solo los conceptos que cambian en <b>{MESES_GF[gridMes]}</b>; el resto se arrastra del mes anterior.</span>
+                  {gridMes>0&&<button onClick={()=>copiarBaseMes(gridMes)} className="text-indigo-600 hover:underline">Fijar valores heredados</button>}
+                  <button onClick={()=>limpiarMes(gridMes)} className="text-red-500 hover:underline">Limpiar cambios de {MESES_GF[gridMes]}</button>
+                </div>
               </div>
-              <table className="text-xs min-w-max w-full">
-                <thead className="bg-blue-50">
-                  <tr>
-                    <th className="text-left px-3 py-2 w-52 text-gray-600 font-semibold sticky left-0 bg-blue-50">Nombre</th>
-                    {MESES_GF.map((m,i)=>(
-                      <th key={i} className="text-right px-2 py-2 w-20 font-medium text-gray-500">
-                        <div>{m}</div>
-                        {i>0&&<button onClick={()=>copiarMesAntNom(i)} title="Copiar del mes anterior a todos" className="text-[9px] text-indigo-500 hover:underline font-normal">← copiar</button>}
-                      </th>
-                    ))}
-                    <th className="text-right px-3 py-2 text-indigo-600 font-bold">Anual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtItems.length===0?<tr><td colSpan={14} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
-                  :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>(
-                    <tr key={item.id} className="border-t hover:bg-gray-50">
-                      <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white">{item.nombre}</td>
-                      {MESES_GF.map((_,m)=>{
-                        const val=LC_MES(item,m);const editing=nomCell===item.id+'|'+m;
-                        return(
-                          <td key={m} className="px-1 py-1 text-right" onClick={()=>{if(!editing){setNomCell(item.id+'|'+m);setNomCellVal(val||'');}}}>
-                            {editing?(
-                              <input autoFocus type="number" value={nomCellVal} onChange={e=>setNomCellVal(e.target.value)}
-                                onBlur={()=>{setMesNom(item.id,m,nomCellVal);setNomCell(null);}}
-                                onKeyDown={e=>{if(e.key==='Enter'){setMesNom(item.id,m,nomCellVal);setNomCell(null);}if(e.key==='Escape')setNomCell(null);}}
-                                className="border rounded px-1 py-1 text-xs w-16 text-right"/>
-                            ):<span className={'cursor-pointer '+(val>0?'text-gray-700':'text-gray-200')}>{val>0?$n(val):'—'}</span>}
-                          </td>
-                        );
-                      })}
-                      <td className="px-3 py-2 text-right font-bold text-indigo-600">{$n(LC_ANUAL(item))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {filtItems.length>0&&(
-                  <tfoot className="border-t-2 bg-blue-50 font-bold text-xs">
+              <div className="bg-white rounded-xl border overflow-hidden overflow-x-auto">
+                <table className="text-xs min-w-max w-full">
+                  <thead className="bg-blue-50">
                     <tr>
-                      <td className="px-3 py-2 text-blue-700 sticky left-0 bg-blue-50">TOTAL</td>
-                      {nomTotByMonth.map((v,m)=><td key={m} className="px-2 py-2 text-right text-blue-800">{v>0?$n(v):'—'}</td>)}
-                      <td className="px-3 py-2 text-right text-indigo-700">{$n(totAnual)}</td>
+                      <th className="text-left px-3 py-2 w-52 text-gray-600 font-semibold">Nombre ({MESES_GF[gridMes]})</th>
+                      {LC_COLS.map(c=><th key={c.key} className={'text-right px-2 py-2 w-20 font-medium '+c.color}>{c.label}</th>)}
+                      <th className="text-right px-3 py-2 text-blue-700 font-bold">Total Mes</th>
                     </tr>
-                  </tfoot>
-                )}
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtItems.length===0?<tr><td colSpan={LC_COLS.length+2} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
+                    :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>{
+                      const noPaga=LC_MP(item)[gridMes]===false;const ovr=LC_OVR(item,gridMes);
+                      return(
+                      <tr key={item.id} className={'border-t hover:bg-gray-50 '+(noPaga?'opacity-40':'')}>
+                        <td className="px-3 py-2 font-medium text-gray-700">{item.nombre}{ovr&&<span title="Mes con valores propios" className="ml-1 text-[9px] text-indigo-500">●</span>}{noPaga&&<span className="ml-1 text-[9px] text-gray-400">(no paga)</span>}</td>
+                        {LC_COLS.map(c=>{
+                          const editing=nomCell===item.id+'|'+c.key;const val=LC_DETVAL(item,gridMes,c.key);
+                          return(
+                            <td key={c.key} className="px-1 py-1 text-right" onClick={()=>{if(!editing){setNomCell(item.id+'|'+c.key);setNomCellVal(val||'');}}}>
+                              {editing?(
+                                <input autoFocus type="number" value={nomCellVal} onChange={e=>setNomCellVal(e.target.value)}
+                                  onBlur={()=>{setDetNom(item.id,gridMes,c.key,nomCellVal);setNomCell(null);}}
+                                  onKeyDown={e=>{if(e.key==='Enter'){setDetNom(item.id,gridMes,c.key,nomCellVal);setNomCell(null);}if(e.key==='Escape')setNomCell(null);}}
+                                  className="border rounded px-1 py-1 text-xs w-16 text-right"/>
+                              ):<span className={'cursor-pointer '+(val>0?c.color:'text-gray-200')}>{val>0?$n(val):'—'}</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-right font-bold text-blue-700">{$n(LC_MES(item,gridMes))}</td>
+                      </tr>
+                    );})}
+                  </tbody>
+                  {filtItems.length>0&&(
+                    <tfoot className="border-t-2 bg-blue-50 font-bold text-xs">
+                      <tr>
+                        <td className="px-3 py-2 text-blue-700">TOTAL {MESES_GF[gridMes]}</td>
+                        {LC_COLS.map(c=>{const t=filtItems.reduce((s,i)=>s+(LC_MP(i)[gridMes]===false?0:LC_DETVAL(i,gridMes,c.key)),0);return <td key={c.key} className={'px-2 py-2 text-right '+(t>0?c.color:'text-gray-300')}>{t>0?$n(t):'—'}</td>;})}
+                        <td className="px-3 py-2 text-right text-blue-800">{$n(nomTotByMonth[gridMes])}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              <div className="bg-white rounded-xl border px-3 py-2 flex justify-between text-xs">
+                <span className="text-gray-500">Total anual nómina (suma de los 12 meses):</span>
+                <span className="font-bold text-indigo-700">{$n(totAnual)}</span>
+              </div>
             </div>
           )}
         </div>
