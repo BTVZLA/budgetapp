@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04n';
+const APP_VERSION='v2026-11-05a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3628,7 +3628,6 @@ const CRONO_GLOBAL_ADMIN=[
 // Bloque de AUDITORÍA INTERINA (corte intermedio). Se genera para regulados (seguros/bancos) siempre,
 // y para el resto solo si se marca "Incluye visita interina". Aparece como sección propia al inicio.
 const CRONO_HITOS_INTERINA=[
-  {k:'int_reunion',n:'Reunión preliminar / inicio de auditoría interina',rol:'Responsable',rev:'responsable',p:0.02},
   {k:'int_requerim',n:'Carta de requerimientos interina enviada al cliente',rol:'Senior',rev:'responsable',p:0.04},
   {k:'int_balance',n:'Entrega del balance de comprobación al corte interino',rol:'Senior',rev:'responsable',p:0.05},
   {k:'int_recaudos',n:'Consignación de auxiliares contables y recaudos (interina)',rol:'Senior',rev:'responsable',p:0.07},
@@ -3641,9 +3640,9 @@ const CRONO_HITOS_INTERINA=[
 // Las claves _adm_* corresponden a los hitos del paquete administrativo (globales, se mapean por nombre).
 const CRONO_ORD_INT={ // CON visita interina
   gl_crearbase:1,aceptacion:2,independencia:3,carta_compromiso:4,fact1:5,
-  int_reunion:6,int_balance:7,int_requerim:8,int_sumarias:9,
+  _adm_reunion:6,int_balance:7,int_requerim:8,int_sumarias:9,plan_materialidad_int:9.5,
   factores_riesgo:10,estrategia:11,presupuesto_tiempo:12,reunion_plan:13,fraude:14,
-  plan_materialidad_int:15,int_recaudos:16,
+  int_recaudos:16,
   analitica:17,entendimiento:18,riesgos:19,informe_riesgo:20,negocio_marcha_plan:21,rev_socio_plan:22,rce_plan:23,
   int_campo_ini:24,int_campo_fin:25,int_recom:26,int_present:27,
   _adm_balance:28,materialidad:29,_adm_consig:30,_adm_campo:31,
@@ -3973,7 +3972,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     if(esAud){
       const nh=haceInterina
         ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},
-           {k:'plan_materialidad_int',fase:'Planificación',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.1}]
+           {k:'plan_materialidad_int',fase:'Auditoría interina',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.16}]
         : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
       nh.forEach(t=>nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,900),fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
         asignadoId:'',fechaPlan:cronoAddDays(setup.inicio,span*t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}));
@@ -4039,7 +4038,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const interina=cur.some(r=>r.fase==='Auditoría interina');
     const ordMap=interina?CRONO_ORD_INT:CRONO_ORD_FIN;
     const tplFase={};CRONO_TPL_AUDITORIA.forEach(t=>tplFase[t.k]=t.fase);CRONO_HITOS_INTERINA.forEach(t=>tplFase[t.k]='Auditoría interina');
-    tplFase.plan_sumarias='Planificación';tplFase.int_sumarias='Auditoría interina';tplFase.plan_materialidad_int='Planificación';
+    tplFase.plan_sumarias='Planificación';tplFase.int_sumarias='Auditoría interina';tplFase.plan_materialidad_int='Auditoría interina';
     const factFase={fact1:'Planificación',fact2:'Documentos de cierre',fact3:'Documentos de cierre'};
     if(!window.confirm('Se reordenarán los hitos de este cronograma según el orden maestro'+(interina?' (con interina)':' (sin interina)')+', se realinearán las fases y se agregarán los hitos estándar que falten. Las fechas no se tocan. ¿Continuar?'))return;
     const fechas=cur.filter(r=>!r.parentId&&r.fechaPlan).map(r=>r.fechaPlan).filter(Boolean).sort();
@@ -4056,13 +4055,14 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const claves=new Set(cur.map(r=>r.clave));
     const add=[];
     const nh=interina
-      ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},{k:'plan_materialidad_int',fase:'Planificación',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.1}]
+      ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},{k:'plan_materialidad_int',fase:'Auditoría interina',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.16}]
       : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
     nh.forEach(t=>{if(!claves.has(t.k))add.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordMap[t.k]!=null?ordMap[t.k]:900,fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:'',fechaPlan:dateP(t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
     const fdefs=interina?[['fact1','Facturación inicial','Planificación',0.02],['fact2','Facturación al inicio de la etapa final','Documentos de cierre',0.7],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]]:[['fact1','Facturación inicial','Planificación',0.02],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]];
     fdefs.forEach(([cl,nm,fase,p])=>{if(!claves.has(cl))add.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordMap[cl]!=null?ordMap[cl]:900,fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:dateP(p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
     const byId=new Map(base.map(r=>[r.id,r]));
-    saveRows(a=>[...a.map(r=>byId.has(r.id)?byId.get(r.id):r),...add]);
+    // Con interina, la reunión preliminar la cubre la administrativa → quitar la reunión interina sobrante
+    saveRows(a=>[...a.map(r=>byId.has(r.id)?byId.get(r.id):r).filter(r=>!(interina&&r.projectId===proj.id&&r.clave==='int_reunion')),...add]);
   };
 
   const marcar=h=>{
