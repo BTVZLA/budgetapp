@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05d';
+const APP_VERSION='v2026-11-05e';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -223,7 +223,7 @@ const fromDB={
   fixed_expenses:r=>({id:r.id,cuenta:r.cuenta||'',concepto:r.concepto||'',periodo:r.periodo||currentPeriodo,montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
   labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos:null)}),
   other_labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,categoria:r.categoria||'',concepto:r.concepto||'',montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
-  people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||''}),
+  people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||'',fechaIngreso:r.fecha_ingreso||''}),
   clients:r=>({id:r.id,code:r.code||'',name:r.name,shortName:r.short_name||''}),
   real_internal_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,level:r.level,hours:+r.hours}),
   real_external_costs:r=>({id:r.id,projectId:r.project_id,month:r.month,name:r.name,type:r.type||'fixed',rate:+r.rate,hours:+r.hours,amount:+r.amount,fecha:r.fecha||''}),
@@ -258,7 +258,7 @@ const toDB={
   fixed_expenses:e=>({id:e.id,cuenta:e.cuenta||'',concepto:e.concepto||'',periodo:e.periodo||currentPeriodo,montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
   labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos:null)}),
   other_labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,categoria:e.categoria||'',concepto:e.concepto||'',montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
-  people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null}),
+  people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null,fecha_ingreso:p.fechaIngreso||null}),
   clients:c=>({id:c.id,code:c.code||'',name:c.name,short_name:c.shortName||''}),
   real_internal_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,level:c.level,hours:c.hours}),
   real_external_costs:c=>({id:c.id,project_id:c.projectId,month:c.month,name:c.name,type:c.type||'fixed',rate:c.rate||0,hours:c.hours||0,amount:c.amount||0,fecha:c.fecha||null}),
@@ -403,10 +403,10 @@ async function syncData(cfg,tok,old,nw){
         await sbUpsert(cfg,tok,'people',ups.map(toDB.people));
       }catch(e){
         // If some column doesn't exist yet in Supabase, retry sin las columnas opcionales
-        if(e.message&&(e.message.includes('email')||e.message.includes('desincorporado')||e.message.includes('fecha_desincorporacion')||e.message.includes('column'))){
-          const toDBsafe=p=>{const r=toDB.people(p);delete r.email;delete r.desincorporado;delete r.fecha_desincorporacion;return r;};
+        if(e.message&&(e.message.includes('email')||e.message.includes('desincorporado')||e.message.includes('fecha_desincorporacion')||e.message.includes('fecha_ingreso')||e.message.includes('column'))){
+          const toDBsafe=p=>{const r=toDB.people(p);delete r.email;delete r.desincorporado;delete r.fecha_desincorporacion;delete r.fecha_ingreso;return r;};
           await sbUpsert(cfg,tok,'people',ups.map(toDBsafe));
-          console.warn('people synced sin columnas opcionales - agrega email/desincorporado/fecha_desincorporacion a la tabla people en Supabase');
+          console.warn('people synced sin columnas opcionales - agrega email/desincorporado/fecha_desincorporacion/fecha_ingreso a la tabla people en Supabase');
         } else { throw e; }
       }
     }
@@ -7257,7 +7257,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const findUser=p=>{const pn=normName(personFullName(p));return users.find(u=>normName(u.name)===pn);};
   const orphanUsers=users.filter(u=>{const un=normName(u.name);return!people.some(p=>normName(personFullName(p))===un);});
 
-  const emptyForm={nombres:'',apellidos:'',ci:'',initials:'',catId:(cats[0]||{}).id||'',deptId:(data.departments[0]||{}).id||'',banco:'',numCuenta:'',celular:'',email:''};
+  const emptyForm={nombres:'',apellidos:'',ci:'',initials:'',catId:(cats[0]||{}).id||'',deptId:(data.departments[0]||{}).id||'',banco:'',numCuenta:'',celular:'',email:'',fechaIngreso:''};
   const [form,setForm]=useState(emptyForm);
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
@@ -7284,7 +7284,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
     const name=buildName(form);
     const ini=(form.initials.trim()||autoInitials(name)).toUpperCase();
     const latPpl=getLatestData?getLatestData():data;
-    save({...latPpl,people:[...(latPpl.people||[]),{id:uid(),name,nombres:form.nombres.trim(),apellidos:form.apellidos.trim(),ci:form.ci.trim(),initials:ini,catId:form.catId,deptId:form.deptId||null,banco:form.banco.trim(),numCuenta:form.numCuenta.trim(),celular:form.celular.trim(),email:form.email.trim()}]});
+    save({...latPpl,people:[...(latPpl.people||[]),{id:uid(),name,nombres:form.nombres.trim(),apellidos:form.apellidos.trim(),ci:form.ci.trim(),initials:ini,catId:form.catId,deptId:form.deptId||null,banco:form.banco.trim(),numCuenta:form.numCuenta.trim(),celular:form.celular.trim(),email:form.email.trim(),fechaIngreso:form.fechaIngreso||''}]});
     setForm(emptyForm);
   };
   const delPerson=id=>save({...(getLatestData?getLatestData():data),people:people.filter(p=>p.id!==id)});
@@ -7295,7 +7295,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   };
   const startEdit=p=>{
     setEditId(p.id);
-    setEditForm({nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),catId:p.catId,deptId:p.deptId||'',banco:p.banco||'',numCuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||''});
+    setEditForm({nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),catId:p.catId,deptId:p.deptId||'',banco:p.banco||'',numCuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',fechaIngreso:p.fechaIngreso||''});
   };
   const applyEdit=()=>{
     const name=buildName(editForm)||editForm.name||'';
@@ -7430,6 +7430,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
           <div><label className="text-gray-400 text-xs mb-1 block"># de Cuenta</label><input value={form.numCuenta} onChange={e=>setForm({...form,numCuenta:e.target.value})} placeholder="Ej: 0134-0000-..." className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
           <div><label className="text-gray-400 text-xs mb-1 block">Celular / Teléfono</label><input value={form.celular} onChange={e=>setForm({...form,celular:e.target.value})} placeholder="Ej: 0414-1234567" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
           <div className="col-span-2"><label className="text-gray-400 text-xs mb-1 block">Correo Electrónico</label><input type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="Ej: ana.garcia@empresa.com" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+          <div><label className="text-gray-400 text-xs mb-1 block">Fecha de ingreso</label><input type="date" value={form.fechaIngreso} onChange={e=>setForm({...form,fechaIngreso:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
         </div>
         <button onClick={addPerson} disabled={!form.nombres.trim()&&!form.apellidos.trim()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-1.5 rounded-lg text-sm disabled:opacity-40">+ Agregar Persona</button>
       </div>
@@ -7471,7 +7472,8 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
                             <div><label className="text-gray-500 text-xs mb-1 block">Banco</label><input value={editForm.banco} onChange={e=>setEditForm({...editForm,banco:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
                             <div><label className="text-gray-500 text-xs mb-1 block"># Cuenta</label><input value={editForm.numCuenta} onChange={e=>setEditForm({...editForm,numCuenta:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
                             <div><label className="text-gray-500 text-xs mb-1 block">Celular</label><input value={editForm.celular} onChange={e=>setEditForm({...editForm,celular:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
-                            <div className="col-span-3"><label className="text-gray-500 text-xs mb-1 block">Correo Electrónico</label><input type="email" value={editForm.email||''} onChange={e=>setEditForm({...editForm,email:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
+                            <div className="col-span-2"><label className="text-gray-500 text-xs mb-1 block">Correo Electrónico</label><input type="email" value={editForm.email||''} onChange={e=>setEditForm({...editForm,email:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
+                            <div><label className="text-gray-500 text-xs mb-1 block">Fecha de ingreso</label><input type="date" value={editForm.fechaIngreso||''} onChange={e=>setEditForm({...editForm,fechaIngreso:e.target.value})} className="w-full border rounded-lg px-3 py-1.5 text-xs"/></div>
                           </div>
                           <div className="flex gap-2">
                             <button onClick={applyEdit} className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs">💾 Guardar</button>
@@ -8018,6 +8020,8 @@ const LC_DETVAL=(i,m,key)=>parseFloat(LC_DET(i,m)[key])||0;
 const LC_OVR=(i,m)=>{const mo=i.montos;return Array.isArray(mo)&&mo[m]&&typeof mo[m]==='object';};
 const LC_MES=(i,m)=>{if(LC_MP(i)[m]===false)return 0;const d=LC_DET(i,m);return LC_KEYS.reduce((s,k)=>s+(parseFloat(d[k])||0),0);};
 const LC_ANUAL=i=>{let s=0;for(let m=0;m<12;m++)s+=LC_MES(i,m);return s;};
+// Normaliza un nombre para comparar nómina vs equipo (sin acentos, tokens ordenados → "VELAZCO, ANGELY" = "Angely Velazco")
+const lcNorm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(Boolean).sort().join(' ');
 
 /* ══════════════════════ COSTOS LABORALES ═══════════════════════════════ */
 
@@ -8062,6 +8066,20 @@ function ACostosLaborales({data,save,getLatestData}){
   const periodoItems=items.filter(i=>i.periodo===periodo&&i.activo!==false);
   const filtItems=search?periodoItems.filter(i=>i.nombre.toLowerCase().includes(search.toLowerCase())||i.cargo.toLowerCase().includes(search.toLowerCase())):periodoItems;
   const olcPeriodoItems=olcItems.filter(i=>i.periodo===periodo);
+
+  // ── Conciliación equipo ↔ nómina (quién falta por incorporar / quién se retiró) ──
+  const pFull=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||'';
+  const catNameP=id=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===id);return c?c.name:'';};
+  const nomNamesPer=new Set(periodoItems.map(i=>lcNorm(i.nombre)));
+  const perStartY=parseInt((periodo||'').split('-')[0],10)||2025;
+  const fechaToIdx=d=>{if(!d)return null;const dt=new Date(d);if(isNaN(dt.getTime()))return null;return (dt.getFullYear()-perStartY)*12+(dt.getMonth()+1-8);};
+  const mpFromFechas=(ing,des)=>{const ii=fechaToIdx(ing),di=fechaToIdx(des);return Array.from({length:12},(_,m)=>!((ii!=null&&m<ii)||(di!=null&&m>di)));};
+  const activePeopleN=(data.people||[]).filter(p=>!p.desincorporado);
+  const faltanNom=activePeopleN.filter(p=>!nomNamesPer.has(lcNorm(pFull(p)))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&nomNamesPer.has(lcNorm(pFull(p)))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const mkNomItem=p=>({id:uid(),periodo,sueldo:0,ticket:0,bstaff:0,depreciacion:0,asignacion:0,movilidad:0,participaciones:0,nombre:pFull(p),cargo:catNameP(p.catId),notas:'',activo:true,mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion),montos:Array(12).fill(null)});
+  const addFromPerson=p=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),mkNomItem(p)]});};
+  const addAllFaltan=()=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),...faltanNom.map(mkNomItem)]});};
 
   // ── Costo por hora por persona/mes ──
   const [chMes,setChMes]=useState(0);
@@ -8300,6 +8318,32 @@ function ACostosLaborales({data,save,getLatestData}){
               <button onClick={()=>setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">+ Agregar Empleado</button>
             </div>
           </div>
+          {(faltanNom.length>0||retiradosNom.length>0)&&(
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
+              <div className="font-semibold text-amber-800 mb-1">👥 Conciliación equipo ↔ nómina ({periodo})</div>
+              {faltanNom.length>0&&(
+                <div className="mb-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-gray-600"><b>{faltanNom.length}</b> persona(s) del equipo no están en la nómina:</span>
+                    <button onClick={addAllFaltan} className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">+ Agregar todas</button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {faltanNom.map(p=>(
+                      <button key={p.id} onClick={()=>addFromPerson(p)} title={'Agregar a la nómina'+(p.fechaIngreso?' (ingreso '+p.fechaIngreso+')':'')} className="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded px-2 py-0.5">
+                        + {pFull(p)}{p.fechaIngreso?<span className="text-gray-400 ml-1">({p.fechaIngreso})</span>:''}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">Al agregar, los meses se marcan según la fecha de ingreso (y de retiro si aplica); luego cargas sus montos.</p>
+                </div>
+              )}
+              {retiradosNom.length>0&&(
+                <div className="text-gray-600">
+                  <b>{retiradosNom.length}</b> persona(s) retirada(s) siguen en la nómina: <span className="text-red-600">{retiradosNom.map(pFull).join(', ')}</span>. Revisa sus meses de pago (desmarca los meses posteriores a su retiro) o desactívalas.
+                </div>
+              )}
+            </div>
+          )}
           {showForm&&(
             <div className="bg-white rounded-xl border p-5">
               <div className="font-semibold text-sm mb-3">Agregar Empleado</div>
