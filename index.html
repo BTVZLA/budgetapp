@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05h';
+const APP_VERSION='v2026-11-05i';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -8070,7 +8070,9 @@ function ACostosLaborales({data,save,getLatestData}){
 
   // ── Conciliación equipo ↔ nómina (quién falta por incorporar / quién se retiró) ──
   // Formato nombre-primero (orden por nombre y luego apellido). El emparejamiento (lcNorm) es independiente del orden.
-  const pFull=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||'';
+  const firstTok=s=>String(s||'').trim().split(/\s+/)[0]||'';
+  const pAll=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||''; // nombre completo (para emparejar)
+  const pFull=p=>[firstTok(p.nombres),firstTok(p.apellidos)].filter(Boolean).join(' ')||p.name||''; // primer nombre + primer apellido
   const catNameP=id=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===id);return c?c.name:'';};
   // Coincidencia difusa: el nombre más corto debe estar CONTENIDO en el más largo (≥2 tokens).
   // Así "Alexis Revilla" = "Revilla Diaz, Alexis Agustin" (tokens alexis+revilla ⊆ los del otro).
@@ -8080,8 +8082,8 @@ function ACostosLaborales({data,save,getLatestData}){
   const fechaToIdx=d=>{if(!d)return null;const dt=new Date(d);if(isNaN(dt.getTime()))return null;return (dt.getFullYear()-perStartY)*12+(dt.getMonth()+1-8);};
   const mpFromFechas=(ing,des)=>{const ii=fechaToIdx(ing),di=fechaToIdx(des);return Array.from({length:12},(_,m)=>!((ii!=null&&m<ii)||(di!=null&&m>di)));};
   const activePeopleN=(data.people||[]).filter(p=>!p.desincorporado);
-  const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>nameMatch(pFull(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
-  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&periodoItems.some(i=>nameMatch(pFull(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>nameMatch(pAll(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&periodoItems.some(i=>nameMatch(pAll(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
   const mkNomItem=p=>({id:uid(),periodo,sueldo:0,ticket:0,bstaff:0,depreciacion:0,asignacion:0,movilidad:0,participaciones:0,nombre:pFull(p),cargo:catNameP(p.catId),notas:'',activo:true,mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion),montos:Array(12).fill(null)});
   const addFromPerson=p=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),mkNomItem(p)]});};
   const addAllFaltan=()=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),...faltanNom.map(mkNomItem)]});};
@@ -8094,6 +8096,22 @@ function ACostosLaborales({data,save,getLatestData}){
   const conComa=periodoItems.filter(i=>(i.nombre||'').includes(','));
   const reordNombres=()=>{if(!conComa.length)return;if(!window.confirm('Se reordenarán '+conComa.length+' nombre(s) de "Apellido, Nombre" a "Nombre Apellido". ¿Continuar?'))return;const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).map(i=>(i.periodo===periodo&&i.activo!==false&&(i.nombre||'').includes(','))?{...i,nombre:flipComma(i.nombre)}:i)});};
   const quitarDupVacios=()=>{const toRemove=[];dupGroups.forEach(g=>{const conData=g.filter(i=>LC_BASE(i)>0||LC_ANUAL(i)>0);const vacios=g.filter(i=>!(LC_BASE(i)>0||LC_ANUAL(i)>0));if(conData.length>=1)toRemove.push(...vacios);else toRemove.push(...vacios.slice(1));});if(!toRemove.length){alert('No hay duplicados "vacíos" para quitar automáticamente. Revisa manualmente los que tienen datos cargados.');return;}if(!window.confirm('Se quitarán '+toRemove.length+' fila(s) duplicada(s) SIN datos (se conserva la que tiene montos). ¿Continuar?'))return;const ids=new Set(toRemove.map(i=>i.id));const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).filter(i=>!ids.has(i.id))});};
+  // Dejar "Primer nombre + Primer apellido" (matcheando cada fila con una persona del equipo)
+  const simplificarNombres=()=>{
+    const ppl=data.people||[];let n=0;const lat=getLatestData?getLatestData():data;
+    const upd=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false)return i;const per=ppl.find(p=>nameMatch(pAll(p),i.nombre));if(!per)return i;const sh=pFull(per);if(sh&&sh!==i.nombre){n++;return {...i,nombre:sh};}return i;});
+    if(!n){alert('No hubo nombres que simplificar (ya están cortos o no coinciden con alguien del equipo).');return;}
+    if(!window.confirm('Se dejarán '+n+' nombre(s) como "Primer nombre + Primer apellido". ¿Continuar?'))return;
+    save({...lat,laborCosts:upd});
+  };
+  // Aplicar fechas de ingreso/retiro del equipo a los meses de pago de la nómina
+  const aplicarFechasMeses=()=>{
+    const ppl=data.people||[];let n=0;const lat=getLatestData?getLatestData():data;
+    const upd=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false)return i;const per=ppl.find(p=>nameMatch(pAll(p),i.nombre));if(!per||(!per.fechaIngreso&&!per.fechaDesincorporacion))return i;const mp=mpFromFechas(per.fechaIngreso,per.fechaDesincorporacion);if(JSON.stringify(mp)!==JSON.stringify(LC_MP(i).map(x=>x!==false))){n++;return {...i,mesesPago:mp};}return i;});
+    if(!n){alert('No hay ajustes: ninguna fila coincide con una persona que tenga fecha de ingreso/retiro distinta a sus meses actuales.');return;}
+    if(!window.confirm('Se ajustarán los meses de pago de '+n+' empleado(s) según su fecha de ingreso/retiro. ¿Continuar?'))return;
+    save({...lat,laborCosts:upd});
+  };
 
   // ── Costo por hora por persona/mes ──
   const [chMes,setChMes]=useState(0);
@@ -8332,6 +8350,12 @@ function ACostosLaborales({data,save,getLatestData}){
               <button onClick={()=>setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">+ Agregar Empleado</button>
             </div>
           </div>
+          {periodoItems.length>0&&(
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <button onClick={simplificarNombres} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50">✂ Dejar primer nombre + primer apellido</button>
+              <button onClick={aplicarFechasMeses} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50" title="Marca los meses de pago según la fecha de ingreso y de retiro de cada persona (equipo)">🗓 Aplicar fechas de ingreso/retiro a los meses</button>
+            </div>
+          )}
           {(faltanNom.length>0||retiradosNom.length>0||dupGroups.length>0||conComa.length>0)&&(
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
               <div className="font-semibold text-amber-800 mb-1">👥 Conciliación equipo ↔ nómina ({periodo})</div>
