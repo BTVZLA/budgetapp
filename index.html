@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05j';
+const APP_VERSION='v2026-11-05k';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -8023,6 +8023,8 @@ const LC_MES=(i,m)=>{if(LC_MP(i)[m]===false)return 0;const d=LC_DET(i,m);return 
 const LC_ANUAL=i=>{let s=0;for(let m=0;m<12;m++)s+=LC_MES(i,m);return s;};
 // Normaliza un nombre para comparar nómina vs equipo (sin acentos, tokens ordenados → "VELAZCO, ANGELY" = "Angely Velazco")
 const lcNorm=s=>String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(Boolean).sort().join(' ');
+// "EUCARY XIOMARA URIBE" -> "Eucary Xiomara Uribe"
+const titleCase=s=>String(s||'').toLowerCase().split(/(\s+)/).map(w=>(!w||/^\s+$/.test(w))?w:w.charAt(0).toUpperCase()+w.slice(1)).join('');
 
 /* ══════════════════════ COSTOS LABORALES ═══════════════════════════════ */
 
@@ -8072,11 +8074,11 @@ function ACostosLaborales({data,save,getLatestData}){
   // Formato nombre-primero (orden por nombre y luego apellido). El emparejamiento (lcNorm) es independiente del orden.
   const firstTok=s=>String(s||'').trim().split(/\s+/)[0]||'';
   const pAll=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||''; // nombre completo (para emparejar)
-  const pFull=p=>[firstTok(p.nombres),firstTok(p.apellidos)].filter(Boolean).join(' ')||p.name||''; // primer nombre + primer apellido
+  const pFull=p=>titleCase([firstTok(p.nombres),firstTok(p.apellidos)].filter(Boolean).join(' ')||p.name||''); // primer nombre + primer apellido (Title Case)
   const catNameP=id=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===id);return c?c.name:'';};
   // Enlace por persona/ID: la ficha del equipo manda el nombre mostrado (Nombre + Apellido) cuando hay personId.
   const nomPerson=i=>i.personId?(data.people||[]).find(p=>p.id===i.personId):null;
-  const nomName=i=>{const p=nomPerson(i);return p?pFull(p):(i.nombre||'');};
+  const nomName=i=>{const p=nomPerson(i);return p?pFull(p):titleCase(i.nombre||'');};
   // Coincidencia difusa: el nombre más corto debe estar CONTENIDO en el más largo (≥2 tokens).
   // Así "Alexis Revilla" = "Revilla Diaz, Alexis Agustin" (tokens alexis+revilla ⊆ los del otro).
   const tokensOf=s=>lcNorm(s).split(' ').filter(Boolean);
@@ -8110,6 +8112,31 @@ function ACostosLaborales({data,save,getLatestData}){
   const conComa=periodoItems.filter(i=>(i.nombre||'').includes(','));
   const reordNombres=()=>{if(!conComa.length)return;if(!window.confirm('Se reordenarán '+conComa.length+' nombre(s) de "Apellido, Nombre" a "Nombre Apellido". ¿Continuar?'))return;const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).map(i=>(i.periodo===periodo&&i.activo!==false&&(i.nombre||'').includes(','))?{...i,nombre:flipComma(i.nombre)}:i)});};
   const quitarDupVacios=()=>{const toRemove=[];dupGroups.forEach(g=>{const conData=g.filter(i=>LC_BASE(i)>0||LC_ANUAL(i)>0);const vacios=g.filter(i=>!(LC_BASE(i)>0||LC_ANUAL(i)>0));if(conData.length>=1)toRemove.push(...vacios);else toRemove.push(...vacios.slice(1));});if(!toRemove.length){alert('No hay duplicados "vacíos" para quitar automáticamente. Revisa manualmente los que tienen datos cargados.');return;}if(!window.confirm('Se quitarán '+toRemove.length+' fila(s) duplicada(s) SIN datos (se conserva la que tiene montos). ¿Continuar?'))return;const ids=new Set(toRemove.map(i=>i.id));const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).filter(i=>!ids.has(i.id))});};
+  // Fusionar duplicados: conserva la fila ENLAZADA (si está vacía, adopta montos de la repetida) y elimina las demás.
+  const fusionarDups=()=>{
+    const withData=i=>LC_BASE(i)>0||LC_ANUAL(i)>0;
+    const patch={};const remove=new Set();
+    dupGroups.forEach(g=>{
+      const linked=g.filter(i=>i.personId);
+      const surv=linked.find(withData)||linked[0]||g.find(withData)||g[0];
+      let sp={...surv};
+      if(!withData(surv)){const donor=g.find(i=>i!==surv&&withData(i));if(donor){LC_COLS.forEach(c=>sp[c.key]=donor[c.key]);sp.montos=donor.montos;sp.mesesPago=donor.mesesPago;}}
+      sp.nombre=nomName(surv);
+      patch[surv.id]=sp;
+      g.forEach(i=>{if(i.id!==surv.id)remove.add(i.id);});
+    });
+    if(!remove.size){alert('No hay duplicados para fusionar.');return;}
+    if(!window.confirm('Se fusionarán los duplicados: se conserva la fila ENLAZADA (si está vacía, adopta los montos de la repetida) y se elimina la otra. Filas a eliminar: '+remove.size+'. ¿Continuar?'))return;
+    const lat=getLatestData?getLatestData():data;
+    save({...lat,laborCosts:(lat.laborCosts||[]).map(i=>patch[i.id]||i).filter(i=>!remove.has(i.id))});
+  };
+  // Poner todos los nombres (no enlazados) en Title Case
+  const titleCaseNombres=()=>{
+    const lat=getLatestData?getLatestData():data;let n=0;
+    const upd=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false||i.personId)return i;const t=titleCase(i.nombre);if(t&&t!==i.nombre){n++;return {...i,nombre:t};}return i;});
+    if(!n){alert('Los nombres ya están en formato correcto.');return;}
+    save({...lat,laborCosts:upd});
+  };
   // Dejar "Primer nombre + Primer apellido" (matcheando cada fila con una persona del equipo)
   const simplificarNombres=()=>{
     const ppl=data.people||[];let n=0;const lat=getLatestData?getLatestData():data;
@@ -8368,6 +8395,7 @@ function ACostosLaborales({data,save,getLatestData}){
             <div className="flex flex-wrap gap-2 text-[11px] items-center">
               {sinEnlace.length>0&&<button onClick={enlazarEquipo} className="bg-green-600 hover:bg-green-700 text-white rounded px-2 py-1 font-medium" title="Vincula cada fila con su persona del equipo (por nombre) para que compartan ficha e ID">🔗 Enlazar con el equipo ({sinEnlace.length})</button>}
               <button onClick={simplificarNombres} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50">✂ Dejar primer nombre + primer apellido</button>
+              <button onClick={titleCaseNombres} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50" title="Pone los nombres no enlazados en minúscula con inicial mayúscula">Aa Formato de nombres</button>
               <button onClick={aplicarFechasMeses} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50" title="Marca los meses de pago según la fecha de ingreso y de retiro de cada persona (equipo)">🗓 Aplicar fechas de ingreso/retiro a los meses</button>
             </div>
           )}
@@ -8384,10 +8412,10 @@ function ACostosLaborales({data,save,getLatestData}){
                 <div className="mb-2">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-gray-600">⚠️ <b>{dupGroups.length}</b> persona(s) <b>duplicada(s)</b> en la nómina:</span>
-                    <button onClick={quitarDupVacios} className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">🗑 Quitar duplicados vacíos</button>
+                    <button onClick={fusionarDups} className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">🔗 Fusionar (conservar el enlazado)</button>
                   </div>
-                  <div className="text-gray-600 text-[11px]">{dupGroups.map((g,gi)=><span key={gi} className="text-red-600">{g.map(i=>i.nombre).join(' = ')}{gi<dupGroups.length-1?'  ·  ':''}</span>)}</div>
-                  <p className="text-[10px] text-gray-500 mt-0.5">"Quitar duplicados vacíos" conserva la fila con montos y elimina la repetida sin datos. Si ambas tienen datos, bórralas tú con la ✕ (van marcadas "⚠ dup").</p>
+                  <div className="text-gray-600 text-[11px]">{dupGroups.map((g,gi)=><span key={gi} className="text-red-600">{g.map(i=>nomName(i)).join(' = ')}{gi<dupGroups.length-1?'  ·  ':''}</span>)}</div>
+                  <p className="text-[10px] text-gray-500 mt-0.5">"Fusionar" conserva la fila enlazada 🔗 (si está vacía, adopta los montos de la repetida) y elimina la otra.</p>
                 </div>
               )}
               {faltanNom.length>0&&(
