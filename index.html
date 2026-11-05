@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05i';
+const APP_VERSION='v2026-11-05j';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -221,7 +221,7 @@ const fromDB={
   participations:r=>({id:r.id,projectId:r.project_id,catId:r.cat_id,pct:+r.pct}),
   expenses:r=>({id:r.id,deptId:r.dept_id,category:r.category,month:r.month,est:+r.est,act:+r.act}),
   fixed_expenses:r=>({id:r.id,cuenta:r.cuenta||'',concepto:r.concepto||'',periodo:r.periodo||currentPeriodo,montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
-  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos:null)}),
+  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,personId:r.person_id||'',nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos:null)}),
   other_labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,categoria:r.categoria||'',concepto:r.concepto||'',montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
   people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||'',fechaIngreso:r.fecha_ingreso||''}),
   clients:r=>({id:r.id,code:r.code||'',name:r.name,shortName:r.short_name||''}),
@@ -256,7 +256,7 @@ const toDB={
   participations:p=>({id:p.id,project_id:p.projectId,cat_id:p.catId,pct:p.pct}),
   expenses:e=>({id:e.id,dept_id:e.deptId,category:e.category,month:e.month,est:e.est,act:e.act}),
   fixed_expenses:e=>({id:e.id,cuenta:e.cuenta||'',concepto:e.concepto||'',periodo:e.periodo||currentPeriodo,montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
-  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos:null)}),
+  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,person_id:e.personId||null,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos:null)}),
   other_labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,categoria:e.categoria||'',concepto:e.concepto||'',montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
   people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null,fecha_ingreso:p.fechaIngreso||null}),
   clients:c=>({id:c.id,code:c.code||'',name:c.name,short_name:c.shortName||''}),
@@ -8042,7 +8042,7 @@ function ACostosLaborales({data,save,getLatestData}){
   const [search,setSearch]=useState('');
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
-  const emptyForm={nombre:'',cargo:'',sueldo:'',ticket:'',bstaff:'',depreciacion:'',asignacion:'',movilidad:'',participaciones:'',notas:'',activo:true,mesesPago:Array(12).fill(true)};
+  const emptyForm={personId:'',nombre:'',cargo:'',sueldo:'',ticket:'',bstaff:'',depreciacion:'',asignacion:'',movilidad:'',participaciones:'',notas:'',activo:true,mesesPago:Array(12).fill(true)};
   const mpLabel=mp=>{if(!Array.isArray(mp)||mp.length!==12||mp.every(x=>x!==false))return 'Mensual';const on=mp.map((v,i)=>v?MESES_GF[i]:null).filter(Boolean);return on.length?on.join(', '):'Sin pago';};
   const MPChips=({value,onChange})=>{const mp=(Array.isArray(value)&&value.length===12)?value:Array(12).fill(true);return(
     <div className="flex flex-wrap items-center gap-1">
@@ -8074,6 +8074,9 @@ function ACostosLaborales({data,save,getLatestData}){
   const pAll=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||''; // nombre completo (para emparejar)
   const pFull=p=>[firstTok(p.nombres),firstTok(p.apellidos)].filter(Boolean).join(' ')||p.name||''; // primer nombre + primer apellido
   const catNameP=id=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===id);return c?c.name:'';};
+  // Enlace por persona/ID: la ficha del equipo manda el nombre mostrado (Nombre + Apellido) cuando hay personId.
+  const nomPerson=i=>i.personId?(data.people||[]).find(p=>p.id===i.personId):null;
+  const nomName=i=>{const p=nomPerson(i);return p?pFull(p):(i.nombre||'');};
   // Coincidencia difusa: el nombre más corto debe estar CONTENIDO en el más largo (≥2 tokens).
   // Así "Alexis Revilla" = "Revilla Diaz, Alexis Agustin" (tokens alexis+revilla ⊆ los del otro).
   const tokensOf=s=>lcNorm(s).split(' ').filter(Boolean);
@@ -8082,14 +8085,25 @@ function ACostosLaborales({data,save,getLatestData}){
   const fechaToIdx=d=>{if(!d)return null;const dt=new Date(d);if(isNaN(dt.getTime()))return null;return (dt.getFullYear()-perStartY)*12+(dt.getMonth()+1-8);};
   const mpFromFechas=(ing,des)=>{const ii=fechaToIdx(ing),di=fechaToIdx(des);return Array.from({length:12},(_,m)=>!((ii!=null&&m<ii)||(di!=null&&m>di)));};
   const activePeopleN=(data.people||[]).filter(p=>!p.desincorporado);
-  const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>nameMatch(pAll(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
-  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&periodoItems.some(i=>nameMatch(pAll(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
-  const mkNomItem=p=>({id:uid(),periodo,sueldo:0,ticket:0,bstaff:0,depreciacion:0,asignacion:0,movilidad:0,participaciones:0,nombre:pFull(p),cargo:catNameP(p.catId),notas:'',activo:true,mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion),montos:Array(12).fill(null)});
+  const matchPer=(p,i)=>i.personId?i.personId===p.id:nameMatch(pAll(p),i.nombre);
+  const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>matchPer(p,i))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&periodoItems.some(i=>matchPer(p,i))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const mkNomItem=p=>({id:uid(),periodo,personId:p.id,sueldo:0,ticket:0,bstaff:0,depreciacion:0,asignacion:0,movilidad:0,participaciones:0,nombre:pFull(p),cargo:catNameP(p.catId),notas:'',activo:true,mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion),montos:Array(12).fill(null)});
   const addFromPerson=p=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),mkNomItem(p)]});};
   const addAllFaltan=()=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),...faltanNom.map(mkNomItem)]});};
-  // Duplicados en la nómina del período (coincidencia difusa por subconjunto de tokens)
+  // Enlazar filas existentes a su persona del equipo (por nombre) y traer su nombre (Nombre+Apellido) y cargo
+  const sinEnlace=periodoItems.filter(i=>!i.personId);
+  const enlazarEquipo=()=>{
+    const ppl=data.people||[];let n=0;const lat=getLatestData?getLatestData():data;
+    const upd=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false||i.personId)return i;const per=ppl.find(p=>nameMatch(pAll(p),i.nombre));if(!per)return i;n++;return {...i,personId:per.id,nombre:pFull(per),cargo:i.cargo||catNameP(per.catId)};});
+    if(!n){alert('No se pudo enlazar ninguna fila (ya enlazadas o sin coincidencia en el equipo). Las no enlazadas puedes asignarlas manualmente al editar.');return;}
+    if(!window.confirm('Se enlazarán '+n+' fila(s) de la nómina con su persona del equipo (por nombre). Se actualizará el nombre a "Nombre + Apellido". ¿Continuar?'))return;
+    save({...lat,laborCosts:upd});
+  };
+  // Duplicados en la nómina del período (mismo personId, o coincidencia difusa de nombre si no hay enlace)
+  const matchRows=(a,b)=>(a.personId&&b.personId)?a.personId===b.personId:nameMatch(nomName(a),nomName(b));
   const dupGroups=[];const usedDup=new Set();
-  periodoItems.forEach(it=>{if(usedDup.has(it.id))return;const g=periodoItems.filter(o=>!usedDup.has(o.id)&&nameMatch(it.nombre,o.nombre));if(g.length>1){g.forEach(x=>usedDup.add(x.id));dupGroups.push(g);}});
+  periodoItems.forEach(it=>{if(usedDup.has(it.id))return;const g=periodoItems.filter(o=>!usedDup.has(o.id)&&matchRows(it,o));if(g.length>1){g.forEach(x=>usedDup.add(x.id));dupGroups.push(g);}});
   const dupIds=new Set(dupGroups.flat().map(i=>i.id));
   // Reordenar nombres "Apellido, Nombre" -> "Nombre Apellido"
   const flipComma=s=>{const i=String(s||'').indexOf(',');return i<0?s:((s.slice(i+1)+' '+s.slice(0,i)).replace(/\s+/g,' ').trim());};
@@ -8159,7 +8173,7 @@ function ACostosLaborales({data,save,getLatestData}){
     if(!form.nombre.trim())return;
     const comp=Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(form[c.key])||0]));
     const mp=(form.mesesPago||Array(12).fill(true)).map(x=>x!==false);
-    const ni={id:uid(),periodo,...comp,nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:mp,montos:Array(12).fill(null)};
+    const ni={id:uid(),periodo,personId:form.personId||'',...comp,nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:mp,montos:Array(12).fill(null)};
     const latLC=getLatestData?getLatestData():data;
     save({...latLC,laborCosts:[...(latLC.laborCosts||[]),ni]});
     setForm(emptyForm);setShowForm(false);
@@ -8351,7 +8365,8 @@ function ACostosLaborales({data,save,getLatestData}){
             </div>
           </div>
           {periodoItems.length>0&&(
-            <div className="flex flex-wrap gap-2 text-[11px]">
+            <div className="flex flex-wrap gap-2 text-[11px] items-center">
+              {sinEnlace.length>0&&<button onClick={enlazarEquipo} className="bg-green-600 hover:bg-green-700 text-white rounded px-2 py-1 font-medium" title="Vincula cada fila con su persona del equipo (por nombre) para que compartan ficha e ID">🔗 Enlazar con el equipo ({sinEnlace.length})</button>}
               <button onClick={simplificarNombres} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50">✂ Dejar primer nombre + primer apellido</button>
               <button onClick={aplicarFechasMeses} className="border rounded px-2 py-1 text-gray-600 hover:bg-gray-50" title="Marca los meses de pago según la fecha de ingreso y de retiro de cada persona (equipo)">🗓 Aplicar fechas de ingreso/retiro a los meses</button>
             </div>
@@ -8401,9 +8416,19 @@ function ACostosLaborales({data,save,getLatestData}){
           {showForm&&(
             <div className="bg-white rounded-xl border p-5">
               <div className="font-semibold text-sm mb-3">Agregar Empleado</div>
+              <div className="mb-3">
+                <label className="text-gray-400 text-xs mb-1 block">Persona (del equipo)</label>
+                <select value={form.personId} onChange={e=>{const id=e.target.value;if(!id){setForm({...form,personId:'',nombre:'',cargo:''});return;}const p=(data.people||[]).find(x=>x.id===id);if(p)setForm({...form,personId:id,nombre:pFull(p),cargo:catNameP(p.catId),mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion)});}} className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">— Externo (escribir nombre a mano) —</option>
+                  {faltanNom.map(p=><option key={p.id} value={p.id}>{pFull(p)}{p.fechaIngreso?' · ingreso '+p.fechaIngreso:''}</option>)}
+                </select>
+                {form.personId&&<p className="text-[10px] text-green-600 mt-1">🔗 Enlazado al equipo: el nombre y los meses de pago se toman de su ficha.</p>}
+              </div>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 <div><label className="text-gray-400 text-xs mb-1 block">Nombre y Apellido</label>
-                  <input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: GARCIA, JUAN" className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
+                  {form.personId
+                    ?<div className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700">{form.nombre||'—'}</div>
+                    :<input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: Juan García" className="w-full border rounded-lg px-3 py-2 text-sm"/>}</div>
                 <div><label className="text-gray-400 text-xs mb-1 block">Cargo</label>
                   <input value={form.cargo} onChange={e=>setForm({...form,cargo:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm"/></div>
                 <div><label className="text-gray-400 text-xs mb-1 block">Notas</label>
@@ -8443,7 +8468,7 @@ function ACostosLaborales({data,save,getLatestData}){
               </thead>
               <tbody>
                 {filtItems.length===0?<tr><td colSpan={12} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
-                :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>{
+                :filtItems.sort((a,b)=>nomName(a).localeCompare(nomName(b))).map(item=>{
                   const totM=totalMensual(item);
                   const editing=editId===item.id;
                   return(
@@ -8463,7 +8488,7 @@ function ACostosLaborales({data,save,getLatestData}){
                         </>
                       ):(
                         <>
-                          <td className="px-3 py-2 font-medium text-gray-700">{item.nombre}{dupIds.has(item.id)&&<span className="ml-1 text-[9px] text-red-600 font-semibold" title="Nombre duplicado en la nómina">⚠ dup</span>}<div className="text-[10px] font-normal text-gray-400">🗓 {mpLabel(item.mesesPago)}</div></td>
+                          <td className="px-3 py-2 font-medium text-gray-700">{nomName(item)}{item.personId&&<span className="ml-1 text-[9px] text-green-600" title="Enlazado al equipo">🔗</span>}{dupIds.has(item.id)&&<span className="ml-1 text-[9px] text-red-600 font-semibold" title="Duplicado en la nómina">⚠ dup</span>}<div className="text-[10px] font-normal text-gray-400">🗓 {mpLabel(item.mesesPago)}</div></td>
                           <td className="px-3 py-2 text-gray-500">{item.cargo||'—'}</td>
                           {LC_COLS.map(c=><td key={c.key} className={'px-2 py-2 text-right '+(item[c.key]>0?c.color:'text-gray-200')}>{item[c.key]>0?$n(item[c.key]):'—'}</td>)}
                           <td className="px-3 py-2 text-right font-bold text-blue-700">{$n(totM)}</td>
@@ -8521,11 +8546,11 @@ function ACostosLaborales({data,save,getLatestData}){
                   </thead>
                   <tbody>
                     {filtItems.length===0?<tr><td colSpan={LC_COLS.length+2} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
-                    :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>{
+                    :filtItems.sort((a,b)=>nomName(a).localeCompare(nomName(b))).map(item=>{
                       const noPaga=LC_MP(item)[gridMes]===false;const ovr=LC_OVR(item,gridMes);
                       return(
                       <tr key={item.id} className={'border-t hover:bg-gray-50 '+(noPaga?'opacity-40':'')}>
-                        <td className="px-3 py-2 font-medium text-gray-700">{item.nombre}{ovr&&<span title="Mes con valores propios" className="ml-1 text-[9px] text-indigo-500">●</span>}{noPaga&&<span className="ml-1 text-[9px] text-gray-400">(no paga)</span>}</td>
+                        <td className="px-3 py-2 font-medium text-gray-700">{nomName(item)}{ovr&&<span title="Mes con valores propios" className="ml-1 text-[9px] text-indigo-500">●</span>}{noPaga&&<span className="ml-1 text-[9px] text-gray-400">(no paga)</span>}</td>
                         {LC_COLS.map(c=>{
                           const editing=nomCell===item.id+'|'+c.key;const val=LC_DETVAL(item,gridMes,c.key);
                           return(
