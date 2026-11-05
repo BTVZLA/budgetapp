@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04l';
+const APP_VERSION='v2026-11-04m';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -221,7 +221,7 @@ const fromDB={
   participations:r=>({id:r.id,projectId:r.project_id,catId:r.cat_id,pct:+r.pct}),
   expenses:r=>({id:r.id,deptId:r.dept_id,category:r.category,month:r.month,est:+r.est,act:+r.act}),
   fixed_expenses:r=>({id:r.id,cuenta:r.cuenta||'',concepto:r.concepto||'',periodo:r.periodo||currentPeriodo,montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
-  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true))}),
+  labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,nombre:r.nombre||'',cargo:r.cargo||'',sueldo:+(r.sueldo||0),ticket:+(r.ticket||0),bstaff:+(r.bstaff||0),depreciacion:+(r.depreciacion||0),asignacion:+(r.asignacion||0),movilidad:+(r.movilidad||0),participaciones:+(r.participaciones||0),notas:r.notas||'',activo:r.activo!==false,mesesPago:(Array.isArray(r.meses_pago)&&r.meses_pago.length===12?r.meses_pago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(r.montos)&&r.montos.length===12?r.montos.map(x=>+x||0):null)}),
   other_labor_costs:r=>({id:r.id,periodo:r.periodo||currentPeriodo,categoria:r.categoria||'',concepto:r.concepto||'',montos:r.montos||Array(12).fill(0),montosReal:r.montos_real||Array(12).fill(0)}),
   people:r=>({id:r.id,name:r.name,nombres:r.nombres||'',apellidos:r.apellidos||'',ci:r.ci||'',initials:r.initials||autoInitials(r.name),catId:r.cat_id,deptId:r.dept_id||null,banco:r.banco||'',numCuenta:r.num_cuenta||'',celular:r.celular||'',email:r.email||'',desincorporado:r.desincorporado===true,fechaDesincorporacion:r.fecha_desincorporacion||''}),
   clients:r=>({id:r.id,code:r.code||'',name:r.name,shortName:r.short_name||''}),
@@ -256,7 +256,7 @@ const toDB={
   participations:p=>({id:p.id,project_id:p.projectId,cat_id:p.catId,pct:p.pct}),
   expenses:e=>({id:e.id,dept_id:e.deptId,category:e.category,month:e.month,est:e.est,act:e.act}),
   fixed_expenses:e=>({id:e.id,cuenta:e.cuenta||'',concepto:e.concepto||'',periodo:e.periodo||currentPeriodo,montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
-  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true))}),
+  labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,nombre:e.nombre||'',cargo:e.cargo||'',sueldo:e.sueldo||0,ticket:e.ticket||0,bstaff:e.bstaff||0,depreciacion:e.depreciacion||0,asignacion:e.asignacion||0,movilidad:e.movilidad||0,participaciones:e.participaciones||0,notas:e.notas||'',activo:e.activo!==false,meses_pago:(Array.isArray(e.mesesPago)&&e.mesesPago.length===12?e.mesesPago.map(x=>x!==false):Array(12).fill(true)),montos:(Array.isArray(e.montos)&&e.montos.length===12?e.montos.map(x=>+x||0):null)}),
   other_labor_costs:e=>({id:e.id,periodo:e.periodo||currentPeriodo,categoria:e.categoria||'',concepto:e.concepto||'',montos:e.montos||Array(12).fill(0),montos_real:e.montosReal||Array(12).fill(0)}),
   people:p=>({id:p.id,name:p.name,nombres:p.nombres||'',apellidos:p.apellidos||'',ci:p.ci||'',initials:p.initials||autoInitials(p.name),cat_id:p.catId,dept_id:p.deptId||null,banco:p.banco||'',num_cuenta:p.numCuenta||'',celular:p.celular||'',email:p.email||'',desincorporado:p.desincorporado===true,fecha_desincorporacion:p.fechaDesincorporacion||null}),
   clients:c=>({id:c.id,code:c.code||'',name:c.name,short_name:c.shortName||''}),
@@ -5297,9 +5297,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const nomina=zeros(), otrosLab=zeros(), gastosFijos=zeros();
   if(showOverhead){
     (data.laborCosts||[]).filter(l=>l.periodo===per&&l.activo!==false).forEach(l=>{
-      const mensual=['sueldo','ticket','bstaff','depreciacion','asignacion','movilidad','participaciones'].reduce((s,k)=>s+(+l[k]||0),0);
-      const mp=(Array.isArray(l.mesesPago)&&l.mesesPago.length===12)?l.mesesPago:Array(12).fill(true);
-      for(let m=0;m<M;m++) if(mp[m]!==false) nomina[m]+=mensual;
+      for(let m=0;m<M;m++) nomina[m]+=LC_MES(l,m);
     });
     (data.otherLaborCosts||[]).filter(o=>o.periodo===per).forEach(o=>{const mm=o.montos||[];for(let m=0;m<M;m++)otrosLab[m]+=(+mm[m]||0);});
     (data.fixedExpenses||[]).filter(g=>g.periodo===per).forEach(g=>{const mm=g.montos||[];for(let m=0;m<M;m++)gastosFijos[m]+=(+mm[m]||0);});
@@ -6215,7 +6213,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
   const tGFE=gfItems.reduce((s,i)=>s+(i.montos||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
   const tGFR=gfItems.reduce((s,i)=>s+(i.montosReal||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
   const lcItems=(data.laborCosts||[]).filter(i=>(pPer?i.periodo===pPer:true)&&i.activo!==false);
-  const tLCE=lcItems.reduce((s,i)=>s+(i.sueldo+i.ticket+i.bstaff+i.depreciacion+i.asignacion+i.movilidad+i.participaciones)*12,0);
+  const tLCE=lcItems.reduce((s,i)=>s+LC_ANUAL(i),0);
   const tLCM=lcItems.reduce((s,i)=>s+(i.sueldo+i.ticket+i.bstaff+i.depreciacion+i.asignacion+i.movilidad+i.participaciones),0);
   const olcItems=(data.otherLaborCosts||[]).filter(i=>pPer?i.periodo===pPer:true);
   const tOLC=olcItems.reduce((s,i)=>s+(i.montos||[]).reduce((ss,v)=>ss+(parseFloat(v)||0),0),0);
@@ -6225,7 +6223,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
   const tOtrosCC_r=data.projects.reduce((s,p)=>s+getTotOtrosCostosCobranza(p.id,data),0);
   const tDC_r=tIC_r+tEC_r+tTerc_r+tOtrosCC_r+tPA;
   const bE=tRE-tDC,nE=bE-tEE-tGFE-tLCE-tOLC;
-  const nER=tRA-tDC_r-(tLCM*12)-tOLC-tEA-tGFR; // Utilidad neta real
+  const nER=tRA-tDC_r-tLCE-tOLC-tEA-tGFR; // Utilidad neta real
   const bM=tRE>0?(bE/tRE)*100:0,nM=tRE>0?(nE/tRE)*100:0;
   const pRows=data.projects.filter(p=>!p.enPapelera).map(p=>({...p,dn:(data.departments.find(d=>d.id===p.deptId)||{}).name||'',pl:getPL(p.id,data)})).sort((a,b)=>b.pl.revE-a.pl.revE);
   const cMap={};
@@ -6272,7 +6270,7 @@ function AResumen({data,PeriodoSelector,selPeriodo}){
     {l:'  Participaciones',e:-tPC,a:-tPA,bold:false,color:'text-teal-600'},
     {l:'Total Costos Directos',e:-tDC,a:-tDC_r,bold:true,color:'text-orange-700',sep:true},
     {l:'Margen Bruto',e:bE,a:tRA-tDC_r,bold:true,color:bE>=0?'text-blue-700':'text-red-600',sep:true},
-    {l:'  Costos Laborales (Nómina)',e:-tLCE,a:-tLCM*12,bold:false,color:'text-blue-600'},
+    {l:'  Costos Laborales (Nómina)',e:-tLCE,a:-tLCE,bold:false,color:'text-blue-600'},
     {l:'  Otros Costos Laborales',e:-tOLC,a:-tOLC,bold:false,color:'text-cyan-600'},
     {l:'  Gastos Generales',e:-tEE,a:-tEA,bold:false,color:'text-purple-600'},
     {l:'  Gastos Fijos',e:-tGFE,a:-tGFR,bold:false,color:'text-red-500'},
@@ -7933,6 +7931,12 @@ const LC_COLS=[
   {key:'movilidad',  label:'Movilidad $',      color:'text-cyan-600'},
   {key:'participaciones',label:'Participaciones $',color:'text-amber-600'},
 ];
+// Nómina mensual: base (suma de columnas) y monto efectivo por mes (montos[] override; si no, base×mesesPago).
+const LC_BASE=i=>LC_COLS.reduce((s,c)=>s+(parseFloat(i[c.key])||0),0);
+const LC_MP=i=>(Array.isArray(i.mesesPago)&&i.mesesPago.length===12)?i.mesesPago:Array(12).fill(true);
+const LC_MES=(i,m)=>{const mo=i.montos;if(Array.isArray(mo)&&mo.length===12&&mo[m]!=null&&mo[m]!==''&&!isNaN(+mo[m]))return +mo[m];return LC_MP(i)[m]!==false?LC_BASE(i):0;};
+const LC_ANUAL=i=>{let s=0;for(let m=0;m<12;m++)s+=LC_MES(i,m);return s;};
+const LC_MONTOS=i=>Array.isArray(i.montos)&&i.montos.length===12?i.montos.map(x=>+x||0):Array.from({length:12},(_,m)=>LC_MES(i,m));
 
 /* ══════════════════════ COSTOS LABORALES ═══════════════════════════════ */
 
@@ -8012,7 +8016,7 @@ function ACostosLaborales({data,save,getLatestData}){
 
   const totalMensual=r=>LC_COLS.reduce((s,c)=>s+(parseFloat(r[c.key])||0),0);
   const totMes=filtItems.reduce((s,i)=>s+totalMensual(i),0);
-  const totAnual=totMes*12;
+  const totAnual=filtItems.reduce((s,i)=>s+LC_ANUAL(i),0);
   const totByCol=key=>filtItems.reduce((s,i)=>s+(parseFloat(i[key])||0),0);
 
   const olcTotByMonth=MESES_GF.map((_,m)=>olcPeriodoItems.reduce((s,i)=>s+(parseFloat((i.montos||[])[m])||0),0));
@@ -8022,8 +8026,10 @@ function ACostosLaborales({data,save,getLatestData}){
   // Nómina actions
   const add=()=>{
     if(!form.nombre.trim())return;
-    const ni={id:uid(),periodo,...Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(form[c.key])||0])),
-      nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:(form.mesesPago||Array(12).fill(true))};
+    const comp=Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(form[c.key])||0]));
+    const base=LC_COLS.reduce((s,c)=>s+comp[c.key],0);
+    const mp=(form.mesesPago||Array(12).fill(true)).map(x=>x!==false);
+    const ni={id:uid(),periodo,...comp,nombre:form.nombre.trim(),cargo:form.cargo.trim(),notas:form.notas.trim(),activo:true,mesesPago:mp,montos:mp.map(on=>on?base:0)};
     const latLC=getLatestData?getLatestData():data;
     save({...latLC,laborCosts:[...(latLC.laborCosts||[]),ni]});
     setForm(emptyForm);setShowForm(false);
@@ -8036,12 +8042,33 @@ function ACostosLaborales({data,save,getLatestData}){
       ...Object.fromEntries(LC_COLS.map(c=>[c.key,String(item[c.key]||0)]))});
   };
   const applyEdit=()=>{
+    const oldItem=items.find(i=>i.id===editId)||{};
+    const comp=Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(editForm[c.key])||0]));
+    const base=LC_COLS.reduce((s,c)=>s+comp[c.key],0);
+    const mp=(editForm.mesesPago||Array(12).fill(true)).map(x=>x!==false);
+    const compChanged=LC_COLS.some(c=>(parseFloat(oldItem[c.key])||0)!==comp[c.key]);
+    const mpChanged=JSON.stringify(LC_MP(oldItem).map(x=>x!==false))!==JSON.stringify(mp);
+    // Si cambió el sueldo base o los meses de pago, se re-uniforma el detalle por mes; si no, se conserva lo cargado por mes.
+    const montos=(compChanged||mpChanged||!Array.isArray(oldItem.montos)||oldItem.montos.length!==12)?mp.map(on=>on?base:0):oldItem.montos;
     save({...(getLatestData?getLatestData():data),laborCosts:items.map(i=>i.id===editId?{...i,
-      nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,
-      mesesPago:(editForm.mesesPago||Array(12).fill(true)),
-      ...Object.fromEntries(LC_COLS.map(c=>[c.key,parseFloat(editForm[c.key])||0]))}:i)});
+      nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,mesesPago:mp,montos,...comp}:i)});
     setEditId(null);
   };
+  // Edición de un mes puntual en la grilla por-mes
+  const [verMes,setVerMes]=useState(false);
+  const [nomCell,setNomCell]=useState(null);
+  const [nomCellVal,setNomCellVal]=useState('');
+  const setMesNom=(id,m,val)=>{
+    const lat=getLatestData?getLatestData():data;
+    const arr=(lat.laborCosts||[]).map(i=>{if(i.id!==id)return i;const mo=LC_MONTOS(i);mo[m]=parseFloat(val)||0;return {...i,montos:mo};});
+    save({...lat,laborCosts:arr});
+  };
+  const copiarMesAntNom=m=>{
+    if(m<=0)return;const lat=getLatestData?getLatestData():data;
+    const arr=(lat.laborCosts||[]).map(i=>{if(i.periodo!==periodo||i.activo===false)return i;const mo=LC_MONTOS(i);mo[m]=mo[m-1];return {...i,montos:mo};});
+    save({...lat,laborCosts:arr});
+  };
+  const nomTotByMonth=MESES_GF.map((_,m)=>filtItems.reduce((s,i)=>s+LC_MES(i,m),0));
 
   // OLC actions
   const olcAdd=()=>{
@@ -8179,7 +8206,13 @@ function ACostosLaborales({data,save,getLatestData}){
           <div className="flex items-center gap-3">
             <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Buscar empleado..." className="border rounded-lg px-3 py-2 text-sm w-64"/>
             {search&&<button onClick={()=>setSearch('')} className="text-gray-400 text-xs">✕</button>}
-            <button onClick={()=>setShowForm(!showForm)} className="ml-auto bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">+ Agregar Empleado</button>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="inline-flex rounded-lg border overflow-hidden text-xs">
+                <button onClick={()=>setVerMes(false)} className={'px-3 py-2 '+(!verMes?'bg-indigo-600 text-white':'bg-white text-gray-600')}>Resumen (base)</button>
+                <button onClick={()=>setVerMes(true)} className={'px-3 py-2 '+(verMes?'bg-indigo-600 text-white':'bg-white text-gray-600')}>📅 Por mes</button>
+              </div>
+              <button onClick={()=>setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">+ Agregar Empleado</button>
+            </div>
           </div>
           {showForm&&(
             <div className="bg-white rounded-xl border p-5">
@@ -8212,7 +8245,7 @@ function ACostosLaborales({data,save,getLatestData}){
               </div>
             </div>
           )}
-          <div className="bg-white rounded-xl border overflow-hidden overflow-x-auto">
+          {!verMes&&<div className="bg-white rounded-xl border overflow-hidden overflow-x-auto">
             <table className="text-xs min-w-max w-full">
               <thead className="bg-blue-50">
                 <tr>
@@ -8238,7 +8271,7 @@ function ACostosLaborales({data,save,getLatestData}){
                           <td className="px-3 py-1.5"><input value={editForm.cargo} onChange={e=>setEditForm({...editForm,cargo:e.target.value})} className="border rounded px-2 py-1 text-xs w-24"/></td>
                           {LC_COLS.map(c=><td key={c.key} className="px-1 py-1.5"><input type="number" value={editForm[c.key]} onChange={e=>setEditForm({...editForm,[c.key]:e.target.value})} className="border rounded px-1 py-1 text-xs w-16 text-right"/></td>)}
                           <td className="px-3 py-1.5 text-right font-bold text-blue-700">{$n(LC_COLS.reduce((s,c)=>s+(parseFloat(editForm[c.key])||0),0))}</td>
-                          <td className="px-3 py-1.5 text-right font-bold text-indigo-600">{$n(LC_COLS.reduce((s,c)=>s+(parseFloat(editForm[c.key])||0),0)*12)}</td>
+                          <td className="px-3 py-1.5 text-right font-bold text-indigo-600">{$n(LC_BASE(editForm)*((editForm.mesesPago||Array(12).fill(true)).filter(x=>x!==false).length))}</td>
                           <td className="px-3 py-1.5 text-right whitespace-nowrap">
                             <button onClick={applyEdit} className="text-green-600 font-bold mr-1">✓</button>
                             <button onClick={()=>setEditId(null)} className="text-gray-400">✕</button>
@@ -8250,7 +8283,7 @@ function ACostosLaborales({data,save,getLatestData}){
                           <td className="px-3 py-2 text-gray-500">{item.cargo||'—'}</td>
                           {LC_COLS.map(c=><td key={c.key} className={'px-2 py-2 text-right '+(item[c.key]>0?c.color:'text-gray-200')}>{item[c.key]>0?$n(item[c.key]):'—'}</td>)}
                           <td className="px-3 py-2 text-right font-bold text-blue-700">{$n(totM)}</td>
-                          <td className="px-3 py-2 text-right font-bold text-indigo-600">{$n(totM*12)}</td>
+                          <td className="px-3 py-2 text-right font-bold text-indigo-600">{$n(LC_ANUAL(item))}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">
                             <button onClick={()=>startEdit(item)} className="text-indigo-400 mr-2">✏️</button>
                             <button onClick={()=>del(item.id)} className="text-red-400">✕</button>
@@ -8275,7 +8308,59 @@ function ACostosLaborales({data,save,getLatestData}){
                 </tfoot>
               )}
             </table>
-          </div>
+          </div>}
+          {verMes&&(
+            <div className="bg-white rounded-xl border overflow-hidden overflow-x-auto">
+              <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50">
+                <div className="text-xs text-gray-500">Clic en una celda para editar la nómina de ese mes. El valor por defecto es el sueldo base; aquí cargas las variaciones (ajustes, bonos, etc.).</div>
+              </div>
+              <table className="text-xs min-w-max w-full">
+                <thead className="bg-blue-50">
+                  <tr>
+                    <th className="text-left px-3 py-2 w-52 text-gray-600 font-semibold sticky left-0 bg-blue-50">Nombre</th>
+                    {MESES_GF.map((m,i)=>(
+                      <th key={i} className="text-right px-2 py-2 w-20 font-medium text-gray-500">
+                        <div>{m}</div>
+                        {i>0&&<button onClick={()=>copiarMesAntNom(i)} title="Copiar del mes anterior a todos" className="text-[9px] text-indigo-500 hover:underline font-normal">← copiar</button>}
+                      </th>
+                    ))}
+                    <th className="text-right px-3 py-2 text-indigo-600 font-bold">Anual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtItems.length===0?<tr><td colSpan={14} className="text-center py-8 text-gray-400">Sin empleados para este período.</td></tr>
+                  :filtItems.sort((a,b)=>a.nombre.localeCompare(b.nombre)).map(item=>(
+                    <tr key={item.id} className="border-t hover:bg-gray-50">
+                      <td className="px-3 py-2 font-medium text-gray-700 sticky left-0 bg-white">{item.nombre}</td>
+                      {MESES_GF.map((_,m)=>{
+                        const val=LC_MES(item,m);const editing=nomCell===item.id+'|'+m;
+                        return(
+                          <td key={m} className="px-1 py-1 text-right" onClick={()=>{if(!editing){setNomCell(item.id+'|'+m);setNomCellVal(val||'');}}}>
+                            {editing?(
+                              <input autoFocus type="number" value={nomCellVal} onChange={e=>setNomCellVal(e.target.value)}
+                                onBlur={()=>{setMesNom(item.id,m,nomCellVal);setNomCell(null);}}
+                                onKeyDown={e=>{if(e.key==='Enter'){setMesNom(item.id,m,nomCellVal);setNomCell(null);}if(e.key==='Escape')setNomCell(null);}}
+                                className="border rounded px-1 py-1 text-xs w-16 text-right"/>
+                            ):<span className={'cursor-pointer '+(val>0?'text-gray-700':'text-gray-200')}>{val>0?$n(val):'—'}</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2 text-right font-bold text-indigo-600">{$n(LC_ANUAL(item))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {filtItems.length>0&&(
+                  <tfoot className="border-t-2 bg-blue-50 font-bold text-xs">
+                    <tr>
+                      <td className="px-3 py-2 text-blue-700 sticky left-0 bg-blue-50">TOTAL</td>
+                      {nomTotByMonth.map((v,m)=><td key={m} className="px-2 py-2 text-right text-blue-800">{v>0?$n(v):'—'}</td>)}
+                      <td className="px-3 py-2 text-right text-indigo-700">{$n(totAnual)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
         </div>
       )}
 
