@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05b';
+const APP_VERSION='v2026-11-05c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5382,16 +5382,16 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       </div>
       <div className="flex items-center gap-2 mb-3">
-        {[['ppto','📋 Presupuestado'],['real','✅ Real'],['comp','📊 Comparativo']].map(([v,l])=>(
+        {[['ppto','📋 Presupuestado'],['real','✅ Real'],['comp','📊 Comparativo'],['cobro','🎯 Cobertura de cobro']].map(([v,l])=>(
           <button key={v} onClick={()=>setVista(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(vista===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
         ))}
       </div>
       <p className="text-gray-400 text-xs mb-4">
-        {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
-        {!showOverhead&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
+        {vista==='cobro'?'Cobertura de cobro: proyectos del período cuyo plan de cobro (Cobro Planificado por mes) aún no llega al 100% de sus honorarios; indica cuánto falta por estimar en el tiempo.':vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
+        {!showOverhead&&vista!=='cobro'&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
       </p>
 
-      {vista==='ppto'&&(
+      {vista==='cobro'&&(
         <div className={'mb-4 rounded-xl border '+(cobroRep.length?'bg-amber-50 border-amber-200':'bg-green-50 border-green-200')}>
           <button onClick={()=>setShowCobroRep(!showCobroRep)} className="w-full flex items-center justify-between px-4 py-2.5 text-left">
             <span className="text-sm font-semibold text-gray-700">
@@ -5443,7 +5443,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       )}
 
-      {showOverhead&&vista!=='comp'&&(
+      {showOverhead&&(vista==='ppto'||vista==='real')&&(
         <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 rounded-xl border px-4 py-3 w-max">
           <span className="text-gray-500">Saldo inicial de caja ({per}):</span>
           <span className="text-gray-400">$</span>
@@ -5451,7 +5451,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       )}
 
-      {vista!=='comp'?(<>
+      {(vista==='ppto'||vista==='real')?(<>
       <div className="bg-white rounded-xl border overflow-x-auto">
         <table className="min-w-max w-full text-xs">
           <thead className="bg-gray-50 text-gray-500">
@@ -5490,7 +5490,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       )}
       {showOverhead&&huecos.length>0&&<div className="mt-3 text-xs bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-yellow-800">⚠ Meses con <b>déficit de caja</b> (saldo acumulado negativo): <b>{huecos.join(', ')}</b></div>}
-      </>):(
+      </>):vista==='comp'?(
       <div className="bg-white rounded-xl border overflow-hidden max-w-2xl">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500"><tr><th className="text-left px-4 py-2">Concepto</th><th className="text-right px-4 py-2">Presupuesto</th><th className="text-right px-4 py-2">Real</th><th className="text-right px-4 py-2">Variación</th></tr></thead>
@@ -5512,8 +5512,8 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
           </tbody>
         </table>
       </div>
-      )}
-      {projsScope.length===0&&<div className="mt-4 text-xs text-gray-400">No hay proyectos del período {per} para esta vista. Crea proyectos y carga su <b>Cobro Planificado</b> por mes en cada proyecto (pestaña 💰 Ingresos y Cobro).</div>}
+      ):null}
+      {projsScope.length===0&&vista!=='cobro'&&<div className="mt-4 text-xs text-gray-400">No hay proyectos del período {per} para esta vista. Crea proyectos y carga su <b>Cobro Planificado</b> por mes en cada proyecto (pestaña 💰 Ingresos y Cobro).</div>}
     </div>
   );
 }
