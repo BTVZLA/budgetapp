@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04i';
+const APP_VERSION='v2026-11-04j';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3637,6 +3637,50 @@ const CRONO_HITOS_INTERINA=[
   {k:'int_recom',n:'Discusión de recomendaciones del corte interino',rol:'Responsable',rev:'socio',p:0.18},
   {k:'int_present',n:'Presentación de resultados a la gerencia (interina)',rol:'Responsable',rev:'socio',p:0.2,clave:true},
 ];
+// Orden maestro del cronograma de auditoría (definido por el usuario en Excel). clave->orden. Dos variantes.
+// Las claves _adm_* corresponden a los hitos del paquete administrativo (globales, se mapean por nombre).
+const CRONO_ORD_INT={ // CON visita interina
+  gl_crearbase:1,aceptacion:2,independencia:3,carta_compromiso:4,fact1:5,
+  int_reunion:6,int_balance:7,int_requerim:8,int_sumarias:9,
+  factores_riesgo:10,estrategia:11,presupuesto_tiempo:12,reunion_plan:13,fraude:14,
+  plan_materialidad_int:15,int_recaudos:16,
+  analitica:17,entendimiento:18,riesgos:19,informe_riesgo:20,negocio_marcha_plan:21,rev_socio_plan:22,rce_plan:23,
+  int_campo_ini:24,int_campo_fin:25,int_recom:26,int_present:27,
+  _adm_balance:28,materialidad:29,_adm_consig:30,_adm_campo:31,
+  requerimiento:32,confirm_env:33,inventario:34,controles:35,respuesta:36,otros_c:37,saldos_apertura:38,
+  sustantivas:39,confirm_rec:40,fin_campo:41,incorrecciones:42,fact2:42.5,
+  rev_responsable:43,borrador:44,carta_gerencia:45,carta_repres:46,
+  _adm_present:47,_adm_asamblea:48,_adm_autoriz:49,
+  rev_socio_fin:50,rce_fin:51,independencia_fin:52,informe_final:53,
+  _adm_juntaenvio:54,fact3:55,archivo:56,_adm_aprob:57,
+}; // _adm_reunion OMITIDO a propósito (N/A con interina: ya existe int_reunion)
+const CRONO_ORD_FIN={ // SIN interina (solo final)
+  gl_crearbase:1,aceptacion:2,independencia:3,carta_compromiso:4,_adm_reunion:5,fact1:6,
+  _adm_balance:7,plan_sumarias:8,_adm_consig:8.5,
+  factores_riesgo:9,estrategia:10,presupuesto_tiempo:11,reunion_plan:12,fraude:13,materialidad:14,
+  analitica:15,entendimiento:16,riesgos:17,informe_riesgo:18,negocio_marcha_plan:19,rev_socio_plan:20,rce_plan:21,
+  _adm_campo:23,requerimiento:24,confirm_env:25,inventario:26,controles:27,respuesta:28,otros_c:29,saldos_apertura:30,
+  sustantivas:31,confirm_rec:32,fin_campo:33,incorrecciones:34,rev_responsable:35,borrador:36,carta_gerencia:37,carta_repres:38,
+  _adm_present:39,_adm_asamblea:40,_adm_autoriz:41,rev_socio_fin:42,rce_fin:43,independencia_fin:44,informe_final:45,
+  _adm_juntaenvio:46,fact3:47,archivo:48,_adm_aprob:49,
+}; // sin fact2 (la facturación intermedia es solo del esquema con interina)
+const _cnorm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+// nombre (normalizado) del hito administrativo global -> clave de orden
+const CRONO_ADM_KEY={
+  'reunión preliminar / inicio de auditoría con el cliente':'_adm_reunion',
+  'entrega del balance de comprobación por el cliente':'_adm_balance',
+  'consignación de auxiliares contables y recaudos por el cliente':'_adm_consig',
+  'inicio del trabajo de campo':'_adm_campo',
+  'presentación de resultados a la gerencia':'_adm_present',
+  'comunicación de la fecha de asamblea de accionistas / junta (aprobación de eeff)':'_adm_asamblea',
+  'autorización del cliente para impresión de informes definitivos':'_adm_autoriz',
+  'envío a junta directiva / asamblea para aprobación de eeff':'_adm_juntaenvio',
+  'aprobación de eeff por la junta directiva / asamblea':'_adm_aprob',
+};
+// Fase correcta (para la agrupación de pantalla) de cada hito administrativo/global del orden maestro
+const CRONO_ADM_FASE={_adm_reunion:'Planificación',_adm_balance:'Planificación',_adm_consig:'Planificación',_adm_campo:'Respuesta al riesgo',_adm_present:'Documentos de cierre',_adm_asamblea:'Documentos de cierre',_adm_autoriz:'Documentos de cierre',_adm_juntaenvio:'Documentos de cierre',_adm_aprob:'Archivo',gl_crearbase:'Planificación'};
+// Devuelve la clave de orden de un hito global (admin o "Crear la base"); null si no es del paquete.
+const cronoAdmKey=nombre=>{const nn=_cnorm(nombre);if(CRONO_ADM_KEY[nn])return CRONO_ADM_KEY[nn];if(/crear la base/.test(nn))return 'gl_crearbase';return null;};
 const cronoSync=(data,pid)=>{const r=(data.cronograma||[]).find(x=>x.projectId===pid&&x.clave==='__cwsync');try{return r?JSON.parse(r.notas||'{}'):null;}catch(_){return null;}};
 const cronoLink=(data,pid)=>((data.cronograma||[]).find(r=>r.projectId===pid&&r.clave===CRONO_META)||{}).notas||'';
 const cronoHoy=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -3903,11 +3947,14 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const invAplica=sec?sec.inv:setup.inv;
     const regulado=setup.tpl==='auditoria'&&(setup.sector==='seguros'||setup.sector==='bancos');
     const haceInterina=setup.tpl==='auditoria'&&(regulado||setup.interina);
+    const esAud=setup.tpl==='auditoria';
+    const ordMap=esAud?(haceInterina?CRONO_ORD_INT:CRONO_ORD_FIN):null;
+    const ordOf=(k,fb)=>(ordMap&&ordMap[k]!=null)?ordMap[k]:fb;
     const nuevos=[];
-    // Bloque de Auditoría Interina (sección propia al inicio; orden bajo para que salga primero)
+    // Bloque de Auditoría Interina (orden definido por el usuario)
     if(haceInterina)CRONO_HITOS_INTERINA.forEach((t,ii)=>{
       const fp=cronoAddDays(setup.inicio,span*t.p);
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ii+1,fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,ii+1),fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
     });
     tpl.forEach((t,ti)=>{
@@ -3916,31 +3963,47 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       // Áreas: por sector para controles/sustantivas en auditoría; si no, las de la plantilla
       let areasT=t.areas||(t.areasSetup?elems:[]);
       if(sec){ if(t.k==='controles') areasT=sec.ctrl||[]; else if(t.k==='sustantivas') areasT=sec.sust||[]; }
-      const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(ti+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+      const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,(ti+1)*10),fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:na?'na':'pendiente',
         hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave};
       nuevos.push(h);
       areasT.forEach((a,i)=>nuevos.push({...h,id:uid(),parentId:h.id,clave:'',orden:i+1,nombre:a.n||a,ref:a.ref||'',asignadoId:'',estado:'pendiente',hitoClave:false}));
     });
+    // Hitos nuevos del usuario (sumarias/agrupaciones; materialidad interina)
+    if(esAud){
+      const nh=haceInterina
+        ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},
+           {k:'plan_materialidad_int',fase:'Planificación',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.1}]
+        : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
+      nh.forEach(t=>nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,900),fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
+        asignadoId:'',fechaPlan:cronoAddDays(setup.inicio,span*t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}));
+    }
     // Hitos propios del sector (ej. banca: UAIR, AML)
     if(sec&&sec.hitos)sec.hitos.forEach((t,xi)=>{
       const fp=cronoAddDays(setup.inicio,span*t.p);
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:(tpl.length+xi+1)*10,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:35.5+xi*0.1,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
-    // Hitos GLOBALES (aplican a todos los encargos)
+    // Hitos GLOBALES. Para auditoría, el paquete administrativo usa el orden maestro (mapeo por nombre).
     cronoGlobales(data).forEach(g=>{
-      const {orden,fp}=cronoColocar(nuevos,g);
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden,fase:g.fase||'',nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
+      const key=esAud?cronoAdmKey(g.nombre):null;
+      let orden,fp,fase=g.fase||'';
+      if(ordMap&&key){
+        if(ordMap[key]==null)return; // admin no aplicable en esta variante (ej. "reunión con el cliente" cuando hay interina)
+        orden=ordMap[key];fase=CRONO_ADM_FASE[key]||fase;fp=cronoColocar(nuevos,{fase,notas:(+orden<30?'inicio':'fin')}).fp;
+      }else{const r=cronoColocar(nuevos,g);orden=r.orden;fp=r.fp;}
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden,fase,nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
         asignadoId:'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
-    // Facturación: 3 cuotas si hay interina (inicial, al inicio de la etapa final, tras el informe); 2 si no.
-    const facturas=haceInterina
-      ? [{n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{n:'Facturación al inicio de la etapa final',fase:'Respuesta al riesgo',pos:'inicio'},{n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}]
-      : [{n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}];
-    facturas.forEach((f,fi)=>{
-      const {orden,fp}=cronoColocar(nuevos,{fase:f.fase,notas:f.pos});
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'fact'+(fi+1),orden,fase:f.fase,nombre:f.n,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+    // Facturación: con interina 3 cuotas (inicial, inicio etapa final, tras informe); sin interina 2.
+    const fdefs=esAud
+      ? (haceInterina
+          ? [['fact1','Facturación inicial','Planificación','inicio'],['fact2','Facturación al inicio de la etapa final','Documentos de cierre','fin'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']]
+          : [['fact1','Facturación inicial','Planificación','inicio'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']])
+      : [['fact1','Facturación inicial','Planificación','inicio'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']];
+    fdefs.forEach(([cl,nm,fase,pos])=>{
+      const cc=cronoColocar(nuevos,{fase,notas:pos});
+      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordOf(cl,cc.orden),fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:cc.fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
     if(sec)nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
