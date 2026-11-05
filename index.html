@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05c';
+const APP_VERSION='v2026-11-05d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5368,6 +5368,16 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   }).filter(x=>x.hon>0&&x.gap>0.5).sort((a,b)=>b.gap-a.gap);
   const cobroRepGap=cobroRep.reduce((s,x)=>s+x.gap,0);
   const cobroSobre=projsScope.filter(p=>{const hon=+p.honorariosTotal||0;const cp=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);return hon>0&&cp-hon>0.5;}).length;
+  const exportarCobro=()=>{
+    const header=['Proyecto','Responsable','Honorarios','Cobro planificado','% cubierto','Falta por planificar'];
+    const rows=cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{const u=(data.users||[]).find(x=>x.id===p.responsableId);return [p.nombre||p.codigo||p.id,u?u.name:'—',hon,cobroPlan,Math.round(pct)+'%',gap];});
+    rows.push(['TOTAL POR PLANIFICAR','','','','',cobroRepGap]);
+    const resp=showOverhead?'Total firma':(((data.users||[]).find(u=>u.id===respF)||{}).name||respF);
+    exportarExcelBT('Cobertura_cobro_'+per+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{
+      sheet:'Cobertura de cobro',title:'Cobertura del plan de cobro — '+per,
+      meta:['Proyectos cuyo plan de cobro no llega al 100% de los honorarios · '+resp,'Generado '+new Date().toLocaleDateString('es-VE')],
+      header,rows,money:[2,3,5],boldRows:[rows.length-1]});
+  };
 
   return(
     <div className="p-6">
@@ -5404,6 +5414,9 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
           </button>
           {showCobroRep&&cobroRep.length>0&&(
             <div className="px-4 pb-3 overflow-x-auto">
+              <div className="flex justify-end mb-2">
+                <button onClick={exportarCobro} className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium">⬇ Descargar Excel</button>
+              </div>
               <table className="w-full text-xs">
                 <thead className="text-gray-500 border-b">
                   <tr>
