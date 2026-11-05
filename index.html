@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05g';
+const APP_VERSION='v2026-11-05h';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -8072,20 +8072,28 @@ function ACostosLaborales({data,save,getLatestData}){
   // Formato nombre-primero (orden por nombre y luego apellido). El emparejamiento (lcNorm) es independiente del orden.
   const pFull=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||'';
   const catNameP=id=>{const c=(data.partCats||DEFAULT_PART_CATS).find(x=>x.id===id);return c?c.name:'';};
-  const nomNamesPer=new Set(periodoItems.map(i=>lcNorm(i.nombre)));
+  // Coincidencia difusa: el nombre más corto debe estar CONTENIDO en el más largo (≥2 tokens).
+  // Así "Alexis Revilla" = "Revilla Diaz, Alexis Agustin" (tokens alexis+revilla ⊆ los del otro).
+  const tokensOf=s=>lcNorm(s).split(' ').filter(Boolean);
+  const nameMatch=(a,b)=>{const A=tokensOf(a),B=tokensOf(b);if(!A.length||!B.length)return false;const [S,L]=A.length<=B.length?[A,B]:[B,A];if(S.length<2)return lcNorm(a)===lcNorm(b);const ls=new Set(L);return S.every(t=>ls.has(t));};
   const perStartY=parseInt((periodo||'').split('-')[0],10)||2025;
   const fechaToIdx=d=>{if(!d)return null;const dt=new Date(d);if(isNaN(dt.getTime()))return null;return (dt.getFullYear()-perStartY)*12+(dt.getMonth()+1-8);};
   const mpFromFechas=(ing,des)=>{const ii=fechaToIdx(ing),di=fechaToIdx(des);return Array.from({length:12},(_,m)=>!((ii!=null&&m<ii)||(di!=null&&m>di)));};
   const activePeopleN=(data.people||[]).filter(p=>!p.desincorporado);
-  const faltanNom=activePeopleN.filter(p=>!nomNamesPer.has(lcNorm(pFull(p)))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
-  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&nomNamesPer.has(lcNorm(pFull(p)))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>nameMatch(pFull(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
+  const retiradosNom=(data.people||[]).filter(p=>p.desincorporado&&periodoItems.some(i=>nameMatch(pFull(p),i.nombre))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
   const mkNomItem=p=>({id:uid(),periodo,sueldo:0,ticket:0,bstaff:0,depreciacion:0,asignacion:0,movilidad:0,participaciones:0,nombre:pFull(p),cargo:catNameP(p.catId),notas:'',activo:true,mesesPago:mpFromFechas(p.fechaIngreso,p.fechaDesincorporacion),montos:Array(12).fill(null)});
   const addFromPerson=p=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),mkNomItem(p)]});};
   const addAllFaltan=()=>{const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:[...(lat.laborCosts||[]),...faltanNom.map(mkNomItem)]});};
-  // Duplicados en la nómina del período (mismo nombre normalizado en 2+ filas)
-  const dupMap={};periodoItems.forEach(i=>{const k=lcNorm(i.nombre);(dupMap[k]=dupMap[k]||[]).push(i);});
-  const dupGroups=Object.values(dupMap).filter(g=>g.length>1);
+  // Duplicados en la nómina del período (coincidencia difusa por subconjunto de tokens)
+  const dupGroups=[];const usedDup=new Set();
+  periodoItems.forEach(it=>{if(usedDup.has(it.id))return;const g=periodoItems.filter(o=>!usedDup.has(o.id)&&nameMatch(it.nombre,o.nombre));if(g.length>1){g.forEach(x=>usedDup.add(x.id));dupGroups.push(g);}});
   const dupIds=new Set(dupGroups.flat().map(i=>i.id));
+  // Reordenar nombres "Apellido, Nombre" -> "Nombre Apellido"
+  const flipComma=s=>{const i=String(s||'').indexOf(',');return i<0?s:((s.slice(i+1)+' '+s.slice(0,i)).replace(/\s+/g,' ').trim());};
+  const conComa=periodoItems.filter(i=>(i.nombre||'').includes(','));
+  const reordNombres=()=>{if(!conComa.length)return;if(!window.confirm('Se reordenarán '+conComa.length+' nombre(s) de "Apellido, Nombre" a "Nombre Apellido". ¿Continuar?'))return;const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).map(i=>(i.periodo===periodo&&i.activo!==false&&(i.nombre||'').includes(','))?{...i,nombre:flipComma(i.nombre)}:i)});};
+  const quitarDupVacios=()=>{const toRemove=[];dupGroups.forEach(g=>{const conData=g.filter(i=>LC_BASE(i)>0||LC_ANUAL(i)>0);const vacios=g.filter(i=>!(LC_BASE(i)>0||LC_ANUAL(i)>0));if(conData.length>=1)toRemove.push(...vacios);else toRemove.push(...vacios.slice(1));});if(!toRemove.length){alert('No hay duplicados "vacíos" para quitar automáticamente. Revisa manualmente los que tienen datos cargados.');return;}if(!window.confirm('Se quitarán '+toRemove.length+' fila(s) duplicada(s) SIN datos (se conserva la que tiene montos). ¿Continuar?'))return;const ids=new Set(toRemove.map(i=>i.id));const lat=getLatestData?getLatestData():data;save({...lat,laborCosts:(lat.laborCosts||[]).filter(i=>!ids.has(i.id))});};
 
   // ── Costo por hora por persona/mes ──
   const [chMes,setChMes]=useState(0);
@@ -8324,12 +8332,23 @@ function ACostosLaborales({data,save,getLatestData}){
               <button onClick={()=>setShowForm(!showForm)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">+ Agregar Empleado</button>
             </div>
           </div>
-          {(faltanNom.length>0||retiradosNom.length>0||dupGroups.length>0)&&(
+          {(faltanNom.length>0||retiradosNom.length>0||dupGroups.length>0||conComa.length>0)&&(
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs">
               <div className="font-semibold text-amber-800 mb-1">👥 Conciliación equipo ↔ nómina ({periodo})</div>
+              {conComa.length>0&&(
+                <div className="mb-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-gray-600"><b>{conComa.length}</b> nombre(s) en formato "Apellido, Nombre":</span>
+                  <button onClick={reordNombres} className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded">↕ Reordenar a "Nombre Apellido"</button>
+                </div>
+              )}
               {dupGroups.length>0&&(
-                <div className="mb-2 text-gray-600">
-                  ⚠️ <b>{dupGroups.length}</b> nombre(s) <b>duplicado(s)</b> en la nómina: <span className="text-red-600">{dupGroups.map(g=>g[0].nombre+' ('+g.length+')').join(' · ')}</span>. Elimina los repetidos con la ✕ en la tabla (quedan marcados abajo).
+                <div className="mb-2">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-gray-600">⚠️ <b>{dupGroups.length}</b> persona(s) <b>duplicada(s)</b> en la nómina:</span>
+                    <button onClick={quitarDupVacios} className="bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded">🗑 Quitar duplicados vacíos</button>
+                  </div>
+                  <div className="text-gray-600 text-[11px]">{dupGroups.map((g,gi)=><span key={gi} className="text-red-600">{g.map(i=>i.nombre).join(' = ')}{gi<dupGroups.length-1?'  ·  ':''}</span>)}</div>
+                  <p className="text-[10px] text-gray-500 mt-0.5">"Quitar duplicados vacíos" conserva la fila con montos y elimina la repetida sin datos. Si ambas tienen datos, bórralas tú con la ✕ (van marcadas "⚠ dup").</p>
                 </div>
               )}
               {faltanNom.length>0&&(
