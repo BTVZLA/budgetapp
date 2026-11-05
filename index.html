@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05a';
+const APP_VERSION='v2026-11-05b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5259,6 +5259,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const esResp=currentUser&&currentUser.role==='responsable';
   const [respF,setRespF]=useState(esResp?currentUser.id:'total');
   const [vista,setVista]=useState('ppto'); // 'ppto' | 'real' | 'comp'
+  const [showCobroRep,setShowCobroRep]=useState(true);
   const num=n=>Number(n||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
   const M=12, zeros=()=>Array(M).fill(0), sum=a=>a.reduce((s,v)=>s+v,0);
 
@@ -5358,6 +5359,16 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   );
   const compNetoP=sum(flujoNeto), compNetoR=sum(flujoNetoR);
 
+  // Reporte: proyectos cuyo plan de cobro (revenues.cobro) no llega al 100% de los honorarios.
+  const cobroRep=projsScope.map(p=>{
+    const hon=+p.honorariosTotal||0;
+    const cobroPlan=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);
+    const pct=hon>0?cobroPlan/hon*100:0;
+    return {p,hon,cobroPlan,pct,gap:hon-cobroPlan};
+  }).filter(x=>x.hon>0&&x.gap>0.5).sort((a,b)=>b.gap-a.gap);
+  const cobroRepGap=cobroRep.reduce((s,x)=>s+x.gap,0);
+  const cobroSobre=projsScope.filter(p=>{const hon=+p.honorariosTotal||0;const cp=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);return hon>0&&cp-hon>0.5;}).length;
+
   return(
     <div className="p-6">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
@@ -5379,6 +5390,58 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         {vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
         {!showOverhead&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
       </p>
+
+      {vista==='ppto'&&(
+        <div className={'mb-4 rounded-xl border '+(cobroRep.length?'bg-amber-50 border-amber-200':'bg-green-50 border-green-200')}>
+          <button onClick={()=>setShowCobroRep(!showCobroRep)} className="w-full flex items-center justify-between px-4 py-2.5 text-left">
+            <span className="text-sm font-semibold text-gray-700">
+              {cobroRep.length?'⚠️ ':'✅ '}Cobertura del plan de cobro
+              {cobroRep.length
+                ?<span className="ml-2 text-xs font-normal text-amber-700">{cobroRep.length} proyecto(s) sin completar el 100% · faltan {$n(cobroRepGap)}</span>
+                :<span className="ml-2 text-xs font-normal text-green-700">todos los proyectos del período tienen su cobro planificado al 100%</span>}
+            </span>
+            <span className="text-gray-400 text-xs">{showCobroRep?'▾':'▸'}</span>
+          </button>
+          {showCobroRep&&cobroRep.length>0&&(
+            <div className="px-4 pb-3 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="text-gray-500 border-b">
+                  <tr>
+                    <th className="text-left py-1.5">Proyecto</th>
+                    <th className="text-left py-1.5">Responsable</th>
+                    <th className="text-right py-1.5">Honorarios</th>
+                    <th className="text-right py-1.5">Cobro planificado</th>
+                    <th className="text-right py-1.5">% cubierto</th>
+                    <th className="text-right py-1.5">Falta por planificar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{
+                    const u=(data.users||[]).find(x=>x.id===p.responsableId);
+                    return(
+                      <tr key={p.id} className="border-b border-amber-100">
+                        <td className="py-1.5 text-gray-700 font-medium">{p.nombre||p.codigo||p.id}</td>
+                        <td className="py-1.5 text-gray-500">{u?u.name:'—'}</td>
+                        <td className="py-1.5 text-right text-gray-600">{$n(hon)}</td>
+                        <td className="py-1.5 text-right text-gray-600">{cobroPlan>0?$n(cobroPlan):<span className="text-red-500 font-medium">sin plan</span>}</td>
+                        <td className={'py-1.5 text-right font-semibold '+(pct<=0?'text-red-600':pct<50?'text-amber-700':'text-amber-600')}>{Math.round(pct)}%</td>
+                        <td className="py-1.5 text-right font-semibold text-red-600">{$n(gap)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="font-bold text-gray-700 border-t">
+                  <tr>
+                    <td className="py-1.5" colSpan={5}>Total por planificar</td>
+                    <td className="py-1.5 text-right text-red-600">{$n(cobroRepGap)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              <p className="text-[11px] text-gray-500 mt-2">El plan de cobro se completa en cada proyecto → pestaña <b>Ingresos y Cobro</b> (columna "Cobro planificado" por mes), hasta que la suma iguale los honorarios.{cobroSobre>0&&<span className="text-amber-700"> · {cobroSobre} proyecto(s) tienen cobro planificado por encima de los honorarios (revisar).</span>}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {showOverhead&&vista!=='comp'&&(
         <div className="flex items-center gap-2 mb-4 text-sm bg-gray-50 rounded-xl border px-4 py-3 w-max">
