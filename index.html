@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05l';
+const APP_VERSION='v2026-11-05m';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -8092,7 +8092,7 @@ function ACostosLaborales({data,save,getLatestData}){
   // Etiqueta de ingreso/retiro para la fila de nómina (según la ficha del equipo enlazada)
   const perStartDate=new Date(perStartY,7,1); // 1-Ago del año de inicio del período
   const fmtFecha=d=>{const x=new Date(d);return isNaN(x.getTime())?d:(String(x.getUTCDate()).padStart(2,'0')+'/'+String(x.getUTCMonth()+1).padStart(2,'0')+'/'+x.getUTCFullYear());};
-  const infoFechas=i=>{const p=nomPerson(i);if(!p)return '';const parts=[];if(p.fechaIngreso){const d=new Date(p.fechaIngreso);parts.push(!isNaN(d.getTime())&&d<perStartDate?('ingreso antes Ago '+perStartY):('ingreso '+fmtFecha(p.fechaIngreso)));}if(p.desincorporado&&p.fechaDesincorporacion)parts.push('retiro '+fmtFecha(p.fechaDesincorporacion));return parts.join(' · ');};
+  const infoFechas=i=>{const p=nomPerson(i);if(!p)return '';const parts=[];const d=p.fechaIngreso?new Date(p.fechaIngreso):null;if(!p.fechaIngreso||(d&&!isNaN(d.getTime())&&d<perStartDate))parts.push('ingreso antes Ago '+perStartY);else parts.push('ingreso '+fmtFecha(p.fechaIngreso));if(p.desincorporado&&p.fechaDesincorporacion)parts.push('retiro '+fmtFecha(p.fechaDesincorporacion));return parts.join(' · ');};
   const activePeopleN=(data.people||[]).filter(p=>!p.desincorporado);
   const matchPer=(p,i)=>i.personId?i.personId===p.id:nameMatch(pAll(p),i.nombre);
   const faltanNom=activePeopleN.filter(p=>!periodoItems.some(i=>matchPer(p,i))).sort((a,b)=>pFull(a).localeCompare(pFull(b)));
@@ -8127,7 +8127,7 @@ function ACostosLaborales({data,save,getLatestData}){
       const linked=g.filter(i=>i.personId);
       const surv=linked.find(withData)||linked[0]||g.find(withData)||g[0];
       let sp={...surv};
-      if(!withData(surv)){const donor=g.find(i=>i!==surv&&withData(i));if(donor){LC_COLS.forEach(c=>sp[c.key]=donor[c.key]);sp.montos=donor.montos;sp.mesesPago=donor.mesesPago;}}
+      if(!withData(surv)){const donor=g.find(i=>i!==surv&&withData(i));if(donor){LC_COLS.forEach(c=>sp[c.key]=donor[c.key]);sp.montos=donor.montos;sp.mesesPago=donor.mesesPago;if(donor.cargo)sp.cargo=donor.cargo;if(donor.notas)sp.notas=sp.notas||donor.notas;}}
       sp.nombre=nomName(surv);
       patch[surv.id]=sp;
       g.forEach(i=>{if(i.id!==surv.id)remove.add(i.id);});
@@ -8215,7 +8215,7 @@ function ACostosLaborales({data,save,getLatestData}){
   const del=id=>save({...(getLatestData?getLatestData():data),laborCosts:items.filter(i=>i.id!==id)});
   const startEdit=item=>{
     setEditId(item.id);
-    setEditForm({nombre:item.nombre,cargo:item.cargo||'',notas:item.notas||'',
+    setEditForm({personId:item.personId||'',nombre:item.nombre,cargo:item.cargo||'',notas:item.notas||'',
       mesesPago:(Array.isArray(item.mesesPago)&&item.mesesPago.length===12?item.mesesPago.map(x=>x!==false):Array(12).fill(true)),
       ...Object.fromEntries(LC_COLS.map(c=>[c.key,String(item[c.key]||0)]))});
   };
@@ -8224,7 +8224,7 @@ function ACostosLaborales({data,save,getLatestData}){
     const mp=(editForm.mesesPago||Array(12).fill(true)).map(x=>x!==false);
     // La base se actualiza; el detalle por mes (overrides en montos[]) se conserva.
     save({...(getLatestData?getLatestData():data),laborCosts:items.map(i=>i.id===editId?{...i,
-      nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,mesesPago:mp,...comp}:i)});
+      personId:editForm.personId||'',nombre:editForm.nombre,cargo:editForm.cargo,notas:editForm.notas,mesesPago:mp,...comp}:i)});
     setEditId(null);
   };
   // Vista "Por mes": editar el desglose de conceptos de un mes puntual (override). null = hereda el mes anterior.
@@ -8535,7 +8535,16 @@ function ACostosLaborales({data,save,getLatestData}){
                         </>
                       )}
                     </tr>
-                    {editing&&<tr className="bg-blue-50"><td colSpan={LC_COLS.length+5} className="px-3 py-2"><MPChips value={editForm.mesesPago} onChange={mp=>setEditForm({...editForm,mesesPago:mp})}/></td></tr>}
+                    {editing&&<tr className="bg-blue-50"><td colSpan={LC_COLS.length+5} className="px-3 py-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-[11px] text-gray-500">Enlazar con la persona del equipo:</span>
+                        <select value={editForm.personId||''} onChange={e=>{const id=e.target.value;const p=(data.people||[]).find(x=>x.id===id);setEditForm({...editForm,personId:id,nombre:p?pFull(p):editForm.nombre,cargo:editForm.cargo||(p?catNameP(p.catId):'')});}} className="border rounded px-2 py-1 text-xs">
+                          <option value="">— Sin enlazar (externo) —</option>
+                          {(data.people||[]).slice().sort((a,b)=>pFull(a).localeCompare(pFull(b))).map(p=><option key={p.id} value={p.id}>{pFull(p)}{p.desincorporado?' (retirado)':''}</option>)}
+                        </select>
+                        {editForm.personId&&<span className="text-[10px] text-green-600">🔗 el nombre y las fechas se toman de la ficha</span>}
+                      </div>
+                      <MPChips value={editForm.mesesPago} onChange={mp=>setEditForm({...editForm,mesesPago:mp})}/></td></tr>}
                     </React.Fragment>
                   );
                 })}
