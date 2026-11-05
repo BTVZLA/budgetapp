@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-04j';
+const APP_VERSION='v2026-11-04k';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4034,6 +4034,37 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     saveRows(a=>[...a,...nuevos]);
   };
 
+  const reordenarMaestro=()=>{
+    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===proj.id);
+    const interina=cur.some(r=>r.fase==='Auditoría interina');
+    const ordMap=interina?CRONO_ORD_INT:CRONO_ORD_FIN;
+    const tplFase={};CRONO_TPL_AUDITORIA.forEach(t=>tplFase[t.k]=t.fase);CRONO_HITOS_INTERINA.forEach(t=>tplFase[t.k]='Auditoría interina');
+    tplFase.plan_sumarias='Planificación';tplFase.int_sumarias='Auditoría interina';tplFase.plan_materialidad_int='Planificación';
+    const factFase={fact1:'Planificación',fact2:'Documentos de cierre',fact3:'Documentos de cierre'};
+    if(!window.confirm('Se reordenarán los hitos de este cronograma según el orden maestro'+(interina?' (con interina)':' (sin interina)')+', se realinearán las fases y se agregarán los hitos estándar que falten. Las fechas no se tocan. ¿Continuar?'))return;
+    const fechas=cur.filter(r=>!r.parentId&&r.fechaPlan).map(r=>r.fechaPlan).filter(Boolean).sort();
+    const ini=fechas[0]||proj.fechaInicio||hoy,fin=fechas[fechas.length-1]||'';
+    const span=fin?cronoDiff(fin,ini):0;const dateP=p=>span>0?cronoAddDays(ini,span*p):ini;
+    const base=cur.map(r=>{
+      if(r.parentId||String(r.clave||'').startsWith('__'))return r;
+      const cl=r.clave||'';
+      if(cl.startsWith('gl_')){const key=cronoAdmKey(r.nombre);if(key&&ordMap[key]!=null)return {...r,orden:ordMap[key],fase:CRONO_ADM_FASE[key]||r.fase};return r;}
+      if(/^fact\d/.test(cl)&&ordMap[cl]!=null)return {...r,orden:ordMap[cl],fase:factFase[cl]||r.fase};
+      if(ordMap[cl]!=null)return {...r,orden:ordMap[cl],fase:tplFase[cl]||r.fase};
+      return r;
+    });
+    const claves=new Set(cur.map(r=>r.clave));
+    const add=[];
+    const nh=interina
+      ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},{k:'plan_materialidad_int',fase:'Planificación',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.1}]
+      : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
+    nh.forEach(t=>{if(!claves.has(t.k))add.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordMap[t.k]!=null?ordMap[t.k]:900,fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:'',fechaPlan:dateP(t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
+    const fdefs=interina?[['fact1','Facturación inicial','Planificación',0.02],['fact2','Facturación al inicio de la etapa final','Documentos de cierre',0.7],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]]:[['fact1','Facturación inicial','Planificación',0.02],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]];
+    fdefs.forEach(([cl,nm,fase,p])=>{if(!claves.has(cl))add.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordMap[cl]!=null?ordMap[cl]:900,fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:dateP(p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
+    const byId=new Map(base.map(r=>[r.id,r]));
+    saveRows(a=>[...a.map(r=>byId.has(r.id)?byId.get(r.id):r),...add]);
+  };
+
   const marcar=h=>{
     if(!perm.puedeMarcar(h))return;
     upd(h.id,{estado:'hecho',fechaReal:h.fechaReal||hoy,hechoPor:userName,revisadoPor:'',fechaRevisado:''});
@@ -4110,6 +4141,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':(usaCW?'＋ Enlazar encargo':'＋ Enlazar carpeta')}</button>}
       {perm.gestion&&usaCW&&rows.length>0&&<button onClick={()=>setShowCW(true)} className="ml-2 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium">⬆ Actualizar desde CaseWare</button>}
       {perm.gestion&&usaCW&&rows.length>0&&!tieneInterina&&<button onClick={agregarInterina} className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-medium">＋ Agregar visita interina</button>}
+      {perm.gestion&&usaCW&&rows.length>0&&<button onClick={reordenarMaestro} className="px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 font-medium" title="Reordena y realinea las fases de este cronograma según el orden maestro, y agrega los hitos estándar que falten">↕ Reordenar según orden maestro</button>}
       {cwSync&&<span className="ml-2 text-gray-400" title={'Actualizado por '+(cwSync.por||'—')}>Última actualización: {cronoFmt(cwSync.fecha)} · {cwSync.prep}/{cwSync.docs} papeles preparados · {cwSync.rev} revisados</span>}
     </div>):null;
 
