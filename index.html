@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09b';
+const APP_VERSION='v2026-11-09c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4678,6 +4678,9 @@ function APlanificacion({data,save,currentUser,getLatestData}){
   // Ocupación de la persona en OTROS proyectos (para avisar disponibilidad y topar a 8 h/día)
   const otherBookedDay=(usrId,di)=>plans.filter(p=>p.userId===usrId&&p.projectId!==projId&&p.weekStart===week&&p.estado!=='liberada').reduce((s,p)=>s+((Array.isArray(p.horas)?+p.horas[di]:0)||0),0);
   const personWeekOther=usrId=>plans.filter(p=>p.userId===usrId&&p.projectId!==projId&&p.weekStart===week&&p.estado!=='liberada').reduce((s,p)=>s+sumH(p.horas),0);
+  // Detalle de TODOS los proyectos planificados de la persona esa semana (para verlo desde cualquier proyecto)
+  const projShort=pid=>{if(pid==='__aus__')return 'Ausencia';const p=(data.projects||[]).find(x=>x.id===pid);if(!p)return '—';return (p.codigo||'').replace(/^\d{4}-\d{4}/,'')||p.name||'—';};
+  const personWeekPlan=usrId=>plans.filter(p=>p.userId===usrId&&p.weekStart===week&&p.estado!=='liberada'&&sumH(p.horas)>0).map(p=>({pid:p.projectId,h:sumH(p.horas)})).sort((a,b)=>b.h-a.h);
   // Bloqueo: al comenzar la semana (actual o pasada) la planificación no se edita, salvo Socio/Administración
   const canEditLocked=['admin','administracion','socio'].includes(role);
   const weekStarted=wk=>wk<=base;
@@ -4846,7 +4849,9 @@ function APlanificacion({data,save,currentUser,getLatestData}){
                 const active=total>0;
                 return(
                   <tr key={u.id} className={'border-t '+(active?'bg-indigo-50/40':'')}>
-                    <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap align-top">{u.name}</td>
+                    <td className="px-4 py-2 font-medium text-gray-700 whitespace-nowrap align-top">{u.name}
+                      {(()=>{const pw=personWeekPlan(u.id);return pw.length>0&&<div className="text-[10px] font-normal text-gray-400 mt-0.5 whitespace-normal max-w-[180px]">{pw.map((x,xi)=><span key={xi} className={x.pid===projId?'text-indigo-600 font-medium':''}>{x.pid===projId?'● ':''}{projShort(x.pid)} {x.h}h{xi<pw.length-1?' · ':''}</span>)}</div>;})()}
+                    </td>
                     {DIA_LBL.map((d,di)=>{
                       const otherH=otherBookedDay(u.id,di);
                       const cap=isAus?8:Math.max(0,8-otherH);
