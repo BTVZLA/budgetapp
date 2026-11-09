@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09f';
+const APP_VERSION='v2026-11-09g';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -7290,6 +7290,16 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   (data.evaluaciones||[]).forEach(e=>{if(e.evaluadoId)_dataUids.add(e.evaluadoId);});
   const orphanDataIds=[...(_dataUids)].filter(id=>!_uidSet.has(id)).sort();
   const orphanHint=id=>{const byP={};(data.timesheets||[]).filter(t=>t.userId===id&&t.projectId).forEach(t=>{byP[t.projectId]=(byP[t.projectId]||0)+(+t.hours||0);});const top=Object.entries(byP).sort((a,b)=>b[1]-a[1])[0];if(!top)return '';const p=(data.projects||[]).find(x=>x.id===top[0]);return p?((p.codigo||'').replace(/^\d{4}-\d{4}/,'')||p.name||'')+' '+Math.round(top[1])+'h':'';};
+  // Conservar el histórico de un usuario eliminado bajo un nombre, como RETIRADO (fuera de planificación activa)
+  const conservarOrphan=(id,name)=>{
+    const nm=(name||'').trim();if(!nm){alert('Escribe el nombre de la persona.');return;}
+    if(!window.confirm('Se conservará el histórico (planificación/horas) bajo el nombre "'+nm+'", marcado como RETIRADO (no aparece en la planificación activa). ¿Continuar?'))return;
+    const lat=getLatestData?getLatestData():data;
+    const u2=(lat.users||[]).some(u=>u.id===id)?lat.users:[...(lat.users||[]),{id,name:nm,initials:autoInitials(nm),role:'equipo',deptId:null,auth_id:null}];
+    const parts=nm.split(/\s+/);
+    const p2=[...(lat.people||[]),{id:uid(),nombres:parts[0]||'',apellidos:parts.slice(1).join(' ')||'',ci:'',name:nm,initials:autoInitials(nm),catId:(cats[0]||{}).id||'',deptId:null,banco:'',numCuenta:'',celular:'',email:'',desincorporado:true,fechaDesincorporacion:'',fechaIngreso:''}];
+    save({...lat,users:u2,people:p2});
+  };
   const mergePeople=(keep,drop)=>{
     const lat=getLatestData?getLatestData():data;
     save({...lat,
@@ -7307,6 +7317,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const [pKeep,setPKeep]=useState('');
   const [pDrop,setPDrop]=useState('');
   const [orphAssign,setOrphAssign]=useState({});
+  const [orphName,setOrphName]=useState({});
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [expandId,setExpandId]=useState(null);
@@ -7821,6 +7832,9 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
                     {[...users].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                   <button disabled={!orphAssign[id]} onClick={()=>{const uk=users.find(u=>u.id===orphAssign[id])||{};if(!window.confirm('Reasignar los datos del usuario eliminado (plan '+c.plan+', horas '+c.ts+') a "'+uk.name+'". ¿Continuar?'))return;mergeUsers(orphAssign[id],id);}} className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded disabled:opacity-40">Reasignar</button>
+                  <span className="text-gray-300 mx-1">o retirado:</span>
+                  <input value={orphName[id]||''} onChange={e=>setOrphName({...orphName,[id]:e.target.value})} placeholder="Nombre (ej. Felix Quilarque)" className="border rounded px-2 py-1 text-xs w-44"/>
+                  <button disabled={!(orphName[id]||'').trim()} onClick={()=>conservarOrphan(id,orphName[id])} className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded disabled:opacity-40" title="Conserva el histórico con ese nombre, marcado como retirado (fuera de la planificación activa)">Conservar retirado</button>
                 </div>
               </div>
             );})}
