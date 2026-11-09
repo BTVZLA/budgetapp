@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09e';
+const APP_VERSION='v2026-11-09f';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -7282,6 +7282,14 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   };
   // Fusión de PERSONAS (personId): nómina (costos laborales), costo por hora, participaciones por factura.
   const personDataCount=pid=>({nom:(data.laborCosts||[]).filter(l=>l.personId===pid).length,ch:(data.costosHora||[]).filter(c=>c.personId===pid).length,part:(data.realCobros||[]).reduce((s,c)=>s+((c.participaciones||[]).some(p=>p.personId===pid)?1:0),0)});
+  // Datos huérfanos: userId en planificación/timesheets/etc. que ya no existe en users (cuenta eliminada)
+  const _uidSet=new Set(users.map(u=>u.id));
+  const _dataUids=new Set();
+  (data.planificacion||[]).forEach(p=>{if(p.userId)_dataUids.add(p.userId);});
+  (data.timesheets||[]).forEach(t=>{if(t.userId)_dataUids.add(t.userId);});
+  (data.evaluaciones||[]).forEach(e=>{if(e.evaluadoId)_dataUids.add(e.evaluadoId);});
+  const orphanDataIds=[...(_dataUids)].filter(id=>!_uidSet.has(id)).sort();
+  const orphanHint=id=>{const byP={};(data.timesheets||[]).filter(t=>t.userId===id&&t.projectId).forEach(t=>{byP[t.projectId]=(byP[t.projectId]||0)+(+t.hours||0);});const top=Object.entries(byP).sort((a,b)=>b[1]-a[1])[0];if(!top)return '';const p=(data.projects||[]).find(x=>x.id===top[0]);return p?((p.codigo||'').replace(/^\d{4}-\d{4}/,'')||p.name||'')+' '+Math.round(top[1])+'h':'';};
   const mergePeople=(keep,drop)=>{
     const lat=getLatestData?getLatestData():data;
     save({...lat,
@@ -7298,6 +7306,7 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const [mDrop,setMDrop]=useState('');
   const [pKeep,setPKeep]=useState('');
   const [pDrop,setPDrop]=useState('');
+  const [orphAssign,setOrphAssign]=useState({});
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [expandId,setExpandId]=useState(null);
@@ -7794,6 +7803,27 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
               <div className="text-[11px] bg-gray-50 rounded-lg px-3 py-2">Se moverán de <b>{personFullName(pd)}</b> → <b>{personFullName(pk)}</b>: nómina {dc.nom}, costo/hora {dc.ch}, participaciones {dc.part}. Luego se elimina la ficha <b>{personFullName(pd)}</b>.</div>
             );})()}
             <button disabled={!pKeep||!pDrop||pKeep===pDrop} onClick={()=>{const pk=people.find(p=>p.id===pKeep)||{},pd=people.find(p=>p.id===pDrop)||{};if(!window.confirm('Fusionar PERSONA "'+personFullName(pd)+'" en "'+personFullName(pk)+'". Se moverán nómina/participaciones y se eliminará la ficha "'+personFullName(pd)+'". ¿Continuar?'))return;mergePeople(pKeep,pDrop);setPKeep('');setPDrop('');}} className="bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🔀 Fusionar personas</button>
+          </div>
+        </div>
+      )}
+      {isAdmin&&orphanDataIds.length>0&&(
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-2 border-b bg-red-50 font-semibold text-xs text-red-700">⚠️ Datos de usuarios eliminados (sin nombre) — {orphanDataIds.length}</div>
+          <div className="px-4 py-2 text-[11px] text-gray-500">Hay planificación/horas cuyo usuario ya no existe (cuenta eliminada). Reasígnalos al usuario correcto — la "pista" es el proyecto donde más horas cargó, para identificarlo.</div>
+          <div className="divide-y">
+            {orphanDataIds.map(id=>{const c=userDataCount(id);const hint=orphanHint(id);return(
+              <div key={id} className="px-4 py-2.5 flex items-center justify-between gap-2 text-xs flex-wrap">
+                <div><b className="text-gray-700">(usuario {id.slice(0,8)})</b> <span className="text-gray-400">· plan {c.plan} · horas {c.ts}{hint?' · pista: '+hint:''}</span></div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400">Reasignar a:</span>
+                  <select value={orphAssign[id]||''} onChange={e=>setOrphAssign({...orphAssign,[id]:e.target.value})} className="border rounded px-2 py-1 text-xs">
+                    <option value="">— usuario —</option>
+                    {[...users].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                  <button disabled={!orphAssign[id]} onClick={()=>{const uk=users.find(u=>u.id===orphAssign[id])||{};if(!window.confirm('Reasignar los datos del usuario eliminado (plan '+c.plan+', horas '+c.ts+') a "'+uk.name+'". ¿Continuar?'))return;mergeUsers(orphAssign[id],id);}} className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded disabled:opacity-40">Reasignar</button>
+                </div>
+              </div>
+            );})}
           </div>
         </div>
       )}
