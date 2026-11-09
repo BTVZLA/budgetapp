@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-05n';
+const APP_VERSION='v2026-11-09a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -451,7 +451,10 @@ async function syncData(cfg,tok,old,nw){
 const $n=n=>(n<0?'-$':'$')+new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Math.abs(n||0));
 const pc=n=>(!isFinite(n)||isNaN(n))?'0.00%':n.toFixed(2)+'%';
 const getRev=(pid,m,d,t)=>(d.revenues.find(r=>r.projectId===pid&&r.month===m)||{})[t||'est']||0;
-const getTotRev=(pid,d,t)=>MO.reduce((s,_,m)=>s+getRev(pid,m,d,t||'est'),0);
+// Ventana de meses (índice MO) del período de un proyecto: Ago del año de inicio → Jul del siguiente.
+const projIWin=p=>{const sy=parseInt(((p&&p.periodo)||currentPeriodo).split('-')[0],10)||2025;return [(sy-2025)*12+1,(sy-2024)*12];};
+// Totales del proyecto SOLO dentro de su período (no suma cifras de meses de otros períodos, ej. 2025-2026).
+const getTotRev=(pid,d,t)=>{const p=(d.projects||[]).find(x=>x.id===pid)||{};const [a,b]=projIWin(p);let s=0;for(let m=Math.max(0,a);m<=Math.min(MO.length-1,b);m++)s+=getRev(pid,m,d,t||'est');return s;};
 const getIntCost=(pid,m,d)=>d.internalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+c.hours*(d.rates[c.level]||0),0);
 const getExtCost=(pid,m,d)=>d.externalCosts.filter(c=>c.projectId===pid&&c.month===m).reduce((s,c)=>s+(c.type==='fixed'?c.amount:c.rate*c.hours),0);
 const getPartCost=(pid,d,t)=>{const proj=(d.projects||[]).find(p=>p.id===pid)||{};const rev=Math.max(0,getTotRev(pid,d,t||'est')-(+proj.honorariosOS||0));return(d.participations||[]).filter(p=>p.projectId===pid).reduce((s,p)=>s+(p.pct/100)*rev,0);};
@@ -11207,7 +11210,7 @@ function ProjRev({projId,mo,data,save,readOnly,getLatestData}){
   const winTo=Math.min(MO.length-1,(perSY-2024)*12+2);
   // Real revenue = sum of all real cobros for this project
   const totCobrosReales=getTotRealCobros(projId,data);
-  const totCobro=data.revenues.filter(r=>r.projectId===projId).reduce((s,r)=>s+(r.cobro||0),0);
+  const totCobro=getTotRev(projId,data,'cobro'); // solo meses del período del proyecto
   return(
     <div className="max-w-2xl space-y-4">
       {proj.honorariosTotal>0&&(
@@ -12470,7 +12473,12 @@ function ProjComparativo({projId,data}){
     if(idx>=0&&idx<24) cobrosByIdx[idx]=(cobrosByIdx[idx]||0)+c.amount;
   });
   const cobroRealByMonth=m=>cobrosByIdx[m]||0;
-  const mData=MO.map((_,m)=>({
+  // Mostrar solo la ventana del período del proyecto (2 meses antes y después), no los 28 meses.
+  const _proj=(data.projects||[]).find(p=>p.id===projId)||{};
+  const _sy=parseInt((_proj.periodo||currentPeriodo).split('-')[0],10)||2025;
+  const _winFrom=Math.max(0,(_sy-2025)*12+1-2), _winTo=Math.min(MO.length-1,(_sy-2024)*12+2);
+  const mData=[];
+  for(let m=_winFrom;m<=_winTo;m++)mData.push({
     mes:MO[m],
     est:getRev(projId,m,data,'est'),
     real:getRev(projId,m,data,'act'),
@@ -12480,7 +12488,7 @@ function ProjComparativo({projId,data}){
     intReal:getRealIntCost(projId,m,data),
     extEst:getExtCost(projId,m,data),
     extReal:getRealExtCost(projId,m,data),
-  }));
+  });
   const totPlanCobro=mData.reduce((s,m)=>s+m.planCobro,0);
   const totRealCobro=(data.realCobros||[]).filter(c=>c.projectId===projId).reduce((s,c)=>s+c.amount,0);
   const hasAnyReal=rl.revA>0||rl.intC>0||rl.extC>0||rl.partC>0;
@@ -12534,7 +12542,7 @@ function ProjComparativo({projId,data}){
           <thead className="bg-gray-50 text-gray-400">
             <tr>
               <th className="text-left px-3 py-2 w-28">Concepto</th>
-              {MO.map(m=><th key={m} className="text-right px-2 py-2 w-20">{m}</th>)}
+              {mData.map((d,i)=><th key={i} className="text-right px-2 py-2 w-20">{d.mes}</th>)}
               <th className="text-right px-3 py-2">Total</th>
             </tr>
           </thead>
