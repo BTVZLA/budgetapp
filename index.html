@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09h';
+const APP_VERSION='v2026-11-09i';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5268,6 +5268,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   const [respF,setRespF]=useState(esResp?currentUser.id:'total');
   const [vista,setVista]=useState('ppto'); // 'ppto' | 'real' | 'comp'
   const [showCobroRep,setShowCobroRep]=useState(true);
+  const [showPartRep,setShowPartRep]=useState(true);
   const num=n=>Number(n||0).toLocaleString('es-VE',{minimumFractionDigits:2,maximumFractionDigits:2});
   const M=12, zeros=()=>Array(M).fill(0), sum=a=>a.reduce((s,v)=>s+v,0);
 
@@ -5387,6 +5388,26 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
       meta:['Proyectos cuyo plan de cobro no llega al 100% de los honorarios · '+resp,'Generado '+new Date().toLocaleDateString('es-VE')],
       header,rows,money:[4,5,7],boldRows:[rows.length-1]});
   };
+  // Reporte: participaciones estimadas cargadas por proyecto (monto y % sobre el ingreso).
+  const partRep=projsScope.filter(p=>(+p.honorariosTotal||0)>0).map(p=>{
+    const ingreso=getEffectiveRevE(p.id,data);
+    const pctPart=(data.participations||[]).filter(x=>x.projectId===p.id).reduce((s,x)=>s+(+x.pct||0),0);
+    const monto=getPartCostEst(p.id,data);
+    const pctIng=ingreso>0?monto/ingreso*100:0;
+    return {p,ingreso,pctPart,monto,pctIng,sin:pctPart<=0};
+  }).sort((a,b)=>(a.sin===b.sin?b.monto-a.monto:(a.sin?-1:1)));
+  const partSin=partRep.filter(x=>x.sin).length;
+  const partTotMonto=partRep.reduce((s,x)=>s+x.monto,0);
+  const exportarPart=()=>{
+    const header=['Proyecto','Código','Cliente','Responsable','Ingreso estimado','% participación','Monto estimado','% sobre ingreso'];
+    const rows=partRep.map(({p,ingreso,pctPart,monto,pctIng})=>{const u=(data.users||[]).find(x=>x.id===p.responsableId);return [p.name||p.codigo||p.id,p.codigo||'',p.client||'',u?u.name:'—',ingreso,pctPart+'%',monto,pctIng.toFixed(1)+'%'];});
+    rows.push(['TOTAL','','','','','',partTotMonto,'']);
+    const resp=showOverhead?'Total firma':(((data.users||[]).find(u=>u.id===respF)||{}).name||respF);
+    exportarExcelBT('Participaciones_estimadas_'+per+'_'+new Date().toISOString().slice(0,10)+'.xlsx',{
+      sheet:'Participaciones estimadas',title:'Participaciones estimadas por proyecto — '+per,
+      meta:['Monto y % de participación estimada sobre el ingreso · '+resp,'Generado '+new Date().toLocaleDateString('es-VE')],
+      header,rows,money:[4,6],boldRows:[rows.length-1]});
+  };
 
   return(
     <div className="p-6">
@@ -5401,13 +5422,13 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </div>
       </div>
       <div className="flex items-center gap-2 mb-3">
-        {[['ppto','📋 Presupuestado'],['real','✅ Real'],['comp','📊 Comparativo'],['cobro','🎯 Cobertura de cobro']].map(([v,l])=>(
+        {[['ppto','📋 Presupuestado'],['real','✅ Real'],['comp','📊 Comparativo'],['cobro','🎯 Cobertura de cobro'],['part','🏆 Cobertura participaciones']].map(([v,l])=>(
           <button key={v} onClick={()=>setVista(v)} className={'px-3 py-1.5 rounded-lg text-xs font-medium '+(vista===v?'bg-indigo-600 text-white':'bg-white border text-gray-600 hover:bg-gray-50')}>{l}</button>
         ))}
       </div>
       <p className="text-gray-400 text-xs mb-4">
-        {vista==='cobro'?'Cobertura de cobro: proyectos del período cuyo plan de cobro (Cobro Planificado por mes) aún no llega al 100% de sus honorarios; indica cuánto falta por estimar en el tiempo.':vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
-        {!showOverhead&&vista!=='cobro'&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
+        {vista==='part'?'Cobertura de participaciones: por proyecto, si se cargaron los estimados de participaciones (% y monto), y el % que representan sobre el ingreso estimado. Los proyectos sin participaciones cargadas van primero.':vista==='cobro'?'Cobertura de cobro: proyectos del período cuyo plan de cobro (Cobro Planificado por mes) aún no llega al 100% de sus honorarios; indica cuánto falta por estimar en el tiempo.':vista==='real'?'Real: cobros, pagos de participaciones y costos externos por fecha; gastos fijos y otros laborales por su montosReal; nómina real de GALAC (cuentas 5.1.01, cargada al importar el balance en Gastos Fijos).':vista==='comp'?'Comparativo anual Presupuesto vs Real por concepto.':'Presupuestado: cobros = Cobro Planificado de cada proyecto (pestaña Ingresos y Cobro); participaciones y terceros proporcionales a lo cobrado; egresos según sus calendarios de pago.'}
+        {!showOverhead&&vista!=='cobro'&&vista!=='part'&&' · Vista por responsable: solo su aporte neto de caja (sin gastos generales ni saldo, que son de la firma).'}
       </p>
 
       {vista==='cobro'&&(
@@ -5462,6 +5483,58 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                 </tfoot>
               </table>
               <p className="text-[11px] text-gray-500 mt-2">El plan de cobro se completa en cada proyecto → pestaña <b>Ingresos y Cobro</b> (columna "Cobro planificado" por mes), hasta que la suma iguale los honorarios. Si un proyecto no tiene Cobro planificado pero sí Ingreso estimado, se usa el estimado (marcado <b>est.</b>).{cobroSobre>0&&<span className="text-amber-700"> · {cobroSobre} proyecto(s) con plan por encima de los honorarios (revisar).</span>}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista==='part'&&(
+        <div className={'mb-4 rounded-xl border '+(partSin>0?'bg-amber-50 border-amber-200':'bg-green-50 border-green-200')}>
+          <button onClick={()=>setShowPartRep(!showPartRep)} className="w-full flex items-center justify-between px-4 py-2.5 text-left">
+            <span className="text-sm font-semibold text-gray-700">
+              {partSin>0?'⚠️ ':'✅ '}Cobertura de participaciones
+              {partSin>0
+                ?<span className="ml-2 text-xs font-normal text-amber-700">{partSin} proyecto(s) sin participaciones cargadas · total estimado {$n(partTotMonto)}</span>
+                :<span className="ml-2 text-xs font-normal text-green-700">todos los proyectos tienen participaciones cargadas · total estimado {$n(partTotMonto)}</span>}
+            </span>
+            <span className="text-gray-400 text-xs">{showPartRep?'▾':'▸'}</span>
+          </button>
+          {showPartRep&&partRep.length>0&&(
+            <div className="px-4 pb-3 overflow-x-auto">
+              <div className="flex justify-end mb-2"><button onClick={exportarPart} className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium">⬇ Descargar Excel</button></div>
+              <table className="w-full text-xs">
+                <thead className="text-gray-500 border-b">
+                  <tr>
+                    <th className="text-left py-1.5">Proyecto</th>
+                    <th className="text-left py-1.5">Cliente</th>
+                    <th className="text-left py-1.5">Responsable</th>
+                    <th className="text-right py-1.5">Ingreso estimado</th>
+                    <th className="text-right py-1.5">% participación</th>
+                    <th className="text-right py-1.5">Monto estimado</th>
+                    <th className="text-right py-1.5">% sobre ingreso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {partRep.map(({p,ingreso,pctPart,monto,pctIng,sin})=>{
+                    const u=(data.users||[]).find(x=>x.id===p.responsableId);
+                    return(
+                      <tr key={p.id} className={'border-b '+(sin?'border-amber-100 bg-amber-50/40':'border-gray-100')}>
+                        <td className="py-1.5 text-gray-700 font-medium">{p.name||p.codigo||p.id}{p.codigo&&<span className="text-[10px] text-gray-400 font-normal ml-1">{p.codigo}</span>}</td>
+                        <td className="py-1.5 text-gray-500">{p.client||'—'}</td>
+                        <td className="py-1.5 text-gray-500">{u?u.name:'—'}</td>
+                        <td className="py-1.5 text-right text-gray-600">{$n(ingreso)}</td>
+                        <td className={'py-1.5 text-right font-semibold '+(sin?'text-red-600':'text-indigo-600')}>{sin?<span className="text-red-500">sin cargar</span>:pctPart+'%'}</td>
+                        <td className="py-1.5 text-right text-gray-700">{monto>0?$n(monto):'—'}</td>
+                        <td className="py-1.5 text-right text-gray-600">{pctIng>0?pctIng.toFixed(1)+'%':'—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="font-bold text-gray-700 border-t">
+                  <tr><td className="py-1.5" colSpan={5}>Total participaciones estimadas</td><td className="py-1.5 text-right text-indigo-700">{$n(partTotMonto)}</td><td></td></tr>
+                </tfoot>
+              </table>
+              <p className="text-[11px] text-gray-500 mt-2">Las participaciones se cargan en cada proyecto → pestaña <b>🏆 Participaciones</b> (% por categoría/persona). El monto estimado = % sobre la base neta de terceros; el "% sobre ingreso" es el monto / ingreso estimado.</p>
             </div>
           )}
         </div>
@@ -5537,7 +5610,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
         </table>
       </div>
       ):null}
-      {projsScope.length===0&&vista!=='cobro'&&<div className="mt-4 text-xs text-gray-400">No hay proyectos del período {per} para esta vista. Crea proyectos y carga su <b>Cobro Planificado</b> por mes en cada proyecto (pestaña 💰 Ingresos y Cobro).</div>}
+      {projsScope.length===0&&vista!=='cobro'&&vista!=='part'&&<div className="mt-4 text-xs text-gray-400">No hay proyectos del período {per} para esta vista. Crea proyectos y carga su <b>Cobro Planificado</b> por mes en cada proyecto (pestaña 💰 Ingresos y Cobro).</div>}
     </div>
   );
 }
