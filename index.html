@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09c';
+const APP_VERSION='v2026-11-09d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -7266,9 +7266,23 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
   const personFullName=p=>[p.nombres,p.apellidos].filter(Boolean).join(' ')||p.name||'';
   const findUser=p=>{const pn=normName(personFullName(p));return users.find(u=>normName(u.name)===pn);};
   const orphanUsers=users.filter(u=>{const un=normName(u.name);return!people.some(p=>normName(personFullName(p))===un);});
+  // Fusión de cuentas de usuario duplicadas: mueve planificación, horas, solicitudes y evaluaciones.
+  const userDataCount=uid=>({plan:(data.planificacion||[]).filter(p=>p.userId===uid).length,ts:(data.timesheets||[]).filter(t=>t.userId===uid).length,sol:(data.solicitudesLiberacion||[]).filter(s=>s.userId===uid).length,ev:(data.evaluaciones||[]).filter(e=>e.evaluadoId===uid||e.evaluadorId===uid).length});
+  const mergeUsers=(keep,drop)=>{
+    const lat=getLatestData?getLatestData():data;const rm=id=>id===drop?keep:id;
+    save({...lat,
+      planificacion:(lat.planificacion||[]).map(p=>({...p,userId:rm(p.userId),createdBy:rm(p.createdBy)})),
+      timesheets:(lat.timesheets||[]).map(t=>({...t,userId:rm(t.userId),aprobadoPor:rm(t.aprobadoPor)})),
+      solicitudesLiberacion:(lat.solicitudesLiberacion||[]).map(s=>({...s,userId:rm(s.userId),solicitanteId:rm(s.solicitanteId)})),
+      evaluaciones:(lat.evaluaciones||[]).map(e=>({...e,evaluadoId:rm(e.evaluadoId),evaluadorId:rm(e.evaluadorId)})),
+      users:(lat.users||[]).filter(u=>u.id!==drop),
+    });
+  };
 
   const emptyForm={nombres:'',apellidos:'',ci:'',initials:'',catId:(cats[0]||{}).id||'',deptId:(data.departments[0]||{}).id||'',banco:'',numCuenta:'',celular:'',email:'',fechaIngreso:''};
   const [form,setForm]=useState(emptyForm);
+  const [mKeep,setMKeep]=useState('');
+  const [mDrop,setMDrop]=useState('');
   const [editId,setEditId]=useState(null);
   const [editForm,setEditForm]=useState({});
   const [expandId,setExpandId]=useState(null);
@@ -7720,6 +7734,30 @@ function TeamConf({data,save,cfg,session,currentUser,getLatestData}){
       </div>
 
       {/* ── Orphan users ── admin only */}
+      {isAdmin&&users.length>1&&(
+        <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="px-4 py-2 border-b bg-indigo-50 font-semibold text-xs text-indigo-700">🔀 Fusionar cuentas de usuario duplicadas</div>
+          <div className="px-4 py-3 space-y-2">
+            <p className="text-[11px] text-gray-500">Si una persona tiene dos cuentas, elige cuál <b>conservar</b> y cuál <b>eliminar</b>. Se moverán a la que conservas: planificación, horas (TimeSheet), solicitudes y evaluaciones.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-[11px] text-gray-500 block mb-1">Conservar (cuenta correcta)</label>
+                <select value={mKeep} onChange={e=>setMKeep(e.target.value)} className="w-full border rounded-lg px-2 py-1.5 text-xs">
+                  <option value="">— Elegir —</option>
+                  {[...users].sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(u=>{const c=userDataCount(u.id);return <option key={u.id} value={u.id}>{u.name} · {u.email||'sin correo'} · plan {c.plan}/horas {c.ts}</option>;})}
+                </select></div>
+              <div><label className="text-[11px] text-gray-500 block mb-1">Eliminar (fusionar en la anterior)</label>
+                <select value={mDrop} onChange={e=>setMDrop(e.target.value)} className="w-full border rounded-lg px-2 py-1.5 text-xs">
+                  <option value="">— Elegir —</option>
+                  {[...users].filter(u=>u.id!==mKeep).sort((a,b)=>(a.name||'').localeCompare(b.name||'')).map(u=>{const c=userDataCount(u.id);return <option key={u.id} value={u.id}>{u.name} · {u.email||'sin correo'} · plan {c.plan}/horas {c.ts}</option>;})}
+                </select></div>
+            </div>
+            {mKeep&&mDrop&&(()=>{const dc=userDataCount(mDrop);const uk=users.find(u=>u.id===mKeep)||{},ud=users.find(u=>u.id===mDrop)||{};return(
+              <div className="text-[11px] bg-gray-50 rounded-lg px-3 py-2">Se moverán de <b>{ud.name}</b> → <b>{uk.name}</b>: planificación {dc.plan}, horas {dc.ts}, solicitudes {dc.sol}, evaluaciones {dc.ev}. Luego se elimina <b>{ud.name}</b>.</div>
+            );})()}
+            <button disabled={!mKeep||!mDrop||mKeep===mDrop} onClick={()=>{const uk=users.find(u=>u.id===mKeep)||{},ud=users.find(u=>u.id===mDrop)||{};if(!window.confirm('Fusionar "'+ud.name+'" en "'+uk.name+'" ('+(uk.email||'sin correo')+'). Se moverán sus datos y se eliminará "'+ud.name+'". ¿Continuar?'))return;mergeUsers(mKeep,mDrop);setMKeep('');setMDrop('');}} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white px-3 py-1.5 rounded-lg text-xs font-medium">🔀 Fusionar</button>
+          </div>
+        </div>
+      )}
       {isAdmin&&orphanUsers.length>0&&(
         <div className="bg-white rounded-xl border overflow-hidden">
           <div className="px-4 py-2 border-b flex items-center gap-2 bg-amber-50">
