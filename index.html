@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09g';
+const APP_VERSION='v2026-11-09h';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5367,15 +5367,16 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
   );
   const compNetoP=sum(flujoNeto), compNetoR=sum(flujoNetoR);
 
-  // Reporte: proyectos cuyo plan de cobro (revenues.cobro) no llega al 100% de los honorarios.
+  // Reporte: proyectos cuyo plan de cobro no llega al 100% de los honorarios (acotado al período).
+  // Si el proyecto no tiene "Cobro planificado" pero sí "Ingreso estimado", se usa el estimado como plan.
+  const cobroPlanDe=p=>{const cob=getTotRev(p.id,data,'cobro');if(cob>0.5)return {plan:cob,usaEst:false};const est=getTotRev(p.id,data,'est');return est>0.5?{plan:est,usaEst:true}:{plan:0,usaEst:false};};
   const cobroRep=projsScope.map(p=>{
-    const hon=+p.honorariosTotal||0;
-    const cobroPlan=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);
+    const hon=+p.honorariosTotal||0;const {plan:cobroPlan,usaEst}=cobroPlanDe(p);
     const pct=hon>0?cobroPlan/hon*100:0;
-    return {p,hon,cobroPlan,pct,gap:hon-cobroPlan};
+    return {p,hon,cobroPlan,pct,usaEst,gap:hon-cobroPlan};
   }).filter(x=>x.hon>0&&x.gap>0.5).sort((a,b)=>b.gap-a.gap);
   const cobroRepGap=cobroRep.reduce((s,x)=>s+x.gap,0);
-  const cobroSobre=projsScope.filter(p=>{const hon=+p.honorariosTotal||0;const cp=(data.revenues||[]).filter(r=>r.projectId===p.id).reduce((s,r)=>s+(+r.cobro||0),0);return hon>0&&cp-hon>0.5;}).length;
+  const cobroSobre=projsScope.filter(p=>{const hon=+p.honorariosTotal||0;const cp=cobroPlanDe(p).plan;return hon>0&&cp-hon>0.5;}).length;
   const exportarCobro=()=>{
     const header=['Proyecto','Código','Cliente','Responsable','Honorarios','Cobro planificado','% cubierto','Falta por planificar'];
     const rows=cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{const u=(data.users||[]).find(x=>x.id===p.responsableId);return [p.name||p.codigo||p.id,p.codigo||'',p.client||'',u?u.name:'—',hon,cobroPlan,Math.round(pct)+'%',gap];});
@@ -5438,7 +5439,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                   </tr>
                 </thead>
                 <tbody>
-                  {cobroRep.map(({p,hon,cobroPlan,pct,gap})=>{
+                  {cobroRep.map(({p,hon,cobroPlan,pct,gap,usaEst})=>{
                     const u=(data.users||[]).find(x=>x.id===p.responsableId);
                     return(
                       <tr key={p.id} className="border-b border-amber-100">
@@ -5446,7 +5447,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                         <td className="py-1.5 text-gray-500">{p.client||'—'}</td>
                         <td className="py-1.5 text-gray-500">{u?u.name:'—'}</td>
                         <td className="py-1.5 text-right text-gray-600">{$n(hon)}</td>
-                        <td className="py-1.5 text-right text-gray-600">{cobroPlan>0?$n(cobroPlan):<span className="text-red-500 font-medium">sin plan</span>}</td>
+                        <td className="py-1.5 text-right text-gray-600">{cobroPlan>0?<span>{$n(cobroPlan)}{usaEst&&<span className="text-[10px] text-indigo-500 ml-1" title="Usa el Ingreso Estimado porque no hay Cobro Planificado">(est.)</span>}</span>:<span className="text-red-500 font-medium">sin plan</span>}</td>
                         <td className={'py-1.5 text-right font-semibold '+(pct<=0?'text-red-600':pct<50?'text-amber-700':'text-amber-600')}>{Math.round(pct)}%</td>
                         <td className="py-1.5 text-right font-semibold text-red-600">{$n(gap)}</td>
                       </tr>
@@ -5460,7 +5461,7 @@ function AFlujoCaja({data,save,currentUser,getLatestData}){
                   </tr>
                 </tfoot>
               </table>
-              <p className="text-[11px] text-gray-500 mt-2">El plan de cobro se completa en cada proyecto → pestaña <b>Ingresos y Cobro</b> (columna "Cobro planificado" por mes), hasta que la suma iguale los honorarios.{cobroSobre>0&&<span className="text-amber-700"> · {cobroSobre} proyecto(s) tienen cobro planificado por encima de los honorarios (revisar).</span>}</p>
+              <p className="text-[11px] text-gray-500 mt-2">El plan de cobro se completa en cada proyecto → pestaña <b>Ingresos y Cobro</b> (columna "Cobro planificado" por mes), hasta que la suma iguale los honorarios. Si un proyecto no tiene Cobro planificado pero sí Ingreso estimado, se usa el estimado (marcado <b>est.</b>).{cobroSobre>0&&<span className="text-amber-700"> · {cobroSobre} proyecto(s) con plan por encima de los honorarios (revisar).</span>}</p>
             </div>
           )}
         </div>
