@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-10a';
+const APP_VERSION='v2026-11-10b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5676,6 +5676,12 @@ function APresupuesto({data,save,currentUser,getLatestData}){
   const subt=arr=>{const h=arr.reduce((s,x)=>s+(+x.honorariosTotal||0),0),pt=arr.reduce((s,x)=>s+Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100,0),tc=arr.reduce((s,x)=>s+(+x.costoTerceros||0),0);return {h,pt,tc,mg:h-pt-tc,n:arr.length};};
   const reales=items.filter(esReal), potenciales=items.filter(x=>!esReal(x));
   const stReal=subt(reales), stPot=subt(potenciales);
+  // Verificación: proyectos REALES del período que aún no están en el presupuesto
+  const enPresup=new Set(items.map(x=>x.proyectoOrigenId).filter(Boolean));
+  const faltanPresup=(data.projects||[]).filter(p=>!p.enPapelera&&p.validado!==false&&(p.periodo||currentPeriodo)===periodo&&!enPresup.has(p.id)&&(!esResp||p.responsableId===currentUser.id));
+  const mkPresupDeReal=p=>({id:uid(),periodo,nombre:p.name,client:p.client,clientId:p.clientId||'',deptId:p.deptId||'',responsableId:p.responsableId||'',honorariosTotal:+p.honorariosTotal||0,pctParticipaciones:0,costoTerceros:+p.honorariosOS||0,facturacion:Array(12).fill(0),origen:'actual',proyectoOrigenId:p.id,tipo:p.tipo||'Recurrente',notas:''});
+  const addRealAlPresup=p=>{const lat=getLatestData?getLatestData():data;if((lat.presupuestoProyectos||[]).some(x=>x.periodo===periodo&&x.proyectoOrigenId===p.id))return;save({...lat,presupuestoProyectos:[...(lat.presupuestoProyectos||[]),mkPresupDeReal(p)]});};
+  const addAllReales=()=>{const lat=getLatestData?getLatestData():data;const ex=new Set((lat.presupuestoProyectos||[]).filter(x=>x.periodo===periodo).map(x=>x.proyectoOrigenId).filter(Boolean));const nuevos=faltanPresup.filter(p=>!ex.has(p.id)).map(mkPresupDeReal);if(!nuevos.length)return;save({...lat,presupuestoProyectos:[...(lat.presupuestoProyectos||[]),...nuevos]});};
   const renderItem=x=>{const sf=sumFact(x);const partX=Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100;const margen=(+x.honorariosTotal||0)-partX-(+x.costoTerceros||0);const open=!!expand[x.id];return(
             <div key={x.id} className="bg-white rounded-xl border p-3">
               <div className="flex items-start gap-2 flex-wrap">
@@ -5783,6 +5789,15 @@ function APresupuesto({data,save,currentUser,getLatestData}){
         </div>
       )}
 
+      {faltanPresup.length>0&&(
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 mb-2 text-xs flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-amber-800">⚠️ <b>{faltanPresup.length}</b> proyecto(s) real(es) del período {periodo} no están en el presupuesto: <span className="text-gray-600">{faltanPresup.slice(0,6).map(p=>p.name).join(' · ')}{faltanPresup.length>6?'…':''}</span></span>
+          <div className="flex gap-2">
+            {faltanPresup.length>1&&<button onClick={addAllReales} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap">+ Agregar todos</button>}
+            {faltanPresup.length===1&&<button onClick={()=>addRealAlPresup(faltanPresup[0])} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded font-medium whitespace-nowrap">+ Agregar al presupuesto</button>}
+          </div>
+        </div>
+      )}
       {items.length===0?(
         <div className="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Aún no hay proyectos estimados para {periodo}. Genera el borrador desde {priorP} o agrega uno nuevo.</div>
       ):(
@@ -5858,6 +5873,12 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     const body='El usuario '+((currentUser&&currentUser.name)||'')+' creó el proyecto "'+np.name+'" (cliente: '+np.client+(np.codigo?', '+np.codigo:'')+') que requiere validación en BudgetApp.\n\nEntra a Proyectos → "Por validar" para aprobarlo o rechazarlo.';
     try{window.location.href='mailto:'+emails.join(',')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body);}catch(_){}
   };
+  // Agrega un proyecto real al Presupuesto de Ingresos del período (si no está ya), como 'actual'
+  const presupAdd=(proj,st)=>{
+    if((st.presupuestoProyectos||[]).some(x=>(x.periodo||currentPeriodo)===(proj.periodo||currentPeriodo)&&x.proyectoOrigenId===proj.id))return st;
+    const nu={id:uid(),periodo:proj.periodo||currentPeriodo,nombre:proj.name,client:proj.client,clientId:proj.clientId||'',deptId:proj.deptId||'',responsableId:proj.responsableId||'',honorariosTotal:+proj.honorariosTotal||0,pctParticipaciones:0,costoTerceros:+proj.honorariosOS||0,facturacion:Array(12).fill(0),origen:'actual',proyectoOrigenId:proj.id,tipo:proj.tipo||'Recurrente',notas:''};
+    return {...st,presupuestoProyectos:[...(st.presupuestoProyectos||[]),nu]};
+  };
   const add=()=>{
     if(!form.name.trim()||!form.client.trim())return;
     const codigoFinal=form.codigo.trim()||nextProjectCode(form.periodo,form.serviceCode,data.projects);
@@ -5865,11 +5886,14 @@ function AProjects({data,save,onProj,currentUser,getLatestData}){
     const autoValida=isAdmin; // admin/administración publican directo; socio/responsable quedan "por validar"
     const today=new Date().toISOString().split('T')[0];
     const np={id:uid(),name:form.name.trim(),client:form.client.trim(),clientId:form.clientId||'',deptId:form.deptId,status:form.status,tipo:form.tipo,periodo:form.periodo||currentPeriodo,honorariosTotal:parseFloat(form.honorariosTotal)||0,honorariosOS:parseFloat(form.honorariosOS)||0,otrosCobranza:parseFloat(form.otrosCobranza)||0,recurrente:form.tipo==='Recurrente',cerrado:false,fechaCierre:'',enPapelera:false,fechaPapelera:'',codigo:codigoFinal,responsableId:form.responsableId||'',horasEst,validado:autoValida,creadoPor:(currentUser&&currentUser.id)||'',fechaCreacion:today,fechaAprobacion:form.fechaAprobacion||'',fechaInicio:form.fechaInicio||''};
-    save({...(getLatestData?getLatestData():data),projects:[...(getLatestData?getLatestData():data).projects,np]});
+    const lat=getLatestData?getLatestData():data;
+    let ns={...lat,projects:[...(lat.projects||[]),np]};
+    if(autoValida&&window.confirm('Proyecto "'+np.name+'" creado.\n\n¿Agregarlo también al Presupuesto de Ingresos del período '+np.periodo+' (como real)?'))ns=presupAdd(np,ns);
+    save(ns);
     setForm(emptyForm);setShow(false);
     if(!autoValida){setVistaTab('porvalidar');notificarValidacion(np);}
   };
-  const aprobarProyecto=id=>{const lat=getLatestData?getLatestData():data;save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,validado:true}:p)});};
+  const aprobarProyecto=id=>{const lat=getLatestData?getLatestData():data;const proj=(lat.projects||[]).find(p=>p.id===id);let ns={...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,validado:true}:p)};if(proj&&window.confirm('Proyecto "'+proj.name+'" validado.\n\n¿Agregarlo al Presupuesto de Ingresos del período '+(proj.periodo||currentPeriodo)+'?'))ns=presupAdd({...proj,validado:true},ns);save(ns);};
   const rechazarProyecto=id=>{if(!window.confirm('¿Rechazar este proyecto? Irá a la papelera.'))return;const today=new Date().toISOString().split('T')[0];const lat=getLatestData?getLatestData():data;save({...lat,projects:(lat.projects||[]).map(p=>p.id===id?{...p,enPapelera:true,fechaPapelera:today,validado:true}:p)});};
 
   const moverAPapelera=id=>{
