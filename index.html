@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-09i';
+const APP_VERSION='v2026-11-10a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -5670,6 +5670,61 @@ function APresupuesto({data,save,currentUser,getLatestData}){
 
   const yaGenerados=new Set(items.map(x=>x.proyectoOrigenId).filter(Boolean));
 
+  // Separar proyectos REALES (ya existen como proyecto del período) de POTENCIALES (recurrentes/nuevos)
+  const projById={};(data.projects||[]).forEach(p=>{projById[p.id]=p;});
+  const esReal=x=>x.origen==='actual'||!!(x.proyectoOrigenId&&projById[x.proyectoOrigenId]&&(projById[x.proyectoOrigenId].periodo||currentPeriodo)===periodo&&!projById[x.proyectoOrigenId].enPapelera);
+  const subt=arr=>{const h=arr.reduce((s,x)=>s+(+x.honorariosTotal||0),0),pt=arr.reduce((s,x)=>s+Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100,0),tc=arr.reduce((s,x)=>s+(+x.costoTerceros||0),0);return {h,pt,tc,mg:h-pt-tc,n:arr.length};};
+  const reales=items.filter(esReal), potenciales=items.filter(x=>!esReal(x));
+  const stReal=subt(reales), stPot=subt(potenciales);
+  const renderItem=x=>{const sf=sumFact(x);const partX=Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100;const margen=(+x.honorariosTotal||0)-partX-(+x.costoTerceros||0);const open=!!expand[x.id];return(
+            <div key={x.id} className="bg-white rounded-xl border p-3">
+              <div className="flex items-start gap-2 flex-wrap">
+                <input value={x.nombre} onChange={e=>upd(x.id,{nombre:e.target.value})} placeholder="Nombre del proyecto" className="border rounded px-2 py-1 text-sm font-medium flex-1 min-w-[180px]"/>
+                <input value={x.client} onChange={e=>upd(x.id,{client:e.target.value})} placeholder="Cliente" className="border rounded px-2 py-1 text-xs w-40"/>
+                {esResp?(
+                  <span className="text-xs px-2 py-1 text-gray-500">{currentUser.name}</span>
+                ):(
+                  <select value={x.responsableId||''} onChange={e=>upd(x.id,{responsableId:e.target.value})} className="border rounded px-2 py-1 text-xs bg-white">
+                    <option value="">— responsable —</option>
+                    {(data.users||[]).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                )}
+                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-green-100 text-green-700':x.origen==='actual'?'bg-blue-50 text-blue-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':x.origen==='actual'?'ya real':'nuevo'}</span>
+                <button onClick={()=>del(x.id)} className="text-red-400 hover:text-red-600 text-xs px-1" title="Eliminar">🗑</button>
+              </div>
+              <div className="flex items-center gap-4 mt-2 flex-wrap text-xs">
+                <label className="flex items-center gap-1"><span className="text-gray-400">Honorarios $</span>
+                  <input type="number" value={x.honorariosTotal||''} onChange={e=>upd(x.id,{honorariosTotal:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-28 text-right"/></label>
+                <label className="flex items-center gap-1"><span className="text-gray-400">% Particip.</span>
+                  <input type="number" value={x.pctParticipaciones||''} onChange={e=>upd(x.id,{pctParticipaciones:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-16 text-right"/></label>
+                <label className="flex items-center gap-1"><span className="text-gray-400">Terceros $</span>
+                  <input type="number" value={x.costoTerceros||''} onChange={e=>upd(x.id,{costoTerceros:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-24 text-right"/></label>
+                <span className="text-gray-300">|</span>
+                <span className="text-gray-500">Participaciones: <b className="text-gray-700">{$n(partX)}</b></span>
+                <span className="text-gray-500">Margen: <b className={margen>=0?'text-green-600':'text-red-600'}>{$n(margen)}</b></span>
+                <button onClick={()=>setExpand(ex=>({...ex,[x.id]:!open}))} className="ml-auto text-indigo-600 hover:underline">{open?'▲ ocultar facturación':'▼ facturación mensual'}</button>
+              </div>
+              {open&&(
+                <div className="mt-2 pt-2 border-t">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[11px] text-gray-400">% facturado por mes (Ago→Jul)</span>
+                    <button onClick={()=>repartir(x.id)} className="text-[11px] text-indigo-600 hover:underline">repartir igual</button>
+                    <span className={'ml-auto text-[11px] font-semibold px-2 py-0.5 rounded '+(Math.abs(sf-100)<0.5?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800')}>Suma: {sf.toFixed(1)}%{Math.abs(sf-100)<0.5?' ✓':' (debe ser 100%)'}</span>
+                  </div>
+                  <div className="grid grid-cols-12 gap-1">
+                    {MESES_GF.map((mLbl,m)=>(
+                      <div key={m} className="flex flex-col items-center">
+                        <span className="text-[10px] text-gray-400">{mLbl}</span>
+                        <input type="number" value={(x.facturacion||[])[m]||''} onChange={e=>updFact(x.id,m,e.target.value)} className="border rounded px-1 py-1 w-full text-[11px] text-center"/>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+  );};
+  const stHdr=(label,st,cls)=>(<div className={'flex items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold '+cls}><span>{label} · {st.n} proy.</span><span>Hon. {$n(st.h)} · Margen {$n(st.mg)}</span></div>);
+
   return(
     <div className="p-6 max-w-6xl">
       <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
@@ -5732,53 +5787,10 @@ function APresupuesto({data,save,currentUser,getLatestData}){
         <div className="bg-white rounded-xl border p-8 text-center text-gray-400 text-sm">Aún no hay proyectos estimados para {periodo}. Genera el borrador desde {priorP} o agrega uno nuevo.</div>
       ):(
         <div className="space-y-2">
-          {items.map(x=>{const sf=sumFact(x);const partX=Math.max(0,(+x.honorariosTotal||0)-(+x.costoTerceros||0))*(+x.pctParticipaciones||0)/100;const margen=(+x.honorariosTotal||0)-partX-(+x.costoTerceros||0);const open=!!expand[x.id];return(
-            <div key={x.id} className="bg-white rounded-xl border p-3">
-              <div className="flex items-start gap-2 flex-wrap">
-                <input value={x.nombre} onChange={e=>upd(x.id,{nombre:e.target.value})} placeholder="Nombre del proyecto" className="border rounded px-2 py-1 text-sm font-medium flex-1 min-w-[180px]"/>
-                <input value={x.client} onChange={e=>upd(x.id,{client:e.target.value})} placeholder="Cliente" className="border rounded px-2 py-1 text-xs w-40"/>
-                {esResp?(
-                  <span className="text-xs px-2 py-1 text-gray-500">{currentUser.name}</span>
-                ):(
-                  <select value={x.responsableId||''} onChange={e=>upd(x.id,{responsableId:e.target.value})} className="border rounded px-2 py-1 text-xs bg-white">
-                    <option value="">— responsable —</option>
-                    {(data.users||[]).map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                )}
-                <span className={'text-[10px] px-2 py-1 rounded-full '+(x.origen==='recurrente'?'bg-green-100 text-green-700':x.origen==='actual'?'bg-blue-50 text-blue-700':'bg-indigo-50 text-indigo-700')}>{x.origen==='recurrente'?'recurrente':x.origen==='actual'?'ya real':'nuevo'}</span>
-                <button onClick={()=>del(x.id)} className="text-red-400 hover:text-red-600 text-xs px-1" title="Eliminar">🗑</button>
-              </div>
-              <div className="flex items-center gap-4 mt-2 flex-wrap text-xs">
-                <label className="flex items-center gap-1"><span className="text-gray-400">Honorarios $</span>
-                  <input type="number" value={x.honorariosTotal||''} onChange={e=>upd(x.id,{honorariosTotal:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-28 text-right"/></label>
-                <label className="flex items-center gap-1"><span className="text-gray-400">% Particip.</span>
-                  <input type="number" value={x.pctParticipaciones||''} onChange={e=>upd(x.id,{pctParticipaciones:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-16 text-right"/></label>
-                <label className="flex items-center gap-1"><span className="text-gray-400">Terceros $</span>
-                  <input type="number" value={x.costoTerceros||''} onChange={e=>upd(x.id,{costoTerceros:parseFloat(e.target.value)||0})} className="border rounded px-2 py-1 w-24 text-right"/></label>
-                <span className="text-gray-300">|</span>
-                <span className="text-gray-500">Participaciones: <b className="text-gray-700">{$n(partX)}</b></span>
-                <span className="text-gray-500">Margen: <b className={margen>=0?'text-green-600':'text-red-600'}>{$n(margen)}</b></span>
-                <button onClick={()=>setExpand(ex=>({...ex,[x.id]:!open}))} className="ml-auto text-indigo-600 hover:underline">{open?'▲ ocultar facturación':'▼ facturación mensual'}</button>
-              </div>
-              {open&&(
-                <div className="mt-2 pt-2 border-t">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[11px] text-gray-400">% facturado por mes (Ago→Jul)</span>
-                    <button onClick={()=>repartir(x.id)} className="text-[11px] text-indigo-600 hover:underline">repartir igual</button>
-                    <span className={'ml-auto text-[11px] font-semibold px-2 py-0.5 rounded '+(Math.abs(sf-100)<0.5?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-800')}>Suma: {sf.toFixed(1)}%{Math.abs(sf-100)<0.5?' ✓':' (debe ser 100%)'}</span>
-                  </div>
-                  <div className="grid grid-cols-12 gap-1">
-                    {MESES_GF.map((mLbl,m)=>(
-                      <div key={m} className="flex flex-col items-center">
-                        <span className="text-[10px] text-gray-400">{mLbl}</span>
-                        <input type="number" value={(x.facturacion||[])[m]||''} onChange={e=>updFact(x.id,m,e.target.value)} className="border rounded px-1 py-1 w-full text-[11px] text-center"/>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          );})}
+          {reales.length>0&&stHdr('✅ Reales (ya son proyecto del período)',stReal,'bg-blue-50 text-blue-700 border border-blue-200')}
+          {reales.map(renderItem)}
+          {potenciales.length>0&&stHdr('🔄 Potenciales (recurrentes / nuevos)',stPot,'bg-indigo-50 text-indigo-700 border border-indigo-200 mt-3')}
+          {potenciales.map(renderItem)}
 
           {/* Subtotales por responsable */}
           {!esResp&&Object.keys(grupos).length>1&&(
@@ -5790,9 +5802,24 @@ function APresupuesto({data,save,currentUser,getLatestData}){
             </div>
           )}
 
+          {/* Desglose Reales vs Potenciales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div className="bg-blue-50 rounded-xl border border-blue-200 p-3">
+              <div className="text-xs font-semibold text-blue-700 mb-1">✅ Reales (confirmados) · {stReal.n} proy.</div>
+              <div className="flex justify-between text-xs text-gray-600"><span>Honorarios</span><b className="text-gray-800">{$n(stReal.h)}</b></div>
+              <div className="flex justify-between text-xs text-gray-600"><span>Margen</span><b className={stReal.mg>=0?'text-green-600':'text-red-600'}>{$n(stReal.mg)}</b></div>
+            </div>
+            <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-3">
+              <div className="text-xs font-semibold text-indigo-700 mb-1">🔄 Potenciales (recurrentes/nuevos) · {stPot.n} proy.</div>
+              <div className="flex justify-between text-xs text-gray-600"><span>Honorarios</span><b className="text-gray-800">{$n(stPot.h)}</b></div>
+              <div className="flex justify-between text-xs text-gray-600"><span>Margen</span><b className={stPot.mg>=0?'text-green-600':'text-red-600'}>{$n(stPot.mg)}</b></div>
+            </div>
+          </div>
+          {totHon>0&&<div className="text-[11px] text-gray-500 mt-1">Reales = {totHon>0?Math.round(stReal.h/totHon*100):0}% de los honorarios estimados · Potenciales = {totHon>0?Math.round(stPot.h/totHon*100):0}%</div>}
+
           {/* Total general */}
-          <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-4 mt-2 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div><div className="text-[11px] text-gray-500">Honorarios estimados</div><div className="text-base font-bold text-gray-800">{$n(totHon)}</div></div>
+          <div className="bg-gray-100 rounded-xl border border-gray-300 p-4 mt-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div><div className="text-[11px] text-gray-500">Honorarios estimados (total)</div><div className="text-base font-bold text-gray-800">{$n(totHon)}</div></div>
             <div><div className="text-[11px] text-gray-500">Participaciones</div><div className="text-base font-bold text-yellow-800">{$n(totPart)}</div></div>
             <div><div className="text-[11px] text-gray-500">Terceros</div><div className="text-base font-bold text-red-600">{$n(totTerc)}</div></div>
             <div><div className="text-[11px] text-gray-500">Margen estimado</div><div className={'text-base font-bold '+(totMargen>=0?'text-green-600':'text-red-600')}>{$n(totMargen)}</div></div>
