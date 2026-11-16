@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-16a';
+const APP_VERSION='v2026-11-16b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1625,9 +1625,12 @@ function OppForm({accounts,contacts,projects,initial,onSave,onClose,onTrash,serv
     setF(x=>({...x,contactId:id,accountId:ct?.accountId||x.accountId}));
   };
   const accName=id=>(accounts.find(a=>a.id===id)||{}).name||"";
-  // Solo proyectos que YA son cuenta y tienen al menos un contacto en esa cuenta
-  const projOpts=[...(projects||[]).filter(p=>p.accountId&&accounts.some(a=>a.id===p.accountId)&&contacts.some(c=>c.accountId===p.accountId))]
-    .sort((a,b)=>accName(a.accountId).localeCompare(accName(b.accountId),"es")||(a.title||"").localeCompare(b.title||"","es"));
+  const acctHasContact=id=>contacts.some(c=>c.accountId===id);
+  // Proyectos que ya tienen una cuenta válida (los que además tienen contacto van primero)
+  const projOpts=[...(projects||[]).filter(p=>p.accountId&&accounts.some(a=>a.id===p.accountId))]
+    .sort((a,b)=>(acctHasContact(b.accountId)-acctHasContact(a.accountId))
+      ||accName(a.accountId).localeCompare(accName(b.accountId),"es")
+      ||(a.title||"").localeCompare(b.title||"","es"));
   const pickProject=id=>{
     setFromProj(id);
     const p=(projects||[]).find(x=>x.id===id);if(!p)return;
@@ -1644,10 +1647,10 @@ function OppForm({accounts,contacts,projects,initial,onSave,onClose,onTrash,serv
   return<>
     {!initial&&projOpts.length>0&&(
       <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
-        <div style={{color:"#64748b",fontSize:11,fontWeight:600,marginBottom:6}}>⚡ Desde un proyecto existente (ya con cuenta y contacto)</div>
+        <div style={{color:"#64748b",fontSize:11,fontWeight:600,marginBottom:6}}>⚡ Desde un proyecto existente (autocompleta cuenta y contacto)</div>
         <select style={IS} value={fromProj} onChange={e=>pickProject(e.target.value)}>
           <option value="">— Crear desde cero —</option>
-          {projOpts.map(p=><option key={p.id} value={p.id}>{accName(p.accountId)} · {p.title}</option>)}
+          {projOpts.map(p=><option key={p.id} value={p.id}>{accName(p.accountId)} · {p.title}{acctHasContact(p.accountId)?"":" (sin contacto)"}</option>)}
         </select>
         {fromProj&&<div style={{color:"#92400e",fontSize:10,marginTop:5}}>Se autocompletó cuenta, contacto, servicio y honorarios. Ajusta lo que necesites abajo.</div>}
       </div>
