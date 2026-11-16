@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-16b';
+const APP_VERSION='v2026-11-16c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -1503,6 +1503,7 @@ function Sidebar({view,setView,counts,pipeTotal,onOpenServicios,onOpenSectores,o
         <button onClick={onExport} style={{width:"100%",padding:"5px 0",borderRadius:7,border:"1px solid #334155",background:"none",color:"#94a3b8",fontSize:10,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
           ⬇ Exportar respaldo
         </button>
+        <div style={{textAlign:"center",color:"#475569",fontSize:9,marginTop:6}} title="Versión cargada en este navegador">{APP_VERSION}</div>
       </div>
     </div>
   );
@@ -1645,14 +1646,16 @@ function OppForm({accounts,contacts,projects,initial,onSave,onClose,onTrash,serv
     }));
   };
   return<>
-    {!initial&&projOpts.length>0&&(
+    {!initial&&(
       <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 12px",marginBottom:12}}>
         <div style={{color:"#64748b",fontSize:11,fontWeight:600,marginBottom:6}}>⚡ Desde un proyecto existente (autocompleta cuenta y contacto)</div>
-        <select style={IS} value={fromProj} onChange={e=>pickProject(e.target.value)}>
-          <option value="">— Crear desde cero —</option>
-          {projOpts.map(p=><option key={p.id} value={p.id}>{accName(p.accountId)} · {p.title}{acctHasContact(p.accountId)?"":" (sin contacto)"}</option>)}
-        </select>
-        {fromProj&&<div style={{color:"#92400e",fontSize:10,marginTop:5}}>Se autocompletó cuenta, contacto, servicio y honorarios. Ajusta lo que necesites abajo.</div>}
+        {projOpts.length>0?<>
+          <select style={IS} value={fromProj} onChange={e=>pickProject(e.target.value)}>
+            <option value="">— Crear desde cero —</option>
+            {projOpts.map(p=><option key={p.id} value={p.id}>{accName(p.accountId)} · {p.title}{acctHasContact(p.accountId)?"":" (sin contacto)"}</option>)}
+          </select>
+          {fromProj&&<div style={{color:"#92400e",fontSize:10,marginTop:5}}>Se autocompletó cuenta, contacto, servicio y honorarios. Ajusta lo que necesites abajo.</div>}
+        </>:<div style={{color:"#94a3b8",fontSize:10}}>No hay proyectos con cuenta asignada todavía. Crea el proyecto (con su cuenta) y aparecerá aquí para seleccionarlo.</div>}
       </div>
     )}
     <Grid2>
