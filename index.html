@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-19a';
+const APP_VERSION='v2026-11-19b';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3907,7 +3907,7 @@ const cronoEquipos=data=>{
   const m={};
   const add=(pid,uid_)=>{if(!pid||!uid_)return;(m[pid]=m[pid]||new Set()).add(uid_);};
   (data.planificacion||[]).forEach(x=>add(x.projectId,x.userId));
-  (data.cronograma||[]).forEach(r=>add(r.projectId,r.asignadoId));
+  (data.cronograma||[]).forEach(r=>add(String(r.projectId).split('::')[0],r.asignadoId)); // hitos SIAR (proyecto::siar) cuentan para el proyecto base
   return m;
 };
 const cronoScope=(data,currentUser,incluirCerrados,periodo)=>{
@@ -3929,9 +3929,10 @@ const cronoAlertCount=(data,currentUser)=>{
   const ps=cronoScope(data,currentUser,false);
   if(role==='equipo'||role==='user'){
     const ids=new Set(ps.map(p=>p.id));
-    return crono.filter(r=>ids.has(r.projectId)&&r.asignadoId===me&&cronoSemaforo(r,crono.filter(x=>x.projectId===r.projectId),hoy)==='rojo').length;
+    // base del projectId: un encargo SIAR usa 'proyecto::siar', pero el ámbito es el mismo proyecto
+    return crono.filter(r=>ids.has(String(r.projectId).split('::')[0])&&r.asignadoId===me&&cronoSemaforo(r,crono.filter(x=>x.projectId===r.projectId),hoy)==='rojo').length;
   }
-  return ps.filter(p=>cronoResumen(p.id,crono,hoy).sem==='rojo').length;
+  return ps.filter(p=>cronoResumen(p.id,crono,hoy).sem==='rojo'||cronoResumen(p.id+'::siar',crono,hoy).sem==='rojo').length;
 };
 const cronoPerms=(proj,data,currentUser)=>{
   const role=(currentUser&&currentUser.role)||'user';
@@ -4068,19 +4069,39 @@ function CronoCWImport({proj,rows,onApply,onClose}){
   );
 }
 
-function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
+function CronogramaProyecto({proj,data,save,currentUser,getLatestData,encargo:encargoProp}){
   const hoy=cronoHoy();
   const lat=()=>(getLatestData&&getLatestData())||data;
+  // Un proyecto puede tener DOS cronogramas (encargos): el principal (proj.id) y la Revisión SIAR (proj.id::siar).
+  const [encargo,setEncargo]=useState(encargoProp||'aud');
+  const pid=encargo==='siar'?proj.id+'::siar':proj.id;
   const all=cronoVis(data.cronograma);
-  const rows=all.filter(r=>r.projectId===proj.id);
-  const cwLink=cronoLink(data,proj.id);
-  const cwSync=cronoSync(data,proj.id);
+  const rows=all.filter(r=>r.projectId===pid);
+  const cwLink=cronoLink(data,pid);
+  const cwSync=cronoSync(data,pid);
   const [showCW,setShowCW]=useState(false);
   const perm=cronoPerms(proj,data,currentUser);
   const userName=(currentUser&&currentUser.name)||'';
   const [setup,setSetup]=useState({tpl:'auditoria',sector:'niif_inv',inicio:proj.fechaInicio||hoy,informe:'',rce:false,inv:true,conf:true,interina:false,elementos:''});
-  const tplProj=rows.length?(cronoTpl(data,proj.id)||'auditoria'):setup.tpl;
+  const tplProj=rows.length?(cronoTpl(data,pid)||'auditoria'):(encargo==='siar'?'siar':setup.tpl);
   const usaCW=tplProj==='auditoria';
+  const formTpl=encargo==='siar'?'siar':setup.tpl; // plantilla efectiva en el formulario de creación
+  // ¿Mostrar la pestaña de Revisión SIAR? (seguros, auditoría, o si ya existe un SIAR)
+  const primSector=((data.cronograma||[]).find(r=>r.projectId===proj.id&&r.clave==='__sector')||{}).notas||'';
+  const primTpl=cronoTpl(data,proj.id)||'';
+  const siarExiste=(data.cronograma||[]).some(r=>r.projectId===proj.id+'::siar');
+  const mostrarTabs=siarExiste||primSector==='seguros'||primTpl==='auditoria'||encargo==='siar';
+  const encLabel=k=>k==='siar'?'🛡️ Revisión SIAR':(primTpl==='nia800'?'Revisión NIA 800/805':primTpl==='generico'?'Encargo':primTpl==='siar'?'🛡️ Revisión SIAR':primTpl==='auditoria'?'Auditoría EEFF':'Encargo principal');
+  const tabsBar=mostrarTabs?(
+    <div className="flex gap-1 mb-3 border-b">
+      {['aud','siar'].map(k=>(
+        <button key={k} onClick={()=>setEncargo(k)}
+          className={'px-3 py-1.5 text-xs font-medium border-b-2 -mb-px '+(encargo===k?'border-indigo-600 text-indigo-700':'border-transparent text-gray-500 hover:text-gray-700')}>
+          {encLabel(k)}{k==='siar'&&!siarExiste?' +':''}
+        </button>
+      ))}
+    </div>
+  ):null;
   const [areaFor,setAreaFor]=useState(null);const [areaNombre,setAreaNombre]=useState('');
   const [hitoFase,setHitoFase]=useState(null);const [hitoNombre,setHitoNombre]=useState('');const [hitoFecha,setHitoFecha]=useState('');
   const [notaOpen,setNotaOpen]=useState(null);
@@ -4099,21 +4120,22 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     if(!setup.inicio||!setup.informe){alert('Indica la fecha de inicio y la fecha compromiso de entrega del informe.');return;}
     const span=cronoDiff(setup.informe,setup.inicio);
     if(span<=0){alert('La fecha del informe debe ser posterior a la fecha de inicio.');return;}
-    const tpl=CRONO_TPLS[setup.tpl]||CRONO_TPL_GENERICO;
+    const effTpl=encargo==='siar'?'siar':setup.tpl; // en el encargo SIAR la plantilla es siempre SIAR
+    const tpl=CRONO_TPLS[effTpl]||CRONO_TPL_GENERICO;
     const elems=setup.elementos.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
     // Sector (solo auditoría): define áreas sustantivas/controles, si aplica inventario e hitos extra
-    const sec=setup.tpl==='auditoria'?(CRONO_SECTORES[setup.sector]||CRONO_SECTORES.niif_inv):null;
+    const sec=effTpl==='auditoria'?(CRONO_SECTORES[setup.sector]||CRONO_SECTORES.niif_inv):null;
     const invAplica=sec?sec.inv:setup.inv;
-    const regulado=setup.tpl==='auditoria'&&(setup.sector==='seguros'||setup.sector==='bancos');
-    const haceInterina=setup.tpl==='auditoria'&&(regulado||setup.interina);
-    const esAud=setup.tpl==='auditoria';
+    const regulado=effTpl==='auditoria'&&(setup.sector==='seguros'||setup.sector==='bancos');
+    const haceInterina=effTpl==='auditoria'&&(regulado||setup.interina);
+    const esAud=effTpl==='auditoria';
     const ordMap=esAud?(haceInterina?CRONO_ORD_INT:CRONO_ORD_FIN):null;
     const ordOf=(k,fb)=>(ordMap&&ordMap[k]!=null)?ordMap[k]:fb;
     const nuevos=[];
     // Bloque de Auditoría Interina (orden definido por el usuario)
     if(haceInterina)CRONO_HITOS_INTERINA.forEach((t,ii)=>{
       const fp=cronoAddDays(setup.inicio,span*t.p);
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,ii+1),fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:t.k,orden:ordOf(t.k,ii+1),fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
     });
     tpl.forEach((t,ti)=>{
@@ -4122,7 +4144,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       // Áreas: por sector para controles/sustantivas en auditoría; si no, las de la plantilla
       let areasT=t.areas||(t.areasSetup?elems:[]);
       if(sec){ if(t.k==='controles') areasT=sec.ctrl||[]; else if(t.k==='sustantivas') areasT=sec.sust||[]; }
-      const h={id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,(ti+1)*10),fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+      const h={id:uid(),projectId:pid,parentId:'',clave:t.k,orden:ordOf(t.k,(ti+1)*10),fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:na?'na':'pendiente',
         hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave};
       nuevos.push(h);
@@ -4134,13 +4156,13 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},
            {k:'plan_materialidad_int',fase:'Auditoría interina',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.16}]
         : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
-      nh.forEach(t=>nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordOf(t.k,900),fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
+      nh.forEach(t=>nuevos.push({id:uid(),projectId:pid,parentId:'',clave:t.k,orden:ordOf(t.k,900),fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',
         asignadoId:'',fechaPlan:cronoAddDays(setup.inicio,span*t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}));
     }
     // Hitos propios del sector (ej. banca: UAIR, AML)
     if(sec&&sec.hitos)sec.hitos.forEach((t,xi)=>{
       const fp=cronoAddDays(setup.inicio,span*t.p);
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:35.5+xi*0.1,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:t.k,orden:35.5+xi*0.1,fase:t.fase,nombre:t.n,ref:t.ref||'',rol:t.rol,revisor:t.rev||'',
         asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     // Hitos GLOBALES. Para auditoría, el paquete administrativo usa el orden maestro (mapeo por nombre).
@@ -4151,7 +4173,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         if(ordMap[key]==null)return; // admin no aplicable en esta variante (ej. "reunión con el cliente" cuando hay interina)
         orden=ordMap[key];fase=CRONO_ADM_FASE[key]||fase;fp=cronoColocar(nuevos,{fase,notas:(+orden<30?'inicio':'fin')}).fp;
       }else{const r=cronoColocar(nuevos,g);orden=r.orden;fp=r.fp;}
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'gl_'+g.id,orden,fase,nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:'gl_'+g.id,orden,fase,nombre:g.nombre,ref:'',rol:g.rol||'Senior',revisor:g.revisor||'',
         asignadoId:'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     // Facturación: con interina 3 cuotas (inicial, inicio etapa final, tras informe); sin interina 2.
@@ -4166,16 +4188,16 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
       : [['fact1','Facturación inicial',fIni,'inicio'],['fact3','Facturación final (tras la entrega del informe)',fFin,'fin']];
     fdefs.forEach(([cl,nm,fase,pos])=>{
       const cc=cronoColocar(nuevos,{fase,notas:pos});
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordOf(cl,cc.orden),fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:cc.fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:cl,orden:ordOf(cl,cc.orden),fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:cc.fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
-    nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.tpl,hitoClave:false});
-    if(sec)nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
+    nuevos.push({id:uid(),projectId:pid,parentId:'',clave:'__tpl',orden:0,fase:'',nombre:'Plantilla',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:effTpl,hitoClave:false});
+    if(sec)nuevos.push({id:uid(),projectId:pid,parentId:'',clave:'__sector',orden:0,fase:'',nombre:'Sector',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:setup.sector,hitoClave:false});
     saveRows(a=>[...a,...nuevos]);
   };
 
   const tieneInterina=rows.some(r=>r.fase==='Auditoría interina');
   const agregarInterina=()=>{
-    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===proj.id);
+    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===pid);
     if(cur.some(r=>r.fase==='Auditoría interina')){alert('Este cronograma ya tiene la visita interina.');return;}
     const fechas=cur.filter(r=>!r.parentId&&r.fechaPlan).map(r=>r.fechaPlan).filter(Boolean).sort();
     const ini=fechas[0]||proj.fechaInicio||hoy,fin=fechas[fechas.length-1]||'';
@@ -4184,7 +4206,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const nuevos=[];
     CRONO_HITOS_INTERINA.forEach((t,ii)=>{
       const fp=span>0?cronoAddDays(ini,span*t.p):ini;
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ii+1,fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:t.k,orden:ii+1,fase:'Auditoría interina',nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:t.rol==='Responsable'?(proj.responsableId||''):'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:!!t.clave});
     });
     // Facturación 3 cuotas (agrega solo las que falten por clave)
     const todos=[...cur,...nuevos];
@@ -4192,13 +4214,13 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     [{c:'fact1',n:'Facturación inicial',fase:'Planificación',pos:'inicio'},{c:'fact2',n:'Facturación al inicio de la etapa final',fase:'Respuesta al riesgo',pos:'inicio'},{c:'fact3',n:'Facturación final (tras la entrega del informe)',fase:'Documentos de cierre',pos:'fin'}].forEach(f=>{
       if(factExist.has(f.c))return;
       const {orden,fp}=cronoColocar(todos,{fase:f.fase,notas:f.pos});
-      nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:f.c,orden,fase:f.fase,nombre:f.n,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:fp||ini,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
+      nuevos.push({id:uid(),projectId:pid,parentId:'',clave:f.c,orden,fase:f.fase,nombre:f.n,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:fp||ini,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     saveRows(a=>[...a,...nuevos]);
   };
 
   const reordenarMaestro=()=>{
-    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===proj.id);
+    const L=lat();const cur=(L.cronograma||[]).filter(r=>r.projectId===pid);
     const interina=cur.some(r=>r.fase==='Auditoría interina');
     const ordMap=interina?CRONO_ORD_INT:CRONO_ORD_FIN;
     const tplFase={};CRONO_TPL_AUDITORIA.forEach(t=>tplFase[t.k]=t.fase);CRONO_HITOS_INTERINA.forEach(t=>tplFase[t.k]='Auditoría interina');
@@ -4221,12 +4243,12 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const nh=interina
       ? [{k:'int_sumarias',fase:'Auditoría interina',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.15},{k:'plan_materialidad_int',fase:'Auditoría interina',n:'Materialidad interina',rol:'Senior',rev:'responsable',p:0.16}]
       : [{k:'plan_sumarias',fase:'Planificación',n:'Preparación de sumarias y agrupaciones',rol:'Semi-Senior',rev:'senior',p:0.1}];
-    nh.forEach(t=>{if(!claves.has(t.k))add.push({id:uid(),projectId:proj.id,parentId:'',clave:t.k,orden:ordMap[t.k]!=null?ordMap[t.k]:900,fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:'',fechaPlan:dateP(t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
+    nh.forEach(t=>{if(!claves.has(t.k))add.push({id:uid(),projectId:pid,parentId:'',clave:t.k,orden:ordMap[t.k]!=null?ordMap[t.k]:900,fase:t.fase,nombre:t.n,ref:'',rol:t.rol,revisor:t.rev||'',asignadoId:'',fechaPlan:dateP(t.p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
     const fdefs=interina?[['fact1','Facturación inicial','Planificación',0.02],['fact2','Facturación al inicio de la etapa final','Documentos de cierre',0.7],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]]:[['fact1','Facturación inicial','Planificación',0.02],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre',1]];
-    fdefs.forEach(([cl,nm,fase,p])=>{if(!claves.has(cl))add.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordMap[cl]!=null?ordMap[cl]:900,fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:dateP(p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
+    fdefs.forEach(([cl,nm,fase,p])=>{if(!claves.has(cl))add.push({id:uid(),projectId:pid,parentId:'',clave:cl,orden:ordMap[cl]!=null?ordMap[cl]:900,fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:dateP(p),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});});
     const byId=new Map(base.map(r=>[r.id,r]));
     // Con interina, la reunión preliminar la cubre la administrativa → quitar la reunión interina sobrante
-    saveRows(a=>[...a.map(r=>byId.has(r.id)?byId.get(r.id):r).filter(r=>!(interina&&r.projectId===proj.id&&r.clave==='int_reunion')),...add]);
+    saveRows(a=>[...a.map(r=>byId.has(r.id)?byId.get(r.id):r).filter(r=>!(interina&&r.projectId===pid&&r.clave==='int_reunion')),...add]);
   };
 
   const marcar=h=>{
@@ -4257,13 +4279,13 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const n=hitoNombre.trim();if(!n)return;
     const enFase=rows.filter(r=>!r.parentId&&r.fase===fase);
     const ord=enFase.reduce((m,c)=>Math.max(m,+c.orden||0),0)+0.1;
-    saveRows(a=>[...a,{id:uid(),projectId:proj.id,parentId:'',clave:'',orden:ord,fase,nombre:n,ref:'',rol:'Senior',revisor:'responsable',asignadoId:'',fechaPlan:hitoFecha||'',fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}]);
+    saveRows(a=>[...a,{id:uid(),projectId:pid,parentId:'',clave:'',orden:ord,fase,nombre:n,ref:'',rol:'Senior',revisor:'responsable',asignadoId:'',fechaPlan:hitoFecha||'',fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false}]);
     setHitoNombre('');setHitoFecha('');setHitoFase(null);
   };
   const correrFechas=()=>{
     const n=parseInt(correr,10);if(!n)return;
     if(!window.confirm('¿Mover '+(n>0?n+' días hacia adelante':Math.abs(n)+' días hacia atrás')+' todas las fechas de hitos pendientes?'))return;
-    saveRows(a=>a.map(r=>r.projectId===proj.id&&r.estado==='pendiente'&&r.fechaPlan?{...r,fechaPlan:cronoAddDays(r.fechaPlan,n)}:r));
+    saveRows(a=>a.map(r=>r.projectId===pid&&r.estado==='pendiente'&&r.fechaPlan?{...r,fechaPlan:cronoAddDays(r.fechaPlan,n)}:r));
     setCorrer('');
   };
 
@@ -4273,10 +4295,10 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     const url=v.trim();
     if(url&&!/^https:\/\//i.test(url)){alert('El enlace debe empezar por https://');return;}
     saveRows(a=>{
-      const ex=a.find(r=>r.projectId===proj.id&&r.clave===CRONO_META);
-      if(!url)return a.filter(r=>!(r.projectId===proj.id&&r.clave===CRONO_META));
+      const ex=a.find(r=>r.projectId===pid&&r.clave===CRONO_META);
+      if(!url)return a.filter(r=>!(r.projectId===pid&&r.clave===CRONO_META));
       if(ex)return a.map(r=>r===ex?{...r,notas:url}:r);
-      return [...a,{id:uid(),projectId:proj.id,parentId:'',clave:CRONO_META,orden:0,fase:'',nombre:'Enlace CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:url,hitoClave:false}];
+      return [...a,{id:uid(),projectId:pid,parentId:'',clave:CRONO_META,orden:0,fase:'',nombre:'Enlace CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:url,hitoClave:false}];
     });
   };
   const aplicarCW=res=>{
@@ -4290,9 +4312,9 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         if(c.to==='revisado')Object.assign(n,{revisadoPor:(c.rev||'CaseWare')+' · CaseWare',fechaRevisado:hoy_});
         return n;
       });
-      const ex=out.find(r=>r.projectId===proj.id&&r.clave==='__cwsync');
+      const ex=out.find(r=>r.projectId===pid&&r.clave==='__cwsync');
       if(ex)out=out.map(r=>r===ex?{...r,notas:JSON.stringify(meta)}:r);
-      else out=[...out,{id:uid(),projectId:proj.id,parentId:'',clave:'__cwsync',orden:0,fase:'',nombre:'Sincronización CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:JSON.stringify(meta),hitoClave:false}];
+      else out=[...out,{id:uid(),projectId:pid,parentId:'',clave:'__cwsync',orden:0,fase:'',nombre:'Sincronización CaseWare',ref:'',rol:'',revisor:'',asignadoId:'',fechaPlan:'',fechaReal:'',estado:'na',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:JSON.stringify(meta),hitoClave:false}];
       return out;
     });
     setShowCW(false);
@@ -4312,28 +4334,30 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
   // ── Sin cronograma: formulario de creación ──
   if(!rows.length){
     if(!perm.gestion)return <div className="bg-white border rounded-xl p-6 text-center text-gray-400 text-xs">Este encargo aún no tiene cronograma. Lo crea el responsable del proyecto o un socio.</div>;
-    return(<div>{linkBar}
+    return(<div>{linkBar}{tabsBar}
       <div className="bg-white border rounded-xl p-5 max-w-2xl">
-        <h3 className="font-bold text-sm mb-1">🗓️ Crear cronograma del encargo</h3>
-        <p className="text-xs text-gray-500 mb-4">Se carga la plantilla de hitos con fechas estimadas distribuidas entre el inicio y la fecha compromiso del informe. Luego puedes ajustar fechas, asignar personas, agregar áreas o hitos y marcar lo que no aplique.</p>
+        <h3 className="font-bold text-sm mb-1">🗓️ Crear cronograma {encargo==='siar'?'de la Revisión SIAR':'del encargo'}</h3>
+        <p className="text-xs text-gray-500 mb-4">{encargo==='siar'?'Este es un segundo cronograma del mismo proyecto, independiente del principal, para la Revisión SIAR.':'Se carga la plantilla de hitos con fechas estimadas distribuidas entre el inicio y la fecha compromiso del informe. Luego puedes ajustar fechas, asignar personas, agregar áreas o hitos y marcar lo que no aplique.'}</p>
         <div className="grid grid-cols-2 gap-3 text-xs">
-          <label className="col-span-2">Plantilla
+          {encargo==='siar'
+            ? <div className="col-span-2 text-xs"><span className="text-gray-500">Plantilla:</span> <b>Revisión SIAR – empresas de seguros ({CRONO_TPL_SIAR.length} hitos)</b></div>
+            : <label className="col-span-2">Plantilla
             <select value={setup.tpl} onChange={e=>setSetup({...setup,tpl:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
               <option value="auditoria">Auditoría de estados financieros (Global Focus · {CRONO_TPL_AUDITORIA.length} hitos)</option>
               <option value="nia800">Revisión / auditoría NIA 800 / 805 – fuera de CaseWare ({CRONO_TPL_NIA800.length} hitos)</option>
               <option value="siar">Revisión SIAR – empresas de seguros ({CRONO_TPL_SIAR.length} hitos)</option>
               <option value="generico">Otros servicios (genérica · {CRONO_TPL_GENERICO.length} hitos)</option>
-            </select></label>
+            </select></label>}
           <label>Fecha de inicio
             <input type="date" value={setup.inicio} onChange={e=>setSetup({...setup,inicio:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
           <label>Fecha compromiso del informe final
             <input type="date" value={setup.informe} onChange={e=>setSetup({...setup,informe:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
-          {setup.tpl==='nia800'&&<>
+          {formTpl==='nia800'&&<>
             <label className="col-span-2">Elementos, cuentas o estados a revisar <span className="text-gray-400">(uno por línea; cada uno será un área a completar)</span>
               <textarea value={setup.elementos} onChange={e=>setSetup({...setup,elementos:e.target.value})} rows={4} placeholder={'Ej.:\nCuentas por cobrar\nIngresos\nInventarios'} className="w-full border rounded-lg px-2 py-1.5 mt-1"/></label>
             <label className="flex items-center gap-2"><input type="checkbox" checked={setup.conf} onChange={e=>setSetup({...setup,conf:e.target.checked})}/> Incluye confirmaciones a terceros</label>
           </>}
-          {setup.tpl==='auditoria'&&<>
+          {formTpl==='auditoria'&&<>
             <label className="col-span-2">Sector / tipo de empresa
               <select value={setup.sector} onChange={e=>setSetup({...setup,sector:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
                 {CRONO_SECTOR_ORDEN.map(k=><option key={k} value={k}>{CRONO_SECTORES[k].l} ({CRONO_SECTORES[k].sust.length} áreas sustantivas)</option>)}
@@ -4351,7 +4375,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
     );
   }
 
-  const res=cronoResumen(proj.id,all,hoy);
+  const res=cronoResumen(pid,all,hoy);
   const top=rows.filter(r=>!r.parentId).sort((a,b)=>(+a.orden||0)-(+b.orden||0));
   const fases=[];top.forEach(h=>{if(!fases.includes(h.fase))fases.push(h.fase);});
   const pct=res.total?Math.round(res.hechos/res.total*100):0;
@@ -4442,6 +4466,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
 
   return(
     <div>
+      {tabsBar}
       {linkBar}
       {showCW&&<CronoCWImport proj={proj} rows={rows} onApply={aplicarCW} onClose={()=>setShowCW(false)}/>}
       {res.campoSinInforme&&(
@@ -4500,6 +4525,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
 
 function ACronograma({data,save,currentUser,getLatestData}){
   const [sel,setSel]=useState(null);
+  const [selEnc,setSelEnc]=useState('aud');
   const [crearSel,setCrearSel]=useState('');
   const [showGlobales,setShowGlobales]=useState(false);
   const [gForm,setGForm]=useState({nombre:'',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'});
@@ -4520,7 +4546,7 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const proj=sel&&(data.projects||[]).find(p=>p.id===sel);
   if(proj)return(
     <div className="p-6">
-      <button onClick={()=>setSel(null)} className="text-indigo-600 mb-3 block text-xs">← Volver al seguimiento</button>
+      <button onClick={()=>{setSel(null);setSelEnc('aud');}} className="text-indigo-600 mb-3 block text-xs">← Volver al seguimiento</button>
       <div className="mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-bold text-base">{proj.name}</h2>
@@ -4529,12 +4555,14 @@ function ACronograma({data,save,currentUser,getLatestData}){
         </div>
         <p className="text-gray-400 text-xs">{proj.client} · Responsable: {(userById(proj.responsableId)||{}).name||'—'}</p>
       </div>
-      <CronogramaProyecto proj={proj} data={data} save={save} currentUser={currentUser} getLatestData={getLatestData}/>
+      <CronogramaProyecto proj={proj} data={data} save={save} currentUser={currentUser} getLatestData={getLatestData} encargo={selEnc}/>
     </div>
   );
 
   const orden={rojo:0,amarillo:1,verde:2,sin:3,ok:4};
-  let filas=proyectos.map(p=>({p,r:cronoResumen(p.id,crono,hoy)}));
+  // Encargos SIAR = segundo cronograma del mismo proyecto (projectId::siar); se listan como filas propias.
+  const siarFilas=proyectos.filter(p=>crono.some(r=>r.projectId===p.id+'::siar')).map(p=>({p,enc:'siar',r:cronoResumen(p.id+'::siar',crono,hoy)}));
+  let filas=[...proyectos.map(p=>({p,enc:'aud',r:cronoResumen(p.id,crono,hoy)})),...siarFilas];
   if(fResp)filas=filas.filter(x=>x.p.responsableId===fResp);
   if(busca.trim()){const b=cronoNorm(busca);filas=filas.filter(x=>cronoNorm(x.p.name+' '+x.p.client+' '+(x.p.codigo||'')).includes(b));}
   if(soloAlertas)filas=filas.filter(x=>x.r.sem==='rojo'||x.r.sem==='amarillo'||x.r.campoSinInforme);
@@ -4547,19 +4575,20 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const filasTabla=filas.filter(x=>x.r.sem!=='sin'); // la tabla muestra solo encargos CON cronograma; los pendientes van al desplegable
   const verTodoCrono=role==='admin'||role==='administracion'||role==='socio';
   const puedeCrearCrono=verTodoCrono||role==='responsable';
-  const creables=filas.filter(x=>x.r.sem==='sin'&&(verTodoCrono||x.p.responsableId===me)).map(x=>x.p)
+  const creables=filas.filter(x=>x.enc==='aud'&&x.r.sem==='sin'&&(verTodoCrono||x.p.responsableId===me)).map(x=>x.p)
     .sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
-  const todos=proyectos.map(p=>cronoResumen(p.id,crono,hoy));
+  const todos=[...proyectos.map(p=>cronoResumen(p.id,crono,hoy)),...siarFilas.map(x=>x.r)];
   const kpi={atraso:todos.filter(r=>r.sem==='rojo').length,porVencer:todos.filter(r=>r.sem==='amarillo').length,revisar:todos.reduce((s,r)=>s+r.porRevisar,0),sin:todos.filter(r=>r.sem==='sin').length,campo:todos.filter(r=>r.campoSinInforme).length};
   const responsables=[...new Set(proyectos.map(p=>p.responsableId).filter(Boolean))].map(id=>userById(id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
 
   // Mis tareas: hitos asignados a mí pendientes + hitos que me toca revisar
   const ids=new Set(proyectos.map(p=>p.id));
-  const projById=id=>(data.projects||[]).find(p=>p.id===id)||{};
-  const misTareas=crono.filter(r=>ids.has(r.projectId)&&r.asignadoId===me&&r.estado==='pendiente'&&!crono.some(c=>c.parentId===r.id))
+  const baseId=id=>String(id).split('::')[0]; // 'proyecto::siar' → 'proyecto'
+  const projById=id=>(data.projects||[]).find(p=>p.id===baseId(id))||{};
+  const misTareas=crono.filter(r=>ids.has(baseId(r.projectId))&&r.asignadoId===me&&r.estado==='pendiente'&&!crono.some(c=>c.parentId===r.id))
     .filter(r=>!r.parentId||(crono.find(x=>x.id===r.parentId)||{}).estado!=='na')
     .sort((a,b)=>(a.fechaPlan||'9').localeCompare(b.fechaPlan||'9'));
-  const porRevisarMi=crono.filter(r=>ids.has(r.projectId)&&r.estado==='hecho'&&r.revisor&&cronoPerms(projById(r.projectId),data,currentUser).puedeRevisar(r))
+  const porRevisarMi=crono.filter(r=>ids.has(baseId(r.projectId))&&r.estado==='hecho'&&r.revisor&&cronoPerms(projById(r.projectId),data,currentUser).puedeRevisar(r))
     .sort((a,b)=>(a.fechaReal||'').localeCompare(b.fechaReal||''));
   const marcarHecho=r=>{const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).map(x=>x.id===r.id?{...x,estado:'hecho',fechaReal:x.fechaReal||hoy,hechoPor:(currentUser&&currentUser.name)||''}:x)});};
   const revisarHito=r=>{const L=(getLatestData&&getLatestData())||data;save({...L,cronograma:(L.cronograma||[]).map(x=>x.id===r.id?{...x,estado:'revisado',revisadoPor:(currentUser&&currentUser.name)||'',fechaRevisado:hoy}:x)});};
@@ -4701,13 +4730,13 @@ function ACronograma({data,save,currentUser,getLatestData}){
             </tr></thead>
             <tbody>
               {filasTabla.length===0&&<tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400">No hay encargos con cronograma para mostrar.{creables.length>0?' Usa el desplegable de arriba para crear uno.':''}</td></tr>}
-              {filasTabla.map(({p,r})=>{
+              {filasTabla.map(({p,r,enc})=>{
                 const S=CRONO_SEM[r.sem];const pct=r.total?Math.round(r.hechos/r.total*100):0;
-                const v=r.vencidos[0];
+                const v=r.vencidos[0];const esSiar=enc==='siar';
                 return(
-                  <tr key={p.id} className="border-t hover:bg-gray-50 cursor-pointer" onClick={()=>setSel(p.id)}>
+                  <tr key={p.id+(enc||'')} className="border-t hover:bg-gray-50 cursor-pointer" onClick={()=>{setSel(p.id);setSelEnc(enc||'aud');}}>
                     <td className="px-3 py-2"><span className={'inline-block w-3 h-3 rounded-full '+S.dot} title={S.l}/></td>
-                    <td className="px-3 py-2"><div className="font-medium text-gray-800">{p.name}{cronoLink(data,p.id)&&<a href={cronoLink(data,p.id)} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} className="ml-2 text-[10px] text-blue-600 hover:underline font-normal" title="Abrir encargo en CaseWare">CaseWare ↗</a>}</div><div className="text-gray-400">{p.client}{p.codigo?' · '+p.codigo:''}{p.preCierre?' · Pre-cierre':''}{p.cerrado?' · Cerrado':''}</div></td>
+                    <td className="px-3 py-2"><div className="font-medium text-gray-800">{p.name}{esSiar&&<span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold align-middle">🛡️ SIAR</span>}{!esSiar&&cronoLink(data,p.id)&&<a href={cronoLink(data,p.id)} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} className="ml-2 text-[10px] text-blue-600 hover:underline font-normal" title="Abrir encargo en CaseWare">CaseWare ↗</a>}</div><div className="text-gray-400">{p.client}{p.codigo?' · '+p.codigo:''}{p.preCierre?' · Pre-cierre':''}{p.cerrado?' · Cerrado':''}</div></td>
                     <td className="px-3 py-2 text-gray-600">{(userById(p.responsableId)||{}).name||'—'}</td>
                     <td className="px-3 py-2">{r.sem==='sin'?<span className="text-gray-400">—</span>:<>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width:pct+'%'}}/></div>
