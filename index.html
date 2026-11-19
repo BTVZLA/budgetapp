@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-19c';
+const APP_VERSION='v2026-11-19d';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3730,14 +3730,18 @@ const CRONO_TPL_GENERICO=[
 // Revisión SIAR — empresas de seguros (SUDEASEG). Revisión regulatoria específica (fuera de CaseWare).
 const CRONO_TPL_SIAR=[
   {k:'reunion_inicial',fase:'Inicio',n:'Reunión inicial (antes del envío de requerimientos)',ref:'SUDEASEG',rol:'Responsable',rev:'',p:0.02},
-  {k:'envio_req',fase:'Inicio',n:'Envío de requerimientos',ref:'',rol:'Senior',rev:'responsable',p:0.08},
-  {k:'solicitud_listados',fase:'Inicio',n:'Solicitud de listados de políticas / para selección de expedientes',ref:'',rol:'Senior',rev:'responsable',p:0.14},
-  {k:'revision_doc',fase:'Ejecución',n:'Revisión de documentación por cada fase de la normativa',ref:'SUDEASEG',rol:'Semi-Senior',rev:'senior',p:0.35},
-  {k:'checklist_lc',fase:'Ejecución',n:'Llenado del C-1 Checklist de Legitimación de Capitales',ref:'C-1',rol:'Semi-Senior',rev:'senior',p:0.48},
-  {k:'descarga_ppc',fase:'Ejecución',n:'Descarga de los PPC que respaldan la revisión para cruzar con el checklist',ref:'',rol:'Asistente',rev:'senior',p:0.58},
-  {k:'borrador',fase:'Informe',n:'Elaboración del borrador',ref:'',rol:'Responsable',rev:'',p:0.72,clave:true},
-  {k:'entrega_revisor',fase:'Informe',n:'Entrega al socio revisor y posterior al cliente para revisión',ref:'',rol:'Socio',rev:'',p:0.82,clave:true},
-  {k:'discusion',fase:'Informe',n:'Discusión de los puntos de revisión',ref:'',rol:'Responsable',rev:'',p:0.9},
+  {k:'envio_req',fase:'Inicio',n:'Envío de requerimientos',ref:'',rol:'Senior',rev:'responsable',p:0.07},
+  {k:'solicitud_listados',fase:'Inicio',n:'Solicitud de listados de políticas / para selección de expedientes',ref:'',rol:'Senior',rev:'responsable',p:0.12},
+  {k:'revision_doc',fase:'Ejecución',n:'Revisión de documentación por cada fase de la normativa',ref:'SUDEASEG',rol:'Semi-Senior',rev:'senior',p:0.28},
+  {k:'checklist_lc',fase:'Ejecución',n:'Llenado del C-1 Checklist de Legitimación de Capitales',ref:'C-1',rol:'Semi-Senior',rev:'senior',p:0.38},
+  {k:'descarga_ppc',fase:'Ejecución',n:'Descarga de los PPC que respaldan la revisión para cruzar con el checklist',ref:'',rol:'Asistente',rev:'senior',p:0.46},
+  {k:'borrador',fase:'Informe',n:'Elaboración del borrador',ref:'',rol:'Responsable',rev:'',p:0.58,clave:true},
+  {k:'rev_director',fase:'Informe',n:'Revisión del Director / Gerente del borrador',ref:'',rol:'Responsable',rev:'',p:0.64},
+  {k:'segunda_rev',fase:'Informe',n:'Segunda revisión',ref:'',rol:'Responsable',rev:'',p:0.70},
+  {k:'entrega_socio',fase:'Informe',n:'Entrega al socio revisor',ref:'',rol:'Socio',rev:'',p:0.76,clave:true},
+  {k:'envio_cliente',fase:'Informe',n:'Envío del borrador al cliente',ref:'',rol:'Responsable',rev:'',p:0.82,clave:true},
+  {k:'discusion',fase:'Informe',n:'Discusión de los puntos de revisión',ref:'',rol:'Responsable',rev:'',p:0.88},
+  {k:'segundo_borrador',fase:'Informe',n:'Envío del segundo borrador',ref:'',rol:'Responsable',rev:'',p:0.94},
   {k:'informe_def',fase:'Informe',n:'Entrega del informe definitivo',ref:'',rol:'Socio',rev:'',p:1,clave:true},
 ];
 const CRONO_TPLS={auditoria:CRONO_TPL_AUDITORIA,nia800:CRONO_TPL_NIA800,generico:CRONO_TPL_GENERICO,siar:CRONO_TPL_SIAR};
@@ -4121,6 +4125,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData,encargo:en
     const span=cronoDiff(setup.informe,setup.inicio);
     if(span<=0){alert('La fecha del informe debe ser posterior a la fecha de inicio.');return;}
     const effTpl=encargo==='siar'?'siar':setup.tpl; // en el encargo SIAR la plantilla es siempre SIAR
+    const esSiar=effTpl==='siar'; // SIAR: SOLO los hitos de la plantilla (sin paquete admin global ni facturación)
     const tpl=CRONO_TPLS[effTpl]||CRONO_TPL_GENERICO;
     const elems=setup.elementos.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
     // Sector (solo auditoría): define áreas sustantivas/controles, si aplica inventario e hitos extra
@@ -4166,7 +4171,8 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData,encargo:en
         asignadoId:'',fechaPlan:fp,fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     // Hitos GLOBALES. Para auditoría, el paquete administrativo usa el orden maestro (mapeo por nombre).
-    cronoGlobales(data).forEach(g=>{
+    // El SIAR NO recibe hitos globales (debe llevar solo sus propios hitos).
+    if(!esSiar)cronoGlobales(data).forEach(g=>{
       const key=esAud?cronoAdmKey(g.nombre):null;
       let orden,fp,fase=g.fase||'';
       if(ordMap&&key){
@@ -4181,7 +4187,9 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData,encargo:en
     // (primera fase; y la fase del hito final = mayor p) para no inventar fases "Planificación"/"Documentos de cierre".
     const fIni=(tpl[0]||{}).fase||'Planificación';
     const fFin=(tpl.reduce((a,b)=>((+b.p||0)>(+a.p||0)?b:a),tpl[0]||{})||{}).fase||fIni;
-    const fdefs=esAud
+    const fdefs=esSiar
+      ? [] // el SIAR no genera cuotas de facturación: solo lleva los hitos suministrados
+      : esAud
       ? (haceInterina
           ? [['fact1','Facturación inicial','Planificación','inicio'],['fact2','Facturación al inicio de la etapa final','Documentos de cierre','fin'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']]
           : [['fact1','Facturación inicial','Planificación','inicio'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']])
@@ -4319,9 +4327,15 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData,encargo:en
     });
     setShowCW(false);
   };
+  const eliminarCrono=()=>{
+    if(!window.confirm('¿Eliminar por completo este cronograma de la Revisión SIAR? Se borran sus hitos. El cronograma principal (auditoría) NO se toca. Podrás volver a crearlo.'))return;
+    saveRows(a=>a.filter(r=>r.projectId!==pid));
+    setEncargo('siar');
+  };
   const linkBar=(cwLink||perm.gestion)?(
     <div className="mb-3 flex items-center gap-2 text-xs">
       <span className="text-gray-500">{usaCW?'🔗 CaseWare – Global Focus:':'📁 Papeles de trabajo (fuera de CaseWare):'}</span>
+      {perm.gestion&&encargo==='siar'&&rows.length>0&&<button onClick={eliminarCrono} className="px-2.5 py-1 rounded-lg bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium" title="Borra este cronograma SIAR para volver a crearlo (no afecta el cronograma principal)">🗑 Eliminar y rehacer este SIAR</button>}
       {cwLink?<a href={cwLink} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 font-medium">{usaCW?'Abrir encargo en CaseWare ↗':'Abrir carpeta ↗'}</a>
         :<span className="text-gray-400">sin enlazar</span>}
       {perm.gestion&&<button onClick={editarLink} className="text-indigo-600 hover:underline">{cwLink?'✏️ Cambiar':(usaCW?'＋ Enlazar encargo':'＋ Enlazar carpeta')}</button>}
