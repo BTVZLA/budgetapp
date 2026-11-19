@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-16c';
+const APP_VERSION='v2026-11-19a';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -3727,7 +3727,20 @@ const CRONO_TPL_GENERICO=[
   {k:'rev_socio_fin',fase:'Revisión',n:'Revisión del socio',ref:'',rol:'Socio',rev:'',p:0.9,clave:true},
   {k:'informe_final',fase:'Entrega',n:'Entregable final entregado al cliente',ref:'',rol:'Socio',rev:'',p:1,clave:true},
 ];
-const CRONO_TPLS={auditoria:CRONO_TPL_AUDITORIA,nia800:CRONO_TPL_NIA800,generico:CRONO_TPL_GENERICO};
+// Revisión SIAR — empresas de seguros (SUDEASEG). Revisión regulatoria específica (fuera de CaseWare).
+const CRONO_TPL_SIAR=[
+  {k:'reunion_inicial',fase:'Inicio',n:'Reunión inicial (antes del envío de requerimientos)',ref:'SUDEASEG',rol:'Responsable',rev:'',p:0.02},
+  {k:'envio_req',fase:'Inicio',n:'Envío de requerimientos',ref:'',rol:'Senior',rev:'responsable',p:0.08},
+  {k:'solicitud_listados',fase:'Inicio',n:'Solicitud de listados de políticas / para selección de expedientes',ref:'',rol:'Senior',rev:'responsable',p:0.14},
+  {k:'revision_doc',fase:'Ejecución',n:'Revisión de documentación por cada fase de la normativa',ref:'SUDEASEG',rol:'Semi-Senior',rev:'senior',p:0.35},
+  {k:'checklist_lc',fase:'Ejecución',n:'Llenado del C-1 Checklist de Legitimación de Capitales',ref:'C-1',rol:'Semi-Senior',rev:'senior',p:0.48},
+  {k:'descarga_ppc',fase:'Ejecución',n:'Descarga de los PPC que respaldan la revisión para cruzar con el checklist',ref:'',rol:'Asistente',rev:'senior',p:0.58},
+  {k:'borrador',fase:'Informe',n:'Elaboración del borrador',ref:'',rol:'Responsable',rev:'',p:0.72,clave:true},
+  {k:'entrega_revisor',fase:'Informe',n:'Entrega al socio revisor y posterior al cliente para revisión',ref:'',rol:'Socio',rev:'',p:0.82,clave:true},
+  {k:'discusion',fase:'Informe',n:'Discusión de los puntos de revisión',ref:'',rol:'Responsable',rev:'',p:0.9},
+  {k:'informe_def',fase:'Informe',n:'Entrega del informe definitivo',ref:'',rol:'Socio',rev:'',p:1,clave:true},
+];
+const CRONO_TPLS={auditoria:CRONO_TPL_AUDITORIA,nia800:CRONO_TPL_NIA800,generico:CRONO_TPL_GENERICO,siar:CRONO_TPL_SIAR};
 const CRONO_ROLES=['Socio','Responsable','Senior','Semi-Senior','Asistente','Equipo','Revisor RCE'];
 const CRONO_REV_LBL={'':'—','senior':'Senior','responsable':'Responsable','socio':'Socio'};
 const CRONO_SEM={
@@ -4142,11 +4155,15 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
         asignadoId:'',fechaPlan:fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
     });
     // Facturación: con interina 3 cuotas (inicial, inicio etapa final, tras informe); sin interina 2.
+    // Para plantillas no-auditoría, la facturación usa las fases reales de la plantilla elegida
+    // (primera fase; y la fase del hito final = mayor p) para no inventar fases "Planificación"/"Documentos de cierre".
+    const fIni=(tpl[0]||{}).fase||'Planificación';
+    const fFin=(tpl.reduce((a,b)=>((+b.p||0)>(+a.p||0)?b:a),tpl[0]||{})||{}).fase||fIni;
     const fdefs=esAud
       ? (haceInterina
           ? [['fact1','Facturación inicial','Planificación','inicio'],['fact2','Facturación al inicio de la etapa final','Documentos de cierre','fin'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']]
           : [['fact1','Facturación inicial','Planificación','inicio'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']])
-      : [['fact1','Facturación inicial','Planificación','inicio'],['fact3','Facturación final (tras la entrega del informe)','Documentos de cierre','fin']];
+      : [['fact1','Facturación inicial',fIni,'inicio'],['fact3','Facturación final (tras la entrega del informe)',fFin,'fin']];
     fdefs.forEach(([cl,nm,fase,pos])=>{
       const cc=cronoColocar(nuevos,{fase,notas:pos});
       nuevos.push({id:uid(),projectId:proj.id,parentId:'',clave:cl,orden:ordOf(cl,cc.orden),fase,nombre:nm,ref:'',rol:'Responsable',revisor:'',asignadoId:proj.responsableId||'',fechaPlan:cc.fp||cronoAddDays(setup.inicio,0),fechaReal:'',estado:'pendiente',hechoPor:'',revisadoPor:'',fechaRevisado:'',notas:'',hitoClave:false});
@@ -4304,6 +4321,7 @@ function CronogramaProyecto({proj,data,save,currentUser,getLatestData}){
             <select value={setup.tpl} onChange={e=>setSetup({...setup,tpl:e.target.value})} className="w-full border rounded-lg px-2 py-1.5 mt-1">
               <option value="auditoria">Auditoría de estados financieros (Global Focus · {CRONO_TPL_AUDITORIA.length} hitos)</option>
               <option value="nia800">Revisión / auditoría NIA 800 / 805 – fuera de CaseWare ({CRONO_TPL_NIA800.length} hitos)</option>
+              <option value="siar">Revisión SIAR – empresas de seguros ({CRONO_TPL_SIAR.length} hitos)</option>
               <option value="generico">Otros servicios (genérica · {CRONO_TPL_GENERICO.length} hitos)</option>
             </select></label>
           <label>Fecha de inicio
