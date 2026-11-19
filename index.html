@@ -35,7 +35,7 @@ const TIMESHEET_LUGARES=['Sede Cliente','Oficina BT','Home Office'];
 // Ausencias / no disponibilidad para bloquear personas en la Planificación
 const PLAN_AUSENCIAS=['Vacaciones','Reposo','Día Feriado','Permiso','Cumpleaños','Entrenamiento','Asignación Especial','No disponible'];
 // Versión de la app (subir con cada despliegue) — sirve para confirmar que un usuario tiene la versión actual y no una cacheada
-const APP_VERSION='v2026-11-19b';
+const APP_VERSION='v2026-11-19c';
 const HOURS_PER_DAY=8;
 const DAY_NAMES=['Lunes','Martes','Miércoles','Jueves','Viernes'];
 const STATUS_OPTS=['Aprobado','Por Enviar','Enviada al Cliente'];
@@ -4527,6 +4527,7 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const [sel,setSel]=useState(null);
   const [selEnc,setSelEnc]=useState('aud');
   const [crearSel,setCrearSel]=useState('');
+  const [crearSiarSel,setCrearSiarSel]=useState('');
   const [showGlobales,setShowGlobales]=useState(false);
   const [gForm,setGForm]=useState({nombre:'',fase:'Planificación',pos:'inicio',rol:'Senior',rev:'responsable'});
   const [vista,setVista]=useState('seguimiento');
@@ -4576,6 +4577,13 @@ function ACronograma({data,save,currentUser,getLatestData}){
   const verTodoCrono=role==='admin'||role==='administracion'||role==='socio';
   const puedeCrearCrono=verTodoCrono||role==='responsable';
   const creables=filas.filter(x=>x.enc==='aud'&&x.r.sem==='sin'&&(verTodoCrono||x.p.responsableId===me)).map(x=>x.p)
+    .sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
+  // Encargos que YA tienen cronograma principal (seguros/auditoría) pero aún NO tienen Revisión SIAR
+  const metaDe=(pjid,clave)=>((data.cronograma||[]).find(r=>r.projectId===pjid&&r.clave===clave)||{}).notas||'';
+  const creablesSiar=proyectos.filter(p=>(verTodoCrono||p.responsableId===me)
+      &&crono.some(r=>r.projectId===p.id)
+      &&!crono.some(r=>r.projectId===p.id+'::siar')
+      &&(metaDe(p.id,'__sector')==='seguros'||metaDe(p.id,'__tpl')==='auditoria'))
     .sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
   const todos=[...proyectos.map(p=>cronoResumen(p.id,crono,hoy)),...siarFilas.map(x=>x.r)];
   const kpi={atraso:todos.filter(r=>r.sem==='rojo').length,porVencer:todos.filter(r=>r.sem==='amarillo').length,revisar:todos.reduce((s,r)=>s+r.porRevisar,0),sin:todos.filter(r=>r.sem==='sin').length,campo:todos.filter(r=>r.campoSinInforme).length};
@@ -4672,6 +4680,17 @@ function ACronograma({data,save,currentUser,getLatestData}){
             </select>
             <button onClick={()=>{if(crearSel)setSel(crearSel);}} disabled={!crearSel} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-medium">Crear →</button>
             <span className="text-gray-400">Luego eliges el tipo/sector en el formulario.</span>
+          </div>
+        )}
+        {puedeCrearCrono&&creablesSiar.length>0&&(
+          <div className="flex items-center gap-2 mb-3 text-xs bg-purple-50 border border-purple-200 rounded-xl px-3 py-2 flex-wrap">
+            <span className="font-semibold text-purple-700">🛡️ Crear Revisión SIAR (encargo aparte):</span>
+            <select value={crearSiarSel} onChange={e=>setCrearSiarSel(e.target.value)} className="border rounded-lg px-2 py-1.5 bg-white min-w-72">
+              <option value="">— Cliente que ya tiene cronograma, para agregarle el SIAR ({creablesSiar.length}) —</option>
+              {creablesSiar.map(p=><option key={p.id} value={p.id}>{p.name}{p.codigo?' · '+p.codigo:''}</option>)}
+            </select>
+            <button onClick={()=>{if(crearSiarSel){setSel(crearSiarSel);setSelEnc('siar');}}} disabled={!crearSiarSel} className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white font-medium">Crear SIAR →</button>
+            <span className="text-gray-400">Se crea un 2º cronograma sin tocar el principal.</span>
           </div>
         )}
         {verTodoCrono&&(
